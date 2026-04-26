@@ -12,10 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppSitesRouteImport } from './routes/_app.sites'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
 import { Route as AppEmployeesNewRouteImport } from './routes/_app.employees.new'
+import { Route as AppEmployeesImportRouteImport } from './routes/_app.employees.import'
 import { Route as AppEmployeesEmployeeIdRouteImport } from './routes/_app.employees.$employeeId'
+import { Route as AppAdminUsersRouteImport } from './routes/_app.admin.users'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -30,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppSitesRoute = AppSitesRouteImport.update({
+  id: '/sites',
+  path: '/sites',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
@@ -46,9 +54,19 @@ const AppEmployeesNewRoute = AppEmployeesNewRouteImport.update({
   path: '/employees/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEmployeesImportRoute = AppEmployeesImportRouteImport.update({
+  id: '/employees/import',
+  path: '/employees/import',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEmployeesEmployeeIdRoute = AppEmployeesEmployeeIdRouteImport.update({
   id: '/employees/$employeeId',
   path: '/employees/$employeeId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -56,7 +74,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/sites': typeof AppSitesRoute
+  '/admin/users': typeof AppAdminUsersRoute
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/import': typeof AppEmployeesImportRoute
   '/employees/new': typeof AppEmployeesNewRoute
   '/employees/': typeof AppEmployeesIndexRoute
 }
@@ -64,7 +85,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/sites': typeof AppSitesRoute
+  '/admin/users': typeof AppAdminUsersRoute
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/import': typeof AppEmployeesImportRoute
   '/employees/new': typeof AppEmployeesNewRoute
   '/employees': typeof AppEmployeesIndexRoute
 }
@@ -74,7 +98,10 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/sites': typeof AppSitesRoute
+  '/_app/admin/users': typeof AppAdminUsersRoute
   '/_app/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/_app/employees/import': typeof AppEmployeesImportRoute
   '/_app/employees/new': typeof AppEmployeesNewRoute
   '/_app/employees/': typeof AppEmployeesIndexRoute
 }
@@ -84,7 +111,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/sites'
+    | '/admin/users'
     | '/employees/$employeeId'
+    | '/employees/import'
     | '/employees/new'
     | '/employees/'
   fileRoutesByTo: FileRoutesByTo
@@ -92,7 +122,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/sites'
+    | '/admin/users'
     | '/employees/$employeeId'
+    | '/employees/import'
     | '/employees/new'
     | '/employees'
   id:
@@ -101,7 +134,10 @@ export interface FileRouteTypes {
     | '/_app'
     | '/auth'
     | '/_app/dashboard'
+    | '/_app/sites'
+    | '/_app/admin/users'
     | '/_app/employees/$employeeId'
+    | '/_app/employees/import'
     | '/_app/employees/new'
     | '/_app/employees/'
   fileRoutesById: FileRoutesById
@@ -135,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/sites': {
+      id: '/_app/sites'
+      path: '/sites'
+      fullPath: '/sites'
+      preLoaderRoute: typeof AppSitesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -156,6 +199,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEmployeesNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/employees/import': {
+      id: '/_app/employees/import'
+      path: '/employees/import'
+      fullPath: '/employees/import'
+      preLoaderRoute: typeof AppEmployeesImportRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/employees/$employeeId': {
       id: '/_app/employees/$employeeId'
       path: '/employees/$employeeId'
@@ -163,19 +213,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEmployeesEmployeeIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/users': {
+      id: '/_app/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
+  AppSitesRoute: typeof AppSitesRoute
+  AppAdminUsersRoute: typeof AppAdminUsersRoute
   AppEmployeesEmployeeIdRoute: typeof AppEmployeesEmployeeIdRoute
+  AppEmployeesImportRoute: typeof AppEmployeesImportRoute
   AppEmployeesNewRoute: typeof AppEmployeesNewRoute
   AppEmployeesIndexRoute: typeof AppEmployeesIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
+  AppSitesRoute: AppSitesRoute,
+  AppAdminUsersRoute: AppAdminUsersRoute,
   AppEmployeesEmployeeIdRoute: AppEmployeesEmployeeIdRoute,
+  AppEmployeesImportRoute: AppEmployeesImportRoute,
   AppEmployeesNewRoute: AppEmployeesNewRoute,
   AppEmployeesIndexRoute: AppEmployeesIndexRoute,
 }
