@@ -9,38 +9,221 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppSitesRouteImport } from './routes/_app.sites'
+import { Route as AppScheduleRouteImport } from './routes/_app.schedule'
+import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
+import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
+import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
+import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
+import { Route as AppEmployeesNewRouteImport } from './routes/_app.employees.new'
+import { Route as AppEmployeesImportRouteImport } from './routes/_app.employees.import'
+import { Route as AppEmployeesEmployeeIdRouteImport } from './routes/_app.employees.$employeeId'
+import { Route as AppAdminUsersRouteImport } from './routes/_app.admin.users'
+import { Route as AppAdminSettingsRouteImport } from './routes/_app.admin.settings'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSitesRoute = AppSitesRouteImport.update({
+  id: '/sites',
+  path: '/sites',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppScheduleRoute = AppScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPayrollRoute = AppPayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDisciplinaryRoute = AppDisciplinaryRouteImport.update({
+  id: '/disciplinary',
+  path: '/disciplinary',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAttendanceRoute = AppAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesIndexRoute = AppEmployeesIndexRouteImport.update({
+  id: '/employees/',
+  path: '/employees/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesNewRoute = AppEmployeesNewRouteImport.update({
+  id: '/employees/new',
+  path: '/employees/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesImportRoute = AppEmployeesImportRouteImport.update({
+  id: '/employees/import',
+  path: '/employees/import',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesEmployeeIdRoute = AppEmployeesEmployeeIdRouteImport.update({
+  id: '/employees/$employeeId',
+  path: '/employees/$employeeId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/attendance': typeof AppAttendanceRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/disciplinary': typeof AppDisciplinaryRoute
+  '/payroll': typeof AppPayrollRoute
+  '/schedule': typeof AppScheduleRoute
+  '/sites': typeof AppSitesRoute
+  '/admin/settings': typeof AppAdminSettingsRoute
+  '/admin/users': typeof AppAdminUsersRoute
+  '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/import': typeof AppEmployeesImportRoute
+  '/employees/new': typeof AppEmployeesNewRoute
+  '/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/attendance': typeof AppAttendanceRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/disciplinary': typeof AppDisciplinaryRoute
+  '/payroll': typeof AppPayrollRoute
+  '/schedule': typeof AppScheduleRoute
+  '/sites': typeof AppSitesRoute
+  '/admin/settings': typeof AppAdminSettingsRoute
+  '/admin/users': typeof AppAdminUsersRoute
+  '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/import': typeof AppEmployeesImportRoute
+  '/employees/new': typeof AppEmployeesNewRoute
+  '/employees': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_app/attendance': typeof AppAttendanceRoute
+  '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/disciplinary': typeof AppDisciplinaryRoute
+  '/_app/payroll': typeof AppPayrollRoute
+  '/_app/schedule': typeof AppScheduleRoute
+  '/_app/sites': typeof AppSitesRoute
+  '/_app/admin/settings': typeof AppAdminSettingsRoute
+  '/_app/admin/users': typeof AppAdminUsersRoute
+  '/_app/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/_app/employees/import': typeof AppEmployeesImportRoute
+  '/_app/employees/new': typeof AppEmployeesNewRoute
+  '/_app/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/attendance'
+    | '/dashboard'
+    | '/disciplinary'
+    | '/payroll'
+    | '/schedule'
+    | '/sites'
+    | '/admin/settings'
+    | '/admin/users'
+    | '/employees/$employeeId'
+    | '/employees/import'
+    | '/employees/new'
+    | '/employees/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/attendance'
+    | '/dashboard'
+    | '/disciplinary'
+    | '/payroll'
+    | '/schedule'
+    | '/sites'
+    | '/admin/settings'
+    | '/admin/users'
+    | '/employees/$employeeId'
+    | '/employees/import'
+    | '/employees/new'
+    | '/employees'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/auth'
+    | '/_app/attendance'
+    | '/_app/dashboard'
+    | '/_app/disciplinary'
+    | '/_app/payroll'
+    | '/_app/schedule'
+    | '/_app/sites'
+    | '/_app/admin/settings'
+    | '/_app/admin/users'
+    | '/_app/employees/$employeeId'
+    | '/_app/employees/import'
+    | '/_app/employees/new'
+    | '/_app/employees/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,12 +231,139 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/sites': {
+      id: '/_app/sites'
+      path: '/sites'
+      fullPath: '/sites'
+      preLoaderRoute: typeof AppSitesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/schedule': {
+      id: '/_app/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof AppScheduleRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payroll': {
+      id: '/_app/payroll'
+      path: '/payroll'
+      fullPath: '/payroll'
+      preLoaderRoute: typeof AppPayrollRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/disciplinary': {
+      id: '/_app/disciplinary'
+      path: '/disciplinary'
+      fullPath: '/disciplinary'
+      preLoaderRoute: typeof AppDisciplinaryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/attendance': {
+      id: '/_app/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AppAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/': {
+      id: '/_app/employees/'
+      path: '/employees'
+      fullPath: '/employees/'
+      preLoaderRoute: typeof AppEmployeesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/new': {
+      id: '/_app/employees/new'
+      path: '/employees/new'
+      fullPath: '/employees/new'
+      preLoaderRoute: typeof AppEmployeesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/import': {
+      id: '/_app/employees/import'
+      path: '/employees/import'
+      fullPath: '/employees/import'
+      preLoaderRoute: typeof AppEmployeesImportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/$employeeId': {
+      id: '/_app/employees/$employeeId'
+      path: '/employees/$employeeId'
+      fullPath: '/employees/$employeeId'
+      preLoaderRoute: typeof AppEmployeesEmployeeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/users': {
+      id: '/_app/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/settings': {
+      id: '/_app/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AppAdminSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppAttendanceRoute: typeof AppAttendanceRoute
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppDisciplinaryRoute: typeof AppDisciplinaryRoute
+  AppPayrollRoute: typeof AppPayrollRoute
+  AppScheduleRoute: typeof AppScheduleRoute
+  AppSitesRoute: typeof AppSitesRoute
+  AppAdminSettingsRoute: typeof AppAdminSettingsRoute
+  AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppEmployeesEmployeeIdRoute: typeof AppEmployeesEmployeeIdRoute
+  AppEmployeesImportRoute: typeof AppEmployeesImportRoute
+  AppEmployeesNewRoute: typeof AppEmployeesNewRoute
+  AppEmployeesIndexRoute: typeof AppEmployeesIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAttendanceRoute: AppAttendanceRoute,
+  AppDashboardRoute: AppDashboardRoute,
+  AppDisciplinaryRoute: AppDisciplinaryRoute,
+  AppPayrollRoute: AppPayrollRoute,
+  AppScheduleRoute: AppScheduleRoute,
+  AppSitesRoute: AppSitesRoute,
+  AppAdminSettingsRoute: AppAdminSettingsRoute,
+  AppAdminUsersRoute: AppAdminUsersRoute,
+  AppEmployeesEmployeeIdRoute: AppEmployeesEmployeeIdRoute,
+  AppEmployeesImportRoute: AppEmployeesImportRoute,
+  AppEmployeesNewRoute: AppEmployeesNewRoute,
+  AppEmployeesIndexRoute: AppEmployeesIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
