@@ -281,14 +281,14 @@ function ImportPage() {
               }}
             >
               <Upload className="h-10 w-10 text-muted-foreground mx-auto" />
-              <p className="mt-4 font-medium">Drop a CSV file here, or click to browse</p>
+              <p className="mt-4 font-medium">Drop a CSV or Excel file here, or click to browse</p>
               <p className="text-sm text-muted-foreground mt-1">
-                First row should be column headers. UTF-8 encoded.
+                Accepts <span className="font-mono">.csv</span>, <span className="font-mono">.xlsx</span>, <span className="font-mono">.xls</span>, <span className="font-mono">.xlsm</span>, <span className="font-mono">.xlsb</span>, <span className="font-mono">.ods</span>, <span className="font-mono">.tsv</span>. First row must be column headers.
               </p>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xlsb,.xls,.ods,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
