@@ -13,6 +13,9 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
+import { Route as AppEmployeesNewRouteImport } from './routes/_app.employees.new'
+import { Route as AppEmployeesEmployeeIdRouteImport } from './routes/_app.employees.$employeeId'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -33,16 +36,37 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEmployeesIndexRoute = AppEmployeesIndexRouteImport.update({
+  id: '/employees/',
+  path: '/employees/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesNewRoute = AppEmployeesNewRouteImport.update({
+  id: '/employees/new',
+  path: '/employees/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesEmployeeIdRoute = AppEmployeesEmployeeIdRouteImport.update({
+  id: '/employees/$employeeId',
+  path: '/employees/$employeeId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/new': typeof AppEmployeesNewRoute
+  '/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/employees/new': typeof AppEmployeesNewRoute
+  '/employees': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +74,36 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
+  '/_app/employees/new': typeof AppEmployeesNewRoute
+  '/_app/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/employees/$employeeId'
+    | '/employees/new'
+    | '/employees/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard'
-  id: '__root__' | '/' | '/_app' | '/auth' | '/_app/dashboard'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/employees/$employeeId'
+    | '/employees/new'
+    | '/employees'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/auth'
+    | '/_app/dashboard'
+    | '/_app/employees/$employeeId'
+    | '/_app/employees/new'
+    | '/_app/employees/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,15 +142,42 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/employees/': {
+      id: '/_app/employees/'
+      path: '/employees'
+      fullPath: '/employees/'
+      preLoaderRoute: typeof AppEmployeesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/new': {
+      id: '/_app/employees/new'
+      path: '/employees/new'
+      fullPath: '/employees/new'
+      preLoaderRoute: typeof AppEmployeesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/employees/$employeeId': {
+      id: '/_app/employees/$employeeId'
+      path: '/employees/$employeeId'
+      fullPath: '/employees/$employeeId'
+      preLoaderRoute: typeof AppEmployeesEmployeeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
+  AppEmployeesEmployeeIdRoute: typeof AppEmployeesEmployeeIdRoute
+  AppEmployeesNewRoute: typeof AppEmployeesNewRoute
+  AppEmployeesIndexRoute: typeof AppEmployeesIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
+  AppEmployeesEmployeeIdRoute: AppEmployeesEmployeeIdRoute,
+  AppEmployeesNewRoute: AppEmployeesNewRoute,
+  AppEmployeesIndexRoute: AppEmployeesIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
