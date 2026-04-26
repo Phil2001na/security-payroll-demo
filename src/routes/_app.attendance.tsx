@@ -341,7 +341,7 @@ function AttendancePage() {
       .map((e) => {
         const wk = weekHoursByEmp.get(e.id) ?? 0;
         const wkAfter = wk + slotHours;
-        return { emp: e, weekBefore: wk, weekAfter };
+        return { emp: e, weekBefore: wk, weekAfter: wkAfter };
       })
       .filter((c) => c.weekAfter <= WEEKLY_HOUR_CAP)
       .sort((a, b) => a.weekAfter - b.weekAfter)
