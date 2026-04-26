@@ -21,7 +21,8 @@ export const Route = createFileRoute("/_app/employees/import")({
   head: () => ({ meta: [{ title: "Import employees — Dog Force Payroll" }] }),
 });
 
-const FIELDS = [
+type FieldDef = { key: string; label: string; required?: boolean };
+const FIELDS: readonly FieldDef[] = [
   { key: "employee_code", label: "Employee code", required: true },
   { key: "surname", label: "Surname", required: true },
   { key: "first_names", label: "First names", required: true },
