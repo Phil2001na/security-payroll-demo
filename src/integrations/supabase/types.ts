@@ -868,6 +868,48 @@ export type Database = {
           },
         ]
       }
+      ps_exemptions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          document_url: string | null
+          effective_from: string
+          effective_to: string
+          employee_id: string
+          id: string
+          notes: string | null
+          reference: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          document_url?: string | null
+          effective_from: string
+          effective_to: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          reference: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          document_url?: string | null
+          effective_from?: string
+          effective_to?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          reference?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       public_holidays: {
         Row: {
           created_at: string
@@ -1254,7 +1296,113 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      attendance_logs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          assignment_id: string | null
+          created_at: string | null
+          date: string | null
+          employee_id: string | null
+          hours_worked: number | null
+          id: string | null
+          night_hours: number | null
+          notes: string | null
+          pay_period_id: string | null
+          shift_type_id: string | null
+          site_id: string | null
+          status: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assignment_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours_worked?: number | null
+          id?: string | null
+          night_hours?: number | null
+          notes?: string | null
+          pay_period_id?: string | null
+          shift_type_id?: string | null
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assignment_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours_worked?: number | null
+          id?: string | null
+          night_hours?: number | null
+          notes?: string | null
+          pay_period_id?: string | null
+          shift_type_id?: string | null
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_logs_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_pay_period_id_fkey"
+            columns: ["pay_period_id"]
+            isOneToOne: false
+            referencedRelation: "pay_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_shift_type_id_fkey"
+            columns: ["shift_type_id"]
+            isOneToOne: false
+            referencedRelation: "shift_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_access_site: { Args: { _site_id: string }; Returns: boolean }
@@ -1264,6 +1412,14 @@ export type Database = {
       }
       current_site_ids: { Args: never; Returns: string[] }
       current_tenant_id: { Args: never; Returns: string }
+      employee_week_hours: {
+        Args: { _any_date: string; _employee_id: string }
+        Returns: number
+      }
+      has_ps_exemption: {
+        Args: { _date: string; _employee_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
