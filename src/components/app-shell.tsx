@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList,
-  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown,
+  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -23,6 +23,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/wizard", label: "Getting Started", icon: Sparkles },
   { to: "/employees", label: "Employees", icon: Users },
   { to: "/sites", label: "Sites", icon: MapPin },
   { to: "/schedule", label: "Schedule", icon: CalendarDays },

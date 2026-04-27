@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Users, MapPin, Calculator, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Users, MapPin, Calculator, ShieldAlert, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatNAD } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -62,6 +63,27 @@ function DashboardPage() {
           Here's a snapshot of operations across Dog Force Security Services.
         </p>
       </header>
+
+      <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
+        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-semibold">New here? Start with the guided workflow</h2>
+              <p className="text-sm text-muted-foreground">
+                Seven ordered steps from constants → sites → employees → schedule → attendance → payroll.
+              </p>
+            </div>
+          </div>
+          <Button asChild>
+            <Link to="/wizard">
+              Open wizard <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => (
