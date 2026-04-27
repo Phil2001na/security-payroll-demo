@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
-  Loader2, Search, ShieldCheck, Eraser, Users,
+  Loader2, Search, ShieldCheck, Eraser, Users, Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -32,10 +32,16 @@ type ShiftType = {
   label: string;
   default_hours: number;
   pay_rule: string;
+  period: string;
   active: boolean;
+  is_leave: boolean;
 };
 type Site = { id: string; name: string; code: string | null };
-type Employee = { id: string; employee_code: string; surname: string; first_names: string; home_site_id: string | null; status: string };
+type Employee = {
+  id: string; employee_code: string; surname: string; first_names: string;
+  home_site_id: string | null; status: string;
+  preferred_shift: "day" | "night" | "both";
+};
 type Assignment = {
   id: string;
   employee_id: string;
@@ -45,6 +51,12 @@ type Assignment = {
   planned_hours: number;
 };
 type PSExemption = { id: string; employee_id: string; effective_from: string; effective_to: string; reference: string };
+type SiteRequirement = {
+  site_id: string;
+  day_of_week: number;
+  shift_kind: "day" | "night";
+  quantity_required: number;
+};
 
 const WEEKLY_HOUR_CAP = 60;
 
