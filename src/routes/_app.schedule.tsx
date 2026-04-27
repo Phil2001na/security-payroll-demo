@@ -676,6 +676,67 @@ function SchedulePage() {
         </div>
       </div>
 
+      {/* Auto-Fill bar */}
+      <Card className="bg-muted/30">
+        <div className="p-3 flex flex-wrap items-center gap-3">
+          <Wand2 className="h-4 w-4 text-primary" />
+          <div className="text-sm font-medium">Auto-fill roster</div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Week</span>
+            <Select value={fillWeek} onValueChange={setFillWeek}>
+              <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Pick week" /></SelectTrigger>
+              <SelectContent>
+                {weekOptions.map((w) => (
+                  <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            size="sm"
+            onClick={autoFillRoster}
+            disabled={autoFilling || !fillWeek || (!autoShiftTypes.day && !autoShiftTypes.night)}
+          >
+            {autoFilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+            Auto-fill this week
+          </Button>
+          {(!autoShiftTypes.day && !autoShiftTypes.night) && (
+            <span className="text-xs text-destructive">
+              No standard day/night shift template found — add one in Settings.
+            </span>
+          )}
+          {shortfallPreview.length > 0 && (
+            <Badge variant="destructive" className="font-mono ml-auto">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              {shortfallPreview.reduce((s, x) => s + x.short, 0)} short across {shortfallPreview.length} slot{shortfallPreview.length === 1 ? "" : "s"}
+            </Badge>
+          )}
+        </div>
+        {shortfallPreview.length > 0 && (
+          <div className="border-t bg-destructive/5 p-3 space-y-1 max-h-48 overflow-y-auto">
+            <div className="text-xs font-medium text-destructive mb-1">
+              Shortfalls — HR must resolve (no auto-OT assigned)
+            </div>
+            {shortfallPreview.map((s, i) => {
+              const site = sites?.find((x) => x.id === s.siteId);
+              const d = new Date(s.date);
+              return (
+                <div key={i} className="text-xs flex items-center justify-between font-mono">
+                  <span>
+                    <span className="font-medium">{site?.name ?? s.siteId}</span>
+                    {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
+                    {" · "}<span className="uppercase">{s.kind}</span>
+                  </span>
+                  <span className="text-destructive font-semibold">
+                    {s.have}/{s.required} · short {s.short}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
       {blocking.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
