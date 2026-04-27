@@ -114,7 +114,7 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("shift_types").select("id, code, label, default_hours, pay_rule, active")
+        .from("shift_types").select("id, code, label, default_hours, pay_rule, period, active, is_leave")
         .eq("active", true).order("code");
       if (error) throw error;
       return (data ?? []) as ShiftType[];
@@ -127,11 +127,11 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status")
+        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as Employee[];
     },
   });
 
