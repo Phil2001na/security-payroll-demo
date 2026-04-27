@@ -592,6 +592,8 @@ function SchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [fillWeek, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
   );
+
+  function cellLabel(empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null {
     const k = `${empId}|${date}`;
     const sid = effectiveShiftId(empId, date);
     if (!sid) {
