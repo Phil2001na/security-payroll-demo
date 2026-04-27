@@ -23,6 +23,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/wizard", label: "Getting Started", icon: Sparkles },
   { to: "/employees", label: "Employees", icon: Users },
   { to: "/sites", label: "Sites", icon: MapPin },
   { to: "/schedule", label: "Schedule", icon: CalendarDays },
