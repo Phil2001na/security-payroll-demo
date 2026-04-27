@@ -359,7 +359,239 @@ function SchedulePage() {
     }
   }
 
-  function cellLabel(empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null {
+  // ========= Auto-Fill Roster =========
+  // Week choices: ISO weeks overlapping the shown month.
+  const weekOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string; start: Date; end: Date }[] = [];
+    for (const d of days) {
+      const k = isoWeekKey(d);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const start = new Date(k);
+      const end = new Date(start.getTime() + 6 * 86400000);
+      out.push({
+        key: k,
+        label: `${start.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`,
+        start, end,
+      });
+    }
+    return out;
+  }, [days]);
+
+  const [fillWeek, setFillWeek] = useState<string>("");
+  useEffect(() => {
+    if (!fillWeek && weekOptions.length) {
+      const today = isoWeekKey(new Date());
+      const match = weekOptions.find((w) => w.key === today);
+      setFillWeek(match ? match.key : weekOptions[0].key);
+    }
+  }, [weekOptions, fillWeek]);
+
+  // Pick a standard "day" and "night" shift_type for auto-fill.
+  const autoShiftTypes = useMemo(() => {
+    const st = shiftTypes ?? [];
+    const candidates = st.filter((s) =>
+      s.active && !s.is_leave && s.default_hours > 0 && s.pay_rule === "standard"
+    );
+    const findBy = (periods: string[]) =>
+      candidates.find((s) => periods.includes(s.period)) ?? null;
+    const day = findBy(["day"]) ?? findBy(["full_day"]);
+    const night = findBy(["night"]);
+    return { day, night };
+  }, [shiftTypes]);
+
+  // Shortfall & auto-fill dry-run for the chosen week.
+  type FillPlan = {
+    shortfalls: { siteId: string; date: string; kind: "day" | "night"; required: number; have: number; short: number }[];
+    newAssignments: { employee_id: string; site_id: string; date: string; shift_type_id: string; planned_hours: number }[];
+    unassignable: number; // same as sum of shortfalls
+  };
+
+  function computeFillPlan(): FillPlan {
+    const plan: FillPlan = { shortfalls: [], newAssignments: [], unassignable: 0 };
+    if (!fillWeek || !sites || !employees || !requirements || !weekAssignments) return plan;
+    if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
+
+    const weekStart = new Date(fillWeek);
+    const weekDates: { date: string; dow: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart.getTime() + i * 86400000);
+      weekDates.push({ date: fmtIso(d), dow: d.getDay() });
+    }
+    const weekDateSet = new Set(weekDates.map((w) => w.date));
+
+    // Track per-employee: (a) dates already taken this week, (b) total hours this week
+    const empDates = new Map<string, Set<string>>();
+    const empWeekHours = new Map<string, number>();
+    for (const emp of employees) {
+      empDates.set(emp.id, new Set());
+      empWeekHours.set(emp.id, 0);
+    }
+    // Apply existing saved assignments (+ pending edits override)
+    const editedKeys = new Set(Object.keys(edits));
+    for (const a of weekAssignments) {
+      if (!weekDateSet.has(a.date)) continue;
+      const k = `${a.employee_id}|${a.date}`;
+      if (editedKeys.has(k)) continue;
+      empDates.get(a.employee_id)?.add(a.date);
+      empWeekHours.set(a.employee_id, (empWeekHours.get(a.employee_id) ?? 0) + Number(a.planned_hours));
+    }
+    for (const [k, sid] of Object.entries(edits)) {
+      const [empId, date] = k.split("|");
+      if (!weekDateSet.has(date)) continue;
+      if (!sid) continue;
+      const st = shiftTypeById.get(sid);
+      if (!st) continue;
+      empDates.get(empId)?.add(date);
+      empWeekHours.set(empId, (empWeekHours.get(empId) ?? 0) + st.default_hours);
+    }
+
+    // Existing coverage per (site, date, kind)
+    type CoverKey = string; // `${site}|${date}|${kind}`
+    const coverage = new Map<CoverKey, number>();
+    function effectiveKind(shiftId: string): "day" | "night" | null {
+      const st = shiftTypeById.get(shiftId);
+      if (!st) return null;
+      if (st.period === "night") return "night";
+      if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
+      return null;
+    }
+    for (const a of weekAssignments) {
+      if (!weekDateSet.has(a.date)) continue;
+      const k = `${a.employee_id}|${a.date}`;
+      const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
+      if (!sid) continue;
+      const kind = effectiveKind(sid);
+      if (!kind) continue;
+      const ck = `${a.site_id}|${a.date}|${kind}`;
+      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+    }
+    // Pending inserts on currently-viewed site from edits (no existing row case)
+    for (const [k, sid] of Object.entries(edits)) {
+      const [empId, date] = k.split("|");
+      if (!weekDateSet.has(date)) continue;
+      if (!sid) continue;
+      // Only count if there wasn't already a row (otherwise already handled above)
+      const existing = (weekAssignments ?? []).find((a) => a.employee_id === empId && a.date === date);
+      if (existing) continue;
+      const kind = effectiveKind(sid);
+      if (!kind || !activeSiteId) continue;
+      const ck = `${activeSiteId}|${date}|${kind}`;
+      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+    }
+
+    // Iterate site x day x kind
+    for (const site of sites) {
+      for (const wd of weekDates) {
+        for (const kind of ["day", "night"] as const) {
+          const req = requirements.find(
+            (r) => r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
+          );
+          const required = req?.quantity_required ?? 0;
+          if (required === 0) continue;
+          const stForKind = kind === "day" ? autoShiftTypes.day : autoShiftTypes.night;
+          if (!stForKind) continue;
+          const ck = `${site.id}|${wd.date}|${kind}`;
+          let have = coverage.get(ck) ?? 0;
+          const needed = required - have;
+          if (needed <= 0) continue;
+
+          // Candidate employees: active, preferred_shift matches, not already assigned that day,
+          // and total weekly hours + shift hours <= 60.
+          const shiftHours = stForKind.default_hours;
+          const pool = employees.filter((emp) => {
+            if (emp.status !== "active") return false;
+            if (emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
+            const takenDates = empDates.get(emp.id);
+            if (takenDates?.has(wd.date)) return false;
+            const hrs = empWeekHours.get(emp.id) ?? 0;
+            if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
+            return true;
+          });
+          // Prioritise: home_site match > "both" (specialists preserved) > lowest weekly hours
+          pool.sort((a, b) => {
+            const aHome = a.home_site_id === site.id ? 0 : 1;
+            const bHome = b.home_site_id === site.id ? 0 : 1;
+            if (aHome !== bHome) return aHome - bHome;
+            const aSpec = a.preferred_shift === kind ? 1 : 0; // prefer specialists LAST so "both" employees stay flexible
+            const bSpec = b.preferred_shift === kind ? 1 : 0;
+            // Actually we DO want specialists first for their kind (they can't work the other kind anyway).
+            if (aSpec !== bSpec) return bSpec - aSpec;
+            return (empWeekHours.get(a.id) ?? 0) - (empWeekHours.get(b.id) ?? 0);
+          });
+
+          let assigned = 0;
+          for (const emp of pool) {
+            if (assigned >= needed) break;
+            plan.newAssignments.push({
+              employee_id: emp.id,
+              site_id: site.id,
+              date: wd.date,
+              shift_type_id: stForKind.id,
+              planned_hours: shiftHours,
+            });
+            empDates.get(emp.id)?.add(wd.date);
+            empWeekHours.set(emp.id, (empWeekHours.get(emp.id) ?? 0) + shiftHours);
+            coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+            have++;
+            assigned++;
+          }
+
+          if (assigned < needed) {
+            plan.shortfalls.push({
+              siteId: site.id,
+              date: wd.date,
+              kind,
+              required,
+              have,
+              short: needed - assigned,
+            });
+            plan.unassignable += needed - assigned;
+          }
+        }
+      }
+    }
+    return plan;
+  }
+
+  const [autoFilling, setAutoFilling] = useState(false);
+  async function autoFillRoster() {
+    if (!profile?.tenant_id) return;
+    const plan = computeFillPlan();
+    if (plan.newAssignments.length === 0 && plan.shortfalls.length === 0) {
+      toast.info("Nothing to fill — requirements already met or no requirements set.");
+      return;
+    }
+    setAutoFilling(true);
+    try {
+      if (plan.newAssignments.length > 0) {
+        const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
+        for (let i = 0; i < rows.length; i += 200) {
+          const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+          if (error) throw error;
+        }
+      }
+      const msg = `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned`
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short — see below` : "");
+      if (plan.unassignable > 0) toast.warning(msg);
+      else toast.success(msg);
+      await Promise.all([
+        refetchAssignments(),
+        qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Auto-fill failed");
+    } finally {
+      setAutoFilling(false);
+    }
+  }
+
+  // Live shortfall preview (after pending edits) for indicator
+  const shortfallPreview = useMemo(() => computeFillPlan().shortfalls,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fillWeek, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
+  );
     const k = `${empId}|${date}`;
     const sid = effectiveShiftId(empId, date);
     if (!sid) {
