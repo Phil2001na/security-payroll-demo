@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Users, MapPin, Calculator, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Users, MapPin, Calculator, ShieldAlert, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatNAD } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 
