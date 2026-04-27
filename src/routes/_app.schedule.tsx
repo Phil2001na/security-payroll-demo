@@ -176,7 +176,18 @@ function SchedulePage() {
     },
   });
 
-  // Roster shown: employees whose home_site_id is active site, OR any employee already assigned in this site/month, plus search matches.
+  // Manpower requirements across all sites in the tenant.
+  const { data: requirements } = useQuery<SiteRequirement[]>({
+    queryKey: ["site-requirements-all", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_requirements")
+        .select("site_id, day_of_week, shift_kind, quantity_required");
+      if (error) throw error;
+      return (data ?? []) as SiteRequirement[];
+    },
+  });
   const siteEmployees = useMemo(() => {
     if (!employees || !activeSiteId) return [];
     const ids = new Set<string>();
