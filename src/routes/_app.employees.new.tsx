@@ -43,6 +43,7 @@ const employeeSchema = z.object({
   bank_account_number: z.string().max(40).optional().or(z.literal("")),
   union_member: z.boolean(),
   ordinarily_works_sundays: z.boolean(),
+  preferred_shift: z.enum(["day", "night", "both"]),
 });
 
 function NewEmployeePage() {
@@ -56,6 +57,7 @@ function NewEmployeePage() {
     phone: "", email: "", start_date: "", home_site_id: "",
     bank_name: "", bank_account_number: "",
     union_member: false, ordinarily_works_sundays: false,
+    preferred_shift: "both" as "day" | "night" | "both",
   });
 
   const { data: sites } = useQuery({
@@ -98,6 +100,7 @@ function NewEmployeePage() {
         bank_account_number: v.bank_account_number || null,
         union_member: v.union_member,
         ordinarily_works_sundays: v.ordinarily_works_sundays,
+        preferred_shift: v.preferred_shift,
       }).select("id").single();
       if (error) throw error;
       toast.success("Employee created");
@@ -168,6 +171,16 @@ function NewEmployeePage() {
             </Field>
             <Field label="Start date">
               <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            </Field>
+            <Field label="Preferred shift">
+              <Select value={form.preferred_shift} onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Day or Night</SelectItem>
+                  <SelectItem value="day">Day only</SelectItem>
+                  <SelectItem value="night">Night only</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
           </CardContent>
         </Card>
