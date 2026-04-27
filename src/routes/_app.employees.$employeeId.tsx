@@ -86,10 +86,14 @@ function EmployeeDetailPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">Agreements</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Agreements & preferences</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Union member" value={data.union_member ? "Yes" : "No"} />
             <Row label="Ordinarily works Sundays" value={data.ordinarily_works_sundays ? "Yes (1.5×)" : "No (2× default)"} />
+            <Row label="Preferred shift" value={
+              data.preferred_shift === "day" ? "Day only" :
+              data.preferred_shift === "night" ? "Night only" : "Day or Night"
+            } />
           </CardContent>
         </Card>
       </div>
