@@ -97,15 +97,16 @@ export async function fetchPayrollConstants(): Promise<{ constants: PayrollConst
   (constRows ?? []).forEach((r) => map.set(r.key, Number(r.value)));
 
   const constants: PayrollConstants = {
-    ssc_rate: map.get("ssc_rate") ?? 0.009,
+    ssc_rate: map.get("ssc_employee_rate") ?? map.get("ssc_rate") ?? 0.009,
     ssc_max_deduction: map.get("ssc_max_deduction") ?? 99,
-    tax_free_threshold: map.get("tax_free_threshold") ?? 100_000,
+    tax_free_threshold: map.get("tax_free_threshold_annual") ?? map.get("tax_free_threshold") ?? 100_000,
     min_wage_security: map.get("min_wage_security") ?? 16.0,
-    vet_threshold: map.get("vet_threshold") ?? 83_333,
-    vet_rate: map.get("vet_rate") ?? 0.01,
+    // VET levy: 1% when ANNUAL payroll > N$1,000,000 (spec also references N$83,333 monthly ≈ same)
+    vet_threshold: map.get("vet_levy_monthly_threshold") ?? 83_333,
+    vet_rate: map.get("vet_levy_rate") ?? map.get("vet_rate") ?? 0.01,
     night_premium_rate: map.get("night_premium_rate") ?? 0.06,
     overtime_multiplier: map.get("overtime_multiplier") ?? 1.5,
-    sunday_multiplier: map.get("sunday_multiplier") ?? 2.0,
+    sunday_multiplier: map.get("sunday_default_multiplier") ?? map.get("sunday_multiplier") ?? 2.0,
   };
 
   const brackets: PayeBracket[] = (bracketRows ?? []).map((b) => ({
