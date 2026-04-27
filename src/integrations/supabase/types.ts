@@ -348,6 +348,7 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           position: Database["public"]["Enums"]["employee_position"]
+          preferred_shift: Database["public"]["Enums"]["shift_preference"]
           sesorb_registration_number: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["employee_status"]
@@ -375,6 +376,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           position?: Database["public"]["Enums"]["employee_position"]
+          preferred_shift?: Database["public"]["Enums"]["shift_preference"]
           sesorb_registration_number?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["employee_status"]
@@ -402,6 +404,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           position?: Database["public"]["Enums"]["employee_position"]
+          preferred_shift?: Database["public"]["Enums"]["shift_preference"]
           sesorb_registration_number?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["employee_status"]
@@ -1199,6 +1202,39 @@ export type Database = {
           },
         ]
       }
+      site_requirements: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          quantity_required: number
+          shift_kind: Database["public"]["Enums"]["shift_kind"]
+          site_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          quantity_required?: number
+          shift_kind: Database["public"]["Enums"]["shift_kind"]
+          site_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          quantity_required?: number
+          shift_kind?: Database["public"]["Enums"]["shift_kind"]
+          site_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sites: {
         Row: {
           active: boolean
@@ -1463,6 +1499,7 @@ export type Database = {
         | "leave"
         | "off"
       payroll_run_status: "draft" | "finalized" | "paid"
+      shift_kind: "day" | "night"
       shift_log_status:
         | "pending"
         | "approved"
@@ -1470,6 +1507,7 @@ export type Database = {
         | "replaced_by_other"
         | "suspended_unpaid"
       shift_period: "morning" | "day" | "night" | "full_day"
+      shift_preference: "day" | "night" | "both"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1637,6 +1675,7 @@ export const Constants = {
         "off",
       ],
       payroll_run_status: ["draft", "finalized", "paid"],
+      shift_kind: ["day", "night"],
       shift_log_status: [
         "pending",
         "approved",
@@ -1645,6 +1684,7 @@ export const Constants = {
         "suspended_unpaid",
       ],
       shift_period: ["morning", "day", "night", "full_day"],
+      shift_preference: ["day", "night", "both"],
     },
   },
 } as const

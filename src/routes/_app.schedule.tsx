@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
-  Loader2, Search, ShieldCheck, Eraser, Users,
+  Loader2, Search, ShieldCheck, Eraser, Users, Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -32,10 +32,16 @@ type ShiftType = {
   label: string;
   default_hours: number;
   pay_rule: string;
+  period: string;
   active: boolean;
+  is_leave: boolean;
 };
 type Site = { id: string; name: string; code: string | null };
-type Employee = { id: string; employee_code: string; surname: string; first_names: string; home_site_id: string | null; status: string };
+type Employee = {
+  id: string; employee_code: string; surname: string; first_names: string;
+  home_site_id: string | null; status: string;
+  preferred_shift: "day" | "night" | "both";
+};
 type Assignment = {
   id: string;
   employee_id: string;
@@ -45,6 +51,12 @@ type Assignment = {
   planned_hours: number;
 };
 type PSExemption = { id: string; employee_id: string; effective_from: string; effective_to: string; reference: string };
+type SiteRequirement = {
+  site_id: string;
+  day_of_week: number;
+  shift_kind: "day" | "night";
+  quantity_required: number;
+};
 
 const WEEKLY_HOUR_CAP = 60;
 
@@ -102,7 +114,7 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("shift_types").select("id, code, label, default_hours, pay_rule, active")
+        .from("shift_types").select("id, code, label, default_hours, pay_rule, period, active, is_leave")
         .eq("active", true).order("code");
       if (error) throw error;
       return (data ?? []) as ShiftType[];
@@ -115,11 +127,11 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status")
+        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as Employee[];
     },
   });
 
@@ -164,7 +176,18 @@ function SchedulePage() {
     },
   });
 
-  // Roster shown: employees whose home_site_id is active site, OR any employee already assigned in this site/month, plus search matches.
+  // Manpower requirements across all sites in the tenant.
+  const { data: requirements } = useQuery<SiteRequirement[]>({
+    queryKey: ["site-requirements-all", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_requirements")
+        .select("site_id, day_of_week, shift_kind, quantity_required");
+      if (error) throw error;
+      return (data ?? []) as SiteRequirement[];
+    },
+  });
   const siteEmployees = useMemo(() => {
     if (!employees || !activeSiteId) return [];
     const ids = new Set<string>();
@@ -336,6 +359,240 @@ function SchedulePage() {
     }
   }
 
+  // ========= Auto-Fill Roster =========
+  // Week choices: ISO weeks overlapping the shown month.
+  const weekOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string; start: Date; end: Date }[] = [];
+    for (const d of days) {
+      const k = isoWeekKey(d);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const start = new Date(k);
+      const end = new Date(start.getTime() + 6 * 86400000);
+      out.push({
+        key: k,
+        label: `${start.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`,
+        start, end,
+      });
+    }
+    return out;
+  }, [days]);
+
+  const [fillWeek, setFillWeek] = useState<string>("");
+  useEffect(() => {
+    if (!fillWeek && weekOptions.length) {
+      const today = isoWeekKey(new Date());
+      const match = weekOptions.find((w) => w.key === today);
+      setFillWeek(match ? match.key : weekOptions[0].key);
+    }
+  }, [weekOptions, fillWeek]);
+
+  // Pick a standard "day" and "night" shift_type for auto-fill.
+  const autoShiftTypes = useMemo(() => {
+    const st = shiftTypes ?? [];
+    const candidates = st.filter((s) =>
+      s.active && !s.is_leave && s.default_hours > 0 && s.pay_rule === "standard"
+    );
+    const findBy = (periods: string[]) =>
+      candidates.find((s) => periods.includes(s.period)) ?? null;
+    const day = findBy(["day"]) ?? findBy(["full_day"]);
+    const night = findBy(["night"]);
+    return { day, night };
+  }, [shiftTypes]);
+
+  // Shortfall & auto-fill dry-run for the chosen week.
+  type FillPlan = {
+    shortfalls: { siteId: string; date: string; kind: "day" | "night"; required: number; have: number; short: number }[];
+    newAssignments: { employee_id: string; site_id: string; date: string; shift_type_id: string; planned_hours: number }[];
+    unassignable: number; // same as sum of shortfalls
+  };
+
+  function computeFillPlan(): FillPlan {
+    const plan: FillPlan = { shortfalls: [], newAssignments: [], unassignable: 0 };
+    if (!fillWeek || !sites || !employees || !requirements || !weekAssignments) return plan;
+    if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
+
+    const weekStart = new Date(fillWeek);
+    const weekDates: { date: string; dow: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart.getTime() + i * 86400000);
+      weekDates.push({ date: fmtIso(d), dow: d.getDay() });
+    }
+    const weekDateSet = new Set(weekDates.map((w) => w.date));
+
+    // Track per-employee: (a) dates already taken this week, (b) total hours this week
+    const empDates = new Map<string, Set<string>>();
+    const empWeekHours = new Map<string, number>();
+    for (const emp of employees) {
+      empDates.set(emp.id, new Set());
+      empWeekHours.set(emp.id, 0);
+    }
+    // Apply existing saved assignments (+ pending edits override)
+    const editedKeys = new Set(Object.keys(edits));
+    for (const a of weekAssignments) {
+      if (!weekDateSet.has(a.date)) continue;
+      const k = `${a.employee_id}|${a.date}`;
+      if (editedKeys.has(k)) continue;
+      empDates.get(a.employee_id)?.add(a.date);
+      empWeekHours.set(a.employee_id, (empWeekHours.get(a.employee_id) ?? 0) + Number(a.planned_hours));
+    }
+    for (const [k, sid] of Object.entries(edits)) {
+      const [empId, date] = k.split("|");
+      if (!weekDateSet.has(date)) continue;
+      if (!sid) continue;
+      const st = shiftTypeById.get(sid);
+      if (!st) continue;
+      empDates.get(empId)?.add(date);
+      empWeekHours.set(empId, (empWeekHours.get(empId) ?? 0) + st.default_hours);
+    }
+
+    // Existing coverage per (site, date, kind)
+    type CoverKey = string; // `${site}|${date}|${kind}`
+    const coverage = new Map<CoverKey, number>();
+    function effectiveKind(shiftId: string): "day" | "night" | null {
+      const st = shiftTypeById.get(shiftId);
+      if (!st) return null;
+      if (st.period === "night") return "night";
+      if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
+      return null;
+    }
+    for (const a of weekAssignments) {
+      if (!weekDateSet.has(a.date)) continue;
+      const k = `${a.employee_id}|${a.date}`;
+      const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
+      if (!sid) continue;
+      const kind = effectiveKind(sid);
+      if (!kind) continue;
+      const ck = `${a.site_id}|${a.date}|${kind}`;
+      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+    }
+    // Pending inserts on currently-viewed site from edits (no existing row case)
+    for (const [k, sid] of Object.entries(edits)) {
+      const [empId, date] = k.split("|");
+      if (!weekDateSet.has(date)) continue;
+      if (!sid) continue;
+      // Only count if there wasn't already a row (otherwise already handled above)
+      const existing = (weekAssignments ?? []).find((a) => a.employee_id === empId && a.date === date);
+      if (existing) continue;
+      const kind = effectiveKind(sid);
+      if (!kind || !activeSiteId) continue;
+      const ck = `${activeSiteId}|${date}|${kind}`;
+      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+    }
+
+    // Iterate site x day x kind
+    for (const site of sites) {
+      for (const wd of weekDates) {
+        for (const kind of ["day", "night"] as const) {
+          const req = requirements.find(
+            (r) => r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
+          );
+          const required = req?.quantity_required ?? 0;
+          if (required === 0) continue;
+          const stForKind = kind === "day" ? autoShiftTypes.day : autoShiftTypes.night;
+          if (!stForKind) continue;
+          const ck = `${site.id}|${wd.date}|${kind}`;
+          let have = coverage.get(ck) ?? 0;
+          const needed = required - have;
+          if (needed <= 0) continue;
+
+          // Candidate employees: active, preferred_shift matches, not already assigned that day,
+          // and total weekly hours + shift hours <= 60.
+          const shiftHours = stForKind.default_hours;
+          const pool = employees.filter((emp) => {
+            if (emp.status !== "active") return false;
+            if (emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
+            const takenDates = empDates.get(emp.id);
+            if (takenDates?.has(wd.date)) return false;
+            const hrs = empWeekHours.get(emp.id) ?? 0;
+            if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
+            return true;
+          });
+          // Prioritise: home_site match > "both" (specialists preserved) > lowest weekly hours
+          pool.sort((a, b) => {
+            const aHome = a.home_site_id === site.id ? 0 : 1;
+            const bHome = b.home_site_id === site.id ? 0 : 1;
+            if (aHome !== bHome) return aHome - bHome;
+            const aSpec = a.preferred_shift === kind ? 1 : 0; // prefer specialists LAST so "both" employees stay flexible
+            const bSpec = b.preferred_shift === kind ? 1 : 0;
+            // Actually we DO want specialists first for their kind (they can't work the other kind anyway).
+            if (aSpec !== bSpec) return bSpec - aSpec;
+            return (empWeekHours.get(a.id) ?? 0) - (empWeekHours.get(b.id) ?? 0);
+          });
+
+          let assigned = 0;
+          for (const emp of pool) {
+            if (assigned >= needed) break;
+            plan.newAssignments.push({
+              employee_id: emp.id,
+              site_id: site.id,
+              date: wd.date,
+              shift_type_id: stForKind.id,
+              planned_hours: shiftHours,
+            });
+            empDates.get(emp.id)?.add(wd.date);
+            empWeekHours.set(emp.id, (empWeekHours.get(emp.id) ?? 0) + shiftHours);
+            coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+            have++;
+            assigned++;
+          }
+
+          if (assigned < needed) {
+            plan.shortfalls.push({
+              siteId: site.id,
+              date: wd.date,
+              kind,
+              required,
+              have,
+              short: needed - assigned,
+            });
+            plan.unassignable += needed - assigned;
+          }
+        }
+      }
+    }
+    return plan;
+  }
+
+  const [autoFilling, setAutoFilling] = useState(false);
+  async function autoFillRoster() {
+    if (!profile?.tenant_id) return;
+    const plan = computeFillPlan();
+    if (plan.newAssignments.length === 0 && plan.shortfalls.length === 0) {
+      toast.info("Nothing to fill — requirements already met or no requirements set.");
+      return;
+    }
+    setAutoFilling(true);
+    try {
+      if (plan.newAssignments.length > 0) {
+        const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
+        for (let i = 0; i < rows.length; i += 200) {
+          const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+          if (error) throw error;
+        }
+      }
+      const msg = `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned`
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short — see below` : "");
+      if (plan.unassignable > 0) toast.warning(msg);
+      else toast.success(msg);
+      await Promise.all([
+        refetchAssignments(),
+        qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Auto-fill failed");
+    } finally {
+      setAutoFilling(false);
+    }
+  }
+
+  // Live shortfall preview (after pending edits) for indicator
+  const shortfallPreview = useMemo(() => computeFillPlan().shortfalls,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fillWeek, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
+  );
+
   function cellLabel(empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null {
     const k = `${empId}|${date}`;
     const sid = effectiveShiftId(empId, date);
@@ -418,6 +675,67 @@ function SchedulePage() {
           )}
         </div>
       </div>
+
+      {/* Auto-Fill bar */}
+      <Card className="bg-muted/30">
+        <div className="p-3 flex flex-wrap items-center gap-3">
+          <Wand2 className="h-4 w-4 text-primary" />
+          <div className="text-sm font-medium">Auto-fill roster</div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Week</span>
+            <Select value={fillWeek} onValueChange={setFillWeek}>
+              <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Pick week" /></SelectTrigger>
+              <SelectContent>
+                {weekOptions.map((w) => (
+                  <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            size="sm"
+            onClick={autoFillRoster}
+            disabled={autoFilling || !fillWeek || (!autoShiftTypes.day && !autoShiftTypes.night)}
+          >
+            {autoFilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+            Auto-fill this week
+          </Button>
+          {(!autoShiftTypes.day && !autoShiftTypes.night) && (
+            <span className="text-xs text-destructive">
+              No standard day/night shift template found — add one in Settings.
+            </span>
+          )}
+          {shortfallPreview.length > 0 && (
+            <Badge variant="destructive" className="font-mono ml-auto">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              {shortfallPreview.reduce((s, x) => s + x.short, 0)} short across {shortfallPreview.length} slot{shortfallPreview.length === 1 ? "" : "s"}
+            </Badge>
+          )}
+        </div>
+        {shortfallPreview.length > 0 && (
+          <div className="border-t bg-destructive/5 p-3 space-y-1 max-h-48 overflow-y-auto">
+            <div className="text-xs font-medium text-destructive mb-1">
+              Shortfalls — HR must resolve (no auto-OT assigned)
+            </div>
+            {shortfallPreview.map((s, i) => {
+              const site = sites?.find((x) => x.id === s.siteId);
+              const d = new Date(s.date);
+              return (
+                <div key={i} className="text-xs flex items-center justify-between font-mono">
+                  <span>
+                    <span className="font-medium">{site?.name ?? s.siteId}</span>
+                    {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
+                    {" · "}<span className="uppercase">{s.kind}</span>
+                  </span>
+                  <span className="text-destructive font-semibold">
+                    {s.have}/{s.required} · short {s.short}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       {blocking.length > 0 && (
         <Alert variant="destructive">
