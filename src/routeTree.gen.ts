@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppWizardRouteImport } from './routes/_app.wizard'
 import { Route as AppSitesRouteImport } from './routes/_app.sites'
 import { Route as AppScheduleRouteImport } from './routes/_app.schedule'
 import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
@@ -38,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppWizardRoute = AppWizardRouteImport.update({
+  id: '/wizard',
+  path: '/wizard',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppSitesRoute = AppSitesRouteImport.update({
   id: '/sites',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
   '/sites': typeof AppSitesRoute
+  '/wizard': typeof AppWizardRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRoute
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
   '/sites': typeof AppSitesRoute
+  '/wizard': typeof AppWizardRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRoute
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/_app/payroll': typeof AppPayrollRoute
   '/_app/schedule': typeof AppScheduleRoute
   '/_app/sites': typeof AppSitesRoute
+  '/_app/wizard': typeof AppWizardRoute
   '/_app/admin/settings': typeof AppAdminSettingsRoute
   '/_app/admin/users': typeof AppAdminUsersRoute
   '/_app/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/payroll'
     | '/schedule'
     | '/sites'
+    | '/wizard'
     | '/admin/settings'
     | '/admin/users'
     | '/employees/$employeeId'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/payroll'
     | '/schedule'
     | '/sites'
+    | '/wizard'
     | '/admin/settings'
     | '/admin/users'
     | '/employees/$employeeId'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/_app/payroll'
     | '/_app/schedule'
     | '/_app/sites'
+    | '/_app/wizard'
     | '/_app/admin/settings'
     | '/_app/admin/users'
     | '/_app/employees/$employeeId'
@@ -230,6 +242,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/wizard': {
+      id: '/_app/wizard'
+      path: '/wizard'
+      fullPath: '/wizard'
+      preLoaderRoute: typeof AppWizardRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/sites': {
       id: '/_app/sites'
@@ -325,6 +344,7 @@ interface AppRouteChildren {
   AppPayrollRoute: typeof AppPayrollRoute
   AppScheduleRoute: typeof AppScheduleRoute
   AppSitesRoute: typeof AppSitesRoute
+  AppWizardRoute: typeof AppWizardRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
   AppEmployeesEmployeeIdRoute: typeof AppEmployeesEmployeeIdRoute
@@ -340,6 +360,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPayrollRoute: AppPayrollRoute,
   AppScheduleRoute: AppScheduleRoute,
   AppSitesRoute: AppSitesRoute,
+  AppWizardRoute: AppWizardRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
   AppEmployeesEmployeeIdRoute: AppEmployeesEmployeeIdRoute,
@@ -358,3 +379,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
