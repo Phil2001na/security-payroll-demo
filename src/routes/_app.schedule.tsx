@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
-  Loader2, Search, ShieldCheck, Eraser, Users, Wand2,
+  Loader2, Search, ShieldCheck, Eraser, Users, Wand2, Plus, X,
+  Clock, Sparkles, ListChecks, CalendarRange,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,8 +17,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -60,39 +61,63 @@ type SiteRequirement = {
 
 const WEEKLY_HOUR_CAP = 60;
 
-function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+// ── Shift visual category (drives color) ─────────────────────────────────────
+type ShiftKind = "day" | "night" | "double" | "leave" | "other";
+function shiftKindOf(st: ShiftType | undefined | null): ShiftKind {
+  if (!st) return "other";
+  if (st.is_leave) return "leave";
+  const p = st.period;
+  if (p === "night") return "night";
+  if (st.default_hours >= 20) return "double";
+  if (p === "day" || p === "morning" || p === "full_day") return "day";
+  return "other";
+}
+const KIND_STYLES: Record<ShiftKind, { block: string; label: string; pill: string; dot: string; border: string }> = {
+  day:    { block: "bg-amber-100 border-amber-300 hover:bg-amber-200/80",   label: "text-amber-800",   pill: "bg-amber-200 text-amber-900",   dot: "bg-amber-400",   border: "border-amber-300" },
+  night:  { block: "bg-indigo-100 border-indigo-300 hover:bg-indigo-200/80", label: "text-indigo-800", pill: "bg-indigo-200 text-indigo-900", dot: "bg-indigo-500",  border: "border-indigo-300" },
+  double: { block: "bg-emerald-100 border-emerald-300 hover:bg-emerald-200/80", label: "text-emerald-800", pill: "bg-emerald-200 text-emerald-900", dot: "bg-emerald-500", border: "border-emerald-300" },
+  leave:  { block: "bg-slate-100 border-slate-300 hover:bg-slate-200/80",   label: "text-slate-700",   pill: "bg-slate-200 text-slate-800",   dot: "bg-slate-400",   border: "border-slate-300" },
+  other:  { block: "bg-sky-100 border-sky-300 hover:bg-sky-200/80",         label: "text-sky-800",     pill: "bg-sky-200 text-sky-900",       dot: "bg-sky-400",     border: "border-sky-300" },
+};
+
 function fmtIso(d: Date) {
   const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-function daysInMonth(d: Date) {
-  const out: Date[] = [];
-  const last = endOfMonth(d).getDate();
-  for (let i = 1; i <= last; i++) out.push(new Date(d.getFullYear(), d.getMonth(), i));
-  return out;
+function startOfWeek(d: Date) {
+  // Monday-start
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (t.getDay() + 6) % 7; // 0=Mon
+  t.setDate(t.getDate() - dow);
+  return t;
+}
+function addDays(d: Date, n: number) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 function isoWeekKey(d: Date) {
-  // ISO week: Mon = first day. Match Postgres date_trunc('week', x).
-  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = (tmp.getUTCDay() + 6) % 7; // 0=Mon
-  tmp.setUTCDate(tmp.getUTCDate() - dayNum);
-  return fmtIso(tmp);
+  return fmtIso(startOfWeek(d));
+}
+function sameDate(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 function SchedulePage() {
   const { profile } = useAuth();
   const qc = useQueryClient();
-  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [search, setSearch] = useState("");
   const [activeSiteId, setActiveSiteId] = useState<string | null>(null);
   // Pending edits: key = `${employeeId}|${date}` -> shift_type_id (empty string = clear)
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [modal, setModal] = useState<{ empId: string; date: string } | null>(null);
 
-  const monthStart = fmtIso(month);
-  const monthEnd = fmtIso(endOfMonth(month));
-  const days = useMemo(() => daysInMonth(month), [month]);
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const rangeStart = fmtIso(days[0]);
+  const rangeEnd = fmtIso(days[6]);
+  // Wider window for weekly hour totals (cover the visible week + neighbouring days for sanity)
+  const fetchStart = fmtIso(addDays(weekStart, -7));
+  const fetchEnd = fmtIso(addDays(weekStart, 13));
 
   const { data: sites } = useQuery<Site[]>({
     queryKey: ["sites", profile?.tenant_id],
@@ -136,47 +161,46 @@ function SchedulePage() {
   });
 
   const { data: assignments, refetch: refetchAssignments } = useQuery<Assignment[]>({
-    queryKey: ["assignments", profile?.tenant_id, monthStart, monthEnd, activeSiteId],
+    queryKey: ["assignments", profile?.tenant_id, rangeStart, rangeEnd, activeSiteId],
     enabled: !!profile?.tenant_id && !!activeSiteId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedule_assignments")
         .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
         .eq("site_id", activeSiteId!)
-        .gte("date", monthStart).lte("date", monthEnd);
+        .gte("date", rangeStart).lte("date", rangeEnd);
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // Need *all* assignments across all sites to compute weekly totals correctly per employee.
+  // Cross-site assignments for weekly hour totals
   const { data: weekAssignments } = useQuery<Assignment[]>({
-    queryKey: ["assignments-all", profile?.tenant_id, monthStart, monthEnd],
+    queryKey: ["assignments-all", profile?.tenant_id, fetchStart, fetchEnd],
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedule_assignments")
         .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", monthStart).lte("date", monthEnd);
+        .gte("date", fetchStart).lte("date", fetchEnd);
       if (error) throw error;
       return data ?? [];
     },
   });
 
   const { data: exemptions } = useQuery<PSExemption[]>({
-    queryKey: ["ps-exemptions", profile?.tenant_id, monthStart, monthEnd],
+    queryKey: ["ps-exemptions", profile?.tenant_id, rangeStart, rangeEnd],
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ps_exemptions")
         .select("id, employee_id, effective_from, effective_to, reference")
-        .lte("effective_from", monthEnd).gte("effective_to", monthStart);
+        .lte("effective_from", rangeEnd).gte("effective_to", rangeStart);
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // Manpower requirements across all sites in the tenant.
   const { data: requirements } = useQuery<SiteRequirement[]>({
     queryKey: ["site-requirements-all", profile?.tenant_id],
     enabled: !!profile?.tenant_id,
@@ -188,6 +212,8 @@ function SchedulePage() {
       return (data ?? []) as SiteRequirement[];
     },
   });
+
+  // Roster shows: guards whose home_site = active site, plus anyone with an assignment on this site this week
   const siteEmployees = useMemo(() => {
     if (!employees || !activeSiteId) return [];
     const ids = new Set<string>();
@@ -205,7 +231,6 @@ function SchedulePage() {
     return list;
   }, [employees, activeSiteId, assignments, search]);
 
-  // Lookup helpers
   const shiftTypeById = useMemo(() => {
     const m = new Map<string, ShiftType>();
     (shiftTypes ?? []).forEach((s) => m.set(s.id, s));
@@ -218,28 +243,20 @@ function SchedulePage() {
     return m;
   }, [assignments]);
 
-  // Combine saved + pending into "effective" cell view
-  function effectiveShiftId(empId: string, date: string): string | null {
+  const effectiveShiftId = (empId: string, date: string): string | null => {
     const k = `${empId}|${date}`;
     if (k in edits) return edits[k] || null;
     const a = assignByKey.get(k);
     return a ? a.shift_type_id : null;
-  }
-  function effectiveHours(empId: string, date: string): number {
-    const sid = effectiveShiftId(empId, date);
-    if (!sid) return 0;
-    return shiftTypeById.get(sid)?.default_hours ?? 0;
-  }
+  };
 
-  // Weekly totals per employee per ISO week. Combines:
-  // - all DB assignments across all sites
-  // - pending edits (overrides current site only)
+  // Weekly totals (across all sites) including pending edits
   const weeklyTotals = useMemo(() => {
-    const totals = new Map<string, number>(); // key: empId|isoWeekKey
+    const totals = new Map<string, number>();
     const editedKeys = new Set(Object.keys(edits));
     (weekAssignments ?? []).forEach((a) => {
       const k = `${a.employee_id}|${a.date}`;
-      if (editedKeys.has(k)) return; // will be overridden
+      if (editedKeys.has(k)) return;
       const wk = isoWeekKey(new Date(a.date));
       totals.set(`${a.employee_id}|${wk}`, (totals.get(`${a.employee_id}|${wk}`) ?? 0) + Number(a.planned_hours));
     });
@@ -253,26 +270,25 @@ function SchedulePage() {
     return totals;
   }, [weekAssignments, edits, shiftTypeById]);
 
-  function exemptionForWeek(empId: string, weekStart: Date): PSExemption | null {
-    const wkStart = fmtIso(weekStart);
-    const wkEnd = fmtIso(new Date(weekStart.getTime() + 6 * 86400000));
+  const exemptionForWeek = (empId: string, wkStart: Date): PSExemption | null => {
+    const wkS = fmtIso(wkStart);
+    const wkE = fmtIso(addDays(wkStart, 6));
     return (exemptions ?? []).find((x) =>
-      x.employee_id === empId && x.effective_from <= wkEnd && x.effective_to >= wkStart
+      x.employee_id === empId && x.effective_from <= wkE && x.effective_to >= wkS
     ) ?? null;
-  }
+  };
 
-  // Detect over-cap weeks per employee (and whether covered)
   type Breach = { empId: string; weekKey: string; hours: number; covered: boolean };
   const breaches = useMemo<Breach[]>(() => {
     const out: Breach[] = [];
     weeklyTotals.forEach((hours, key) => {
       if (hours <= WEEKLY_HOUR_CAP) return;
       const [empId, wk] = key.split("|");
-      const wkStart = new Date(wk);
-      const ex = exemptionForWeek(empId, wkStart);
+      const ex = exemptionForWeek(empId, new Date(wk));
       out.push({ empId, weekKey: wk, hours, covered: !!ex });
     });
     return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weeklyTotals, exemptions]);
 
   const blocking = breaches.filter((b) => !b.covered);
@@ -284,14 +300,9 @@ function SchedulePage() {
       const next = { ...prev };
       const k = `${empId}|${date}`;
       const existing = assignByKey.get(k);
-      if (existing && existing.shift_type_id === shiftId) {
-        // Reverting to saved value -> drop the pending edit
-        delete next[k];
-      } else if (!existing && !shiftId) {
-        delete next[k];
-      } else {
-        next[k] = shiftId;
-      }
+      if (existing && existing.shift_type_id === shiftId) delete next[k];
+      else if (!existing && !shiftId) delete next[k];
+      else next[k] = shiftId;
       return next;
     });
   }
@@ -307,46 +318,36 @@ function SchedulePage() {
       for (const [k, shiftId] of Object.entries(edits)) {
         const [empId, date] = k.split("|");
         const existing = assignByKey.get(k);
-        if (!shiftId) {
-          if (existing) deletes.push(existing.id);
-          continue;
-        }
+        if (!shiftId) { if (existing) deletes.push(existing.id); continue; }
         const st = shiftTypeById.get(shiftId);
         if (!st) continue;
         if (existing) {
           updates.push({ id: existing.id, shift_type_id: shiftId, planned_hours: st.default_hours });
         } else {
           inserts.push({
-            tenant_id: profile.tenant_id,
-            employee_id: empId,
-            site_id: activeSiteId,
-            date,
-            shift_type_id: shiftId,
-            planned_hours: st.default_hours,
+            tenant_id: profile.tenant_id, employee_id: empId, site_id: activeSiteId,
+            date, shift_type_id: shiftId, planned_hours: st.default_hours,
           });
         }
       }
-
       if (deletes.length) {
         const { error } = await supabase.from("schedule_assignments").delete().in("id", deletes);
         if (error) throw error;
       }
       for (const u of updates) {
-        const { error } = await supabase
-          .from("schedule_assignments")
+        const { error } = await supabase.from("schedule_assignments")
           .update({ shift_type_id: u.shift_type_id, planned_hours: u.planned_hours })
           .eq("id", u.id);
         if (error) throw error;
       }
       if (inserts.length) {
-        // Chunk to 200
         for (let i = 0; i < inserts.length; i += 200) {
           const { error } = await supabase.from("schedule_assignments").insert(inserts.slice(i, i + 200));
           if (error) throw error;
         }
       }
 
-      toast.success(`Roster saved · ${dirtyCount} changes`);
+      toast.success(`Roster saved · ${dirtyCount} change${dirtyCount === 1 ? "" : "s"}`);
       setEdits({});
       await Promise.all([
         refetchAssignments(),
@@ -359,76 +360,35 @@ function SchedulePage() {
     }
   }
 
-  // ========= Auto-Fill Roster =========
-  // Week choices: ISO weeks overlapping the shown month.
-  const weekOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: { key: string; label: string; start: Date; end: Date }[] = [];
-    for (const d of days) {
-      const k = isoWeekKey(d);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const start = new Date(k);
-      const end = new Date(start.getTime() + 6 * 86400000);
-      out.push({
-        key: k,
-        label: `${start.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${end.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`,
-        start, end,
-      });
-    }
-    return out;
-  }, [days]);
-
-  const [fillWeek, setFillWeek] = useState<string>("");
-  useEffect(() => {
-    if (!fillWeek && weekOptions.length) {
-      const today = isoWeekKey(new Date());
-      const match = weekOptions.find((w) => w.key === today);
-      setFillWeek(match ? match.key : weekOptions[0].key);
-    }
-  }, [weekOptions, fillWeek]);
-
-  // Pick a standard "day" and "night" shift_type for auto-fill.
+  // ── Auto-Fill (current visible week) ─────────────────────────────────────
   const autoShiftTypes = useMemo(() => {
     const st = shiftTypes ?? [];
     const candidates = st.filter((s) =>
       s.active && !s.is_leave && s.default_hours > 0 && s.pay_rule === "standard"
     );
-    const findBy = (periods: string[]) =>
-      candidates.find((s) => periods.includes(s.period)) ?? null;
+    const findBy = (periods: string[]) => candidates.find((s) => periods.includes(s.period)) ?? null;
     const day = findBy(["day"]) ?? findBy(["full_day"]);
     const night = findBy(["night"]);
     return { day, night };
   }, [shiftTypes]);
 
-  // Shortfall & auto-fill dry-run for the chosen week.
   type FillPlan = {
     shortfalls: { siteId: string; date: string; kind: "day" | "night"; required: number; have: number; short: number }[];
     newAssignments: { employee_id: string; site_id: string; date: string; shift_type_id: string; planned_hours: number }[];
-    unassignable: number; // same as sum of shortfalls
+    unassignable: number;
   };
 
   function computeFillPlan(): FillPlan {
     const plan: FillPlan = { shortfalls: [], newAssignments: [], unassignable: 0 };
-    if (!fillWeek || !sites || !employees || !requirements || !weekAssignments) return plan;
+    if (!sites || !employees || !requirements || !weekAssignments) return plan;
     if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
 
-    const weekStart = new Date(fillWeek);
-    const weekDates: { date: string; dow: number }[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart.getTime() + i * 86400000);
-      weekDates.push({ date: fmtIso(d), dow: d.getDay() });
-    }
+    const weekDates = days.map((d) => ({ date: fmtIso(d), dow: d.getDay() }));
     const weekDateSet = new Set(weekDates.map((w) => w.date));
 
-    // Track per-employee: (a) dates already taken this week, (b) total hours this week
     const empDates = new Map<string, Set<string>>();
     const empWeekHours = new Map<string, number>();
-    for (const emp of employees) {
-      empDates.set(emp.id, new Set());
-      empWeekHours.set(emp.id, 0);
-    }
-    // Apply existing saved assignments (+ pending edits override)
+    for (const emp of employees) { empDates.set(emp.id, new Set()); empWeekHours.set(emp.id, 0); }
     const editedKeys = new Set(Object.keys(edits));
     for (const a of weekAssignments) {
       if (!weekDateSet.has(a.date)) continue;
@@ -439,24 +399,21 @@ function SchedulePage() {
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
-      if (!weekDateSet.has(date)) continue;
-      if (!sid) continue;
+      if (!weekDateSet.has(date) || !sid) continue;
       const st = shiftTypeById.get(sid);
       if (!st) continue;
       empDates.get(empId)?.add(date);
       empWeekHours.set(empId, (empWeekHours.get(empId) ?? 0) + st.default_hours);
     }
 
-    // Existing coverage per (site, date, kind)
-    type CoverKey = string; // `${site}|${date}|${kind}`
-    const coverage = new Map<CoverKey, number>();
-    function effectiveKind(shiftId: string): "day" | "night" | null {
+    const coverage = new Map<string, number>();
+    const effectiveKind = (shiftId: string): "day" | "night" | null => {
       const st = shiftTypeById.get(shiftId);
       if (!st) return null;
       if (st.period === "night") return "night";
       if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
       return null;
-    }
+    };
     for (const a of weekAssignments) {
       if (!weekDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
@@ -464,29 +421,23 @@ function SchedulePage() {
       if (!sid) continue;
       const kind = effectiveKind(sid);
       if (!kind) continue;
-      const ck = `${a.site_id}|${a.date}|${kind}`;
-      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+      coverage.set(`${a.site_id}|${a.date}|${kind}`, (coverage.get(`${a.site_id}|${a.date}|${kind}`) ?? 0) + 1);
     }
-    // Pending inserts on currently-viewed site from edits (no existing row case)
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
-      if (!weekDateSet.has(date)) continue;
-      if (!sid) continue;
-      // Only count if there wasn't already a row (otherwise already handled above)
+      if (!weekDateSet.has(date) || !sid) continue;
       const existing = (weekAssignments ?? []).find((a) => a.employee_id === empId && a.date === date);
       if (existing) continue;
       const kind = effectiveKind(sid);
       if (!kind || !activeSiteId) continue;
-      const ck = `${activeSiteId}|${date}|${kind}`;
-      coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+      coverage.set(`${activeSiteId}|${date}|${kind}`, (coverage.get(`${activeSiteId}|${date}|${kind}`) ?? 0) + 1);
     }
 
-    // Iterate site x day x kind
     for (const site of sites) {
       for (const wd of weekDates) {
         for (const kind of ["day", "night"] as const) {
-          const req = requirements.find(
-            (r) => r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
+          const req = requirements.find((r) =>
+            r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
           );
           const required = req?.quantity_required ?? 0;
           if (required === 0) continue;
@@ -496,40 +447,30 @@ function SchedulePage() {
           let have = coverage.get(ck) ?? 0;
           const needed = required - have;
           if (needed <= 0) continue;
-
-          // Candidate employees: active, preferred_shift matches, not already assigned that day,
-          // and total weekly hours + shift hours <= 60.
           const shiftHours = stForKind.default_hours;
           const pool = employees.filter((emp) => {
             if (emp.status !== "active") return false;
             if (emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
-            const takenDates = empDates.get(emp.id);
-            if (takenDates?.has(wd.date)) return false;
+            if (empDates.get(emp.id)?.has(wd.date)) return false;
             const hrs = empWeekHours.get(emp.id) ?? 0;
             if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
             return true;
           });
-          // Prioritise: home_site match > "both" (specialists preserved) > lowest weekly hours
           pool.sort((a, b) => {
             const aHome = a.home_site_id === site.id ? 0 : 1;
             const bHome = b.home_site_id === site.id ? 0 : 1;
             if (aHome !== bHome) return aHome - bHome;
-            const aSpec = a.preferred_shift === kind ? 1 : 0; // prefer specialists LAST so "both" employees stay flexible
+            const aSpec = a.preferred_shift === kind ? 1 : 0;
             const bSpec = b.preferred_shift === kind ? 1 : 0;
-            // Actually we DO want specialists first for their kind (they can't work the other kind anyway).
             if (aSpec !== bSpec) return bSpec - aSpec;
             return (empWeekHours.get(a.id) ?? 0) - (empWeekHours.get(b.id) ?? 0);
           });
-
           let assigned = 0;
           for (const emp of pool) {
             if (assigned >= needed) break;
             plan.newAssignments.push({
-              employee_id: emp.id,
-              site_id: site.id,
-              date: wd.date,
-              shift_type_id: stForKind.id,
-              planned_hours: shiftHours,
+              employee_id: emp.id, site_id: site.id, date: wd.date,
+              shift_type_id: stForKind.id, planned_hours: shiftHours,
             });
             empDates.get(emp.id)?.add(wd.date);
             empWeekHours.set(emp.id, (empWeekHours.get(emp.id) ?? 0) + shiftHours);
@@ -537,16 +478,8 @@ function SchedulePage() {
             have++;
             assigned++;
           }
-
           if (assigned < needed) {
-            plan.shortfalls.push({
-              siteId: site.id,
-              date: wd.date,
-              kind,
-              required,
-              have,
-              short: needed - assigned,
-            });
+            plan.shortfalls.push({ siteId: site.id, date: wd.date, kind, required, have, short: needed - assigned });
             plan.unassignable += needed - assigned;
           }
         }
@@ -560,7 +493,7 @@ function SchedulePage() {
     if (!profile?.tenant_id) return;
     const plan = computeFillPlan();
     if (plan.newAssignments.length === 0 && plan.shortfalls.length === 0) {
-      toast.info("Nothing to fill — requirements already met or no requirements set.");
+      toast.info("Nothing to fill — requirements already met or none set.");
       return;
     }
     setAutoFilling(true);
@@ -573,7 +506,7 @@ function SchedulePage() {
         }
       }
       const msg = `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned`
-        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short — see below` : "");
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "");
       if (plan.unassignable > 0) toast.warning(msg);
       else toast.success(msg);
       await Promise.all([
@@ -587,25 +520,39 @@ function SchedulePage() {
     }
   }
 
-  // Live shortfall preview (after pending edits) for indicator
   const shortfallPreview = useMemo(() => computeFillPlan().shortfalls,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fillWeek, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
+    [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
   );
 
-  const cellLabel = (empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null => {
-    const k = `${empId}|${date}`;
-    const sid = effectiveShiftId(empId, date);
-    if (!sid) {
-      return (k in edits && assignByKey.get(k)) ? { code: "—", hours: 0, pendingDelete: true, pendingChange: false } : null;
-    }
-    const st = shiftTypeById.get(sid);
-    if (!st) return null;
-    const dirty = k in edits;
-    return { code: st.code, hours: st.default_hours, pendingDelete: false, pendingChange: dirty };
-  };
+  // ── Stats ───────────────────────────────────────────────────────────────
+  const today = new Date();
+  const stats = useMemo(() => {
+    let totalShifts = 0;
+    let totalHours = 0;
+    const dayCounts = days.map(() => 0);
+    siteEmployees.forEach((emp) => {
+      days.forEach((d, i) => {
+        const sid = effectiveShiftId(emp.id, fmtIso(d));
+        if (!sid) return;
+        const st = shiftTypeById.get(sid);
+        if (!st) return;
+        totalShifts += 1;
+        totalHours += st.default_hours;
+        dayCounts[i] += 1;
+      });
+    });
+    return { totalShifts, totalHours, dayCounts };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days, siteEmployees, edits, assignments, shiftTypeById]);
 
-  const monthLabel = month.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const weekLabel = `${days[0].toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${days[6].toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+  const activeSite = sites?.find((s) => s.id === activeSiteId) ?? null;
+
+  // Modal cell context
+  const modalEmp = modal && employees ? employees.find((e) => e.id === modal.empId) ?? null : null;
+  const modalDate = modal ? new Date(modal.date) : null;
+  const modalCurrentShiftId = modal ? effectiveShiftId(modal.empId, modal.date) : null;
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -614,157 +561,188 @@ function SchedulePage() {
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold tracking-tight flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-primary" /> Schedule
+            {dirtyCount > 0 && (
+              <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-1 rounded">
+                {dirtyCount} unsaved
+              </span>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monthly roster grouped by site. Click a cell to assign a shift template.
+            Click any cell to assign a shift. Colors show the shift kind at a glance.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
+          <Button variant="outline" size="icon" onClick={() => setWeekStart(addDays(weekStart, -7))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="font-mono text-sm font-medium px-3 py-1.5 rounded-md border min-w-[140px] text-center">
-            {monthLabel}
+          <div className="font-mono text-sm font-semibold px-3 py-2 rounded-md border min-w-[200px] text-center">
+            {weekLabel}
           </div>
-          <Button variant="outline" size="sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
+          <Button variant="outline" size="icon" onClick={() => setWeekStart(addDays(weekStart, 7))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setMonth(startOfMonth(new Date()))}>Today</Button>
+          <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>
+            Today
+          </Button>
+          <Button onClick={save} disabled={!canSave}>
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Save Roster
+          </Button>
         </div>
       </div>
 
       {/* Site tabs */}
       {sites && sites.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b pb-2">
-          {sites.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSiteId(s.id)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
-                activeSiteId === s.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background hover:bg-muted border-transparent"
-              )}
-            >
-              {s.name}
-              {s.code && <span className="ml-1.5 text-xs opacity-60">{s.code}</span>}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1 border-b">
+          {sites.map((s) => {
+            const count = (employees ?? []).filter((e) => e.home_site_id === s.id).length;
+            const isActive = activeSiteId === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActiveSiteId(s.id)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
+                  isActive
+                    ? "border-accent text-accent-foreground bg-accent/10"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {s.name}
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
+                  isActive ? "bg-accent/30" : "bg-muted"
+                )}>
+                  {count} guards
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter guards…"
-            className="pl-9 h-9"
-          />
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter guards…"
+              className="pl-9 h-9"
+            />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <Legend dot="bg-amber-400"   label="Day" />
+            <Legend dot="bg-indigo-500"  label="Night" />
+            <Legend dot="bg-emerald-500" label="Double" />
+            <Legend dot="bg-slate-400"   label="Leave" />
+            <Legend dot="" border label="Unassigned" />
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {siteEmployees.length} guards</span>
-          {dirtyCount > 0 && <Badge variant="outline" className="font-mono">{dirtyCount} pending</Badge>}
-          {blocking.length > 0 && (
-            <Badge variant="destructive" className="font-mono">
-              <AlertTriangle className="h-3 w-3 mr-1" /> {blocking.length} blocked
-            </Badge>
-          )}
-        </div>
+        <Button
+          variant="outline" size="sm"
+          onClick={autoFillRoster}
+          disabled={autoFilling || (!autoShiftTypes.day && !autoShiftTypes.night)}
+          title={(!autoShiftTypes.day && !autoShiftTypes.night) ? "Add a standard day/night shift template first" : "Auto-fill from site requirements"}
+        >
+          {autoFilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+          Auto-fill this week
+        </Button>
       </div>
 
-      {/* Auto-Fill bar */}
-      <Card className="bg-muted/30">
-        <div className="p-3 flex flex-wrap items-center gap-3">
-          <Wand2 className="h-4 w-4 text-primary" />
-          <div className="text-sm font-medium">Auto-fill roster</div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Week</span>
-            <Select value={fillWeek} onValueChange={setFillWeek}>
-              <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Pick week" /></SelectTrigger>
-              <SelectContent>
-                {weekOptions.map((w) => (
-                  <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            size="sm"
-            onClick={autoFillRoster}
-            disabled={autoFilling || !fillWeek || (!autoShiftTypes.day && !autoShiftTypes.night)}
-          >
-            {autoFilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
-            Auto-fill this week
-          </Button>
-          {(!autoShiftTypes.day && !autoShiftTypes.night) && (
-            <span className="text-xs text-destructive">
-              No standard day/night shift template found — add one in Settings.
-            </span>
-          )}
-          {shortfallPreview.length > 0 && (
-            <Badge variant="destructive" className="font-mono ml-auto">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              {shortfallPreview.reduce((s, x) => s + x.short, 0)} short across {shortfallPreview.length} slot{shortfallPreview.length === 1 ? "" : "s"}
-            </Badge>
-          )}
-        </div>
-        {shortfallPreview.length > 0 && (
-          <div className="border-t bg-destructive/5 p-3 space-y-1 max-h-48 overflow-y-auto">
-            <div className="text-xs font-medium text-destructive mb-1">
-              Shortfalls — HR must resolve (no auto-OT assigned)
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={<Users className="h-5 w-5" />} value={siteEmployees.length} label="Guards on site" />
+        <StatCard icon={<ListChecks className="h-5 w-5" />} value={stats.totalShifts} label="Shifts this week" />
+        <StatCard icon={<Clock className="h-5 w-5" />} value={`${stats.totalHours}h`} label="Total hours" />
+        <StatCard
+          icon={<AlertTriangle className="h-5 w-5" />}
+          value={shortfallPreview.length === 0 ? "OK" : `${shortfallPreview.length} gaps`}
+          label="Coverage status"
+          tone={shortfallPreview.length === 0 ? "success" : "destructive"}
+        />
+      </div>
+
+      {/* Shortfalls */}
+      {shortfallPreview.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <div className="p-3 flex items-center gap-2 border-b border-destructive/20">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <div className="text-sm font-semibold text-destructive">
+              {shortfallPreview.reduce((s, x) => s + x.short, 0)} guard-slot{shortfallPreview.reduce((s, x) => s + x.short, 0) === 1 ? "" : "s"} short — HR must resolve (no auto-OT)
             </div>
+          </div>
+          <div className="p-3 space-y-1 max-h-40 overflow-y-auto text-xs font-mono">
             {shortfallPreview.map((s, i) => {
               const site = sites?.find((x) => x.id === s.siteId);
               const d = new Date(s.date);
               return (
-                <div key={i} className="text-xs flex items-center justify-between font-mono">
+                <div key={i} className="flex items-center justify-between">
                   <span>
-                    <span className="font-medium">{site?.name ?? s.siteId}</span>
+                    <span className="font-semibold">{site?.name ?? s.siteId}</span>
                     {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
                     {" · "}<span className="uppercase">{s.kind}</span>
                   </span>
-                  <span className="text-destructive font-semibold">
+                  <span className="text-destructive font-bold">
                     {s.have}/{s.required} · short {s.short}
                   </span>
                 </div>
               );
             })}
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {blocking.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Roster cannot be saved — {blocking.length} weekly cap breach{blocking.length === 1 ? "" : "es"} without PS exemption</AlertTitle>
+          <AlertTitle>Roster cannot be saved — {blocking.length} weekly cap breach{blocking.length === 1 ? "" : "es"}</AlertTitle>
           <AlertDescription>
-            One or more guards exceed the 60-hour weekly limit and have no PS exemption on file. File a PS exemption from the employee profile, or reduce hours.
+            One or more guards exceed the 60-hour weekly limit and have no PS exemption on file.
+            File a PS exemption from the employee profile, or reduce hours.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Grid */}
-      <Card className="overflow-hidden">
+      {/* Schedule grid */}
+      <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            <thead className="bg-muted/50 sticky top-0 z-10">
-              <tr>
-                <th className="text-left px-2 py-2 font-medium sticky left-0 bg-muted/50 z-20 border-b border-r min-w-[180px]">Guard</th>
-                <th className="text-center px-2 py-2 font-medium border-b sticky left-[180px] bg-muted/50 z-20 border-r min-w-[60px]">Wk hrs</th>
+          <table className="w-full border-separate border-spacing-0 min-w-[900px]">
+            <thead>
+              <tr className="bg-muted/40">
+                <th className="text-left px-4 py-3 text-[11px] uppercase font-semibold text-muted-foreground tracking-wider sticky left-0 bg-muted/40 z-10 min-w-[200px]">
+                  Guard
+                </th>
+                <th className="text-center px-2 py-3 text-[11px] uppercase font-semibold text-muted-foreground tracking-wider min-w-[64px]">
+                  Wk hrs
+                </th>
                 {days.map((d) => {
-                  const dow = d.toLocaleDateString("en-GB", { weekday: "short" });
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                  const isToday = sameDate(d, today);
                   return (
                     <th key={fmtIso(d)} className={cn(
-                      "text-center px-1 py-1 font-mono font-medium border-b min-w-[44px]",
-                      isWeekend && "bg-accent/10"
+                      "px-2 py-2 min-w-[120px] border-l text-center",
+                      isWeekend && "bg-muted/60"
                     )}>
-                      <div className="text-[10px] text-muted-foreground uppercase">{dow}</div>
-                      <div className="text-sm">{d.getDate()}</div>
+                      <div className={cn(
+                        "text-[10px] uppercase font-semibold tracking-wider",
+                        isWeekend ? "text-muted-foreground/70" : "text-muted-foreground"
+                      )}>
+                        {d.toLocaleDateString("en-GB", { weekday: "short" })}
+                      </div>
+                      <div className="mt-1 flex items-center justify-center">
+                        <span className={cn(
+                          "text-xl font-bold leading-none",
+                          isToday && "inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-foreground text-base"
+                        )}>
+                          {d.getDate()}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-1">
+                        {d.toLocaleDateString("en-GB", { month: "short" })}
+                      </div>
                     </th>
                   );
                 })}
@@ -773,26 +751,132 @@ function SchedulePage() {
             <tbody>
               {siteEmployees.length === 0 && (
                 <tr>
-                  <td colSpan={days.length + 2} className="text-center py-12 text-muted-foreground">
-                    No guards assigned to this site yet. Set <span className="font-mono">home_site</span> on employees, or assign a shift to add them here.
+                  <td colSpan={days.length + 2} className="text-center py-12 text-muted-foreground text-sm">
+                    No guards assigned to this site yet. Set <span className="font-mono">home_site</span> on employees,
+                    or use Auto-fill to pull guards in based on requirements.
                   </td>
                 </tr>
               )}
               {siteEmployees.map((emp) => {
-                // Sum hours for the week of the FIRST day visible (header) — show per-week totals as we render days.
+                const empBreaches = breaches.filter((b) => b.empId === emp.id);
+                const wkHours = weeklyTotals.get(`${emp.id}|${isoWeekKey(weekStart)}`) ?? 0;
+                const overCap = empBreaches.length > 0;
+                const blockedHere = empBreaches.some((b) => !b.covered);
                 return (
-                  <EmployeeRow
-                    key={emp.id}
-                    emp={emp}
-                    days={days}
-                    cellLabel={cellLabel}
-                    setCell={setCell}
-                    weeklyTotals={weeklyTotals}
-                    breaches={breaches}
-                    shiftTypes={shiftTypes ?? []}
-                  />
+                  <tr key={emp.id} className="group hover:bg-muted/20">
+                    <td className="px-4 py-2 sticky left-0 bg-card group-hover:bg-muted/20 border-t border-border/50 z-10">
+                      <div className="font-semibold text-sm leading-tight">{emp.surname}, {emp.first_names}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                        {emp.employee_code}
+                        {emp.preferred_shift !== "both" && (
+                          <span className="ml-2 uppercase opacity-70">{emp.preferred_shift}-only</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 text-center border-t border-border/50">
+                      <span className={cn(
+                        "inline-block text-xs font-bold px-2 py-1 rounded-md",
+                        blockedHere ? "bg-destructive/20 text-destructive"
+                          : overCap ? "bg-amber-100 text-amber-900"
+                          : wkHours > 48 ? "bg-amber-50 text-amber-800"
+                          : "bg-muted text-foreground"
+                      )}>
+                        {wkHours}h
+                        {overCap && (
+                          <span className="ml-1 text-[9px] uppercase">
+                            {blockedHere ? "over" : "ps"}
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    {days.map((d) => {
+                      const date = fmtIso(d);
+                      const k = `${emp.id}|${date}`;
+                      const sid = effectiveShiftId(emp.id, date);
+                      const st = sid ? shiftTypeById.get(sid) : null;
+                      const kind = shiftKindOf(st);
+                      const styles = KIND_STYLES[kind];
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                      const dirty = k in edits;
+                      return (
+                        <td key={date} className={cn(
+                          "p-1.5 border-t border-l border-border/50 align-middle",
+                          isWeekend && "bg-muted/30"
+                        )}>
+                          {st ? (
+                            <button
+                              onClick={() => setModal({ empId: emp.id, date })}
+                              className={cn(
+                                "w-full min-h-[58px] rounded-lg border px-2 py-1.5 flex flex-col items-start justify-center gap-0.5 transition-all hover:shadow-md hover:-translate-y-0.5",
+                                styles.block,
+                                dirty && "ring-2 ring-amber-400 ring-offset-1"
+                              )}
+                            >
+                              <span className={cn("text-[9px] font-bold uppercase tracking-wider", styles.label)}>
+                                {st.label.length > 14 ? st.code : st.label}
+                              </span>
+                              <span className="text-xs font-bold text-foreground font-mono">
+                                {st.default_hours}h
+                              </span>
+                              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded", styles.pill)}>
+                                {st.code}
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setModal({ empId: emp.id, date })}
+                              className={cn(
+                                "group/cell w-full min-h-[58px] rounded-lg border-2 border-dashed flex items-center justify-center transition-all",
+                                "border-border hover:border-accent hover:bg-accent/5",
+                                dirty && "border-amber-400 bg-amber-50"
+                              )}
+                            >
+                              <Plus className="h-4 w-4 text-muted-foreground/40 group-hover/cell:text-accent transition-colors" />
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 );
               })}
+              {/* Summary row */}
+              {siteEmployees.length > 0 && (
+                <tr className="bg-muted/30">
+                  <td className="px-4 py-3 sticky left-0 bg-muted/30 border-t-2 border-border z-10">
+                    <div className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
+                      Guards on duty
+                    </div>
+                  </td>
+                  <td className="border-t-2 border-border" />
+                  {days.map((d, i) => {
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    const count = stats.dayCounts[i];
+                    // Compute required-for-this-day across the active site only (display hint)
+                    const dow = d.getDay();
+                    const req = (requirements ?? [])
+                      .filter((r) => r.site_id === activeSiteId && r.day_of_week === dow)
+                      .reduce((sum, r) => sum + r.quantity_required, 0);
+                    const short = req > 0 && count < req;
+                    return (
+                      <td key={fmtIso(d)} className={cn(
+                        "px-2 py-3 border-t-2 border-l border-border text-center",
+                        isWeekend && "bg-muted/50"
+                      )}>
+                        <div className={cn(
+                          "text-2xl font-extrabold leading-none",
+                          short ? "text-destructive" : "text-foreground"
+                        )}>
+                          {count}{req > 0 && <span className="text-sm text-muted-foreground font-normal">/{req}</span>}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium mt-1">
+                          guards
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -801,10 +885,14 @@ function SchedulePage() {
       {/* Save bar */}
       <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-lg border bg-background/95 backdrop-blur p-4 shadow-lg">
         <div className="text-sm flex items-center gap-3 text-muted-foreground">
+          <CalendarRange className="h-4 w-4" />
           {dirtyCount === 0 ? "All changes saved" : `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`}
           {blocking.length === 0 && dirtyCount > 0 && (
-            <span className="flex items-center gap-1 text-success"><ShieldCheck className="h-3.5 w-3.5" /> Within weekly limits</span>
+            <span className="flex items-center gap-1 text-success">
+              <ShieldCheck className="h-3.5 w-3.5" /> Within weekly limits
+            </span>
           )}
+          {activeSite && <span>· Site: <span className="font-semibold text-foreground">{activeSite.name}</span></span>}
         </div>
         <div className="flex items-center gap-2">
           {dirtyCount > 0 && (
@@ -818,103 +906,105 @@ function SchedulePage() {
           </Button>
         </div>
       </div>
+
+      {/* Assign modal */}
+      <Dialog open={!!modal} onOpenChange={(o) => !o && setModal(null)}>
+        <DialogContent className="max-w-md">
+          {modal && modalEmp && modalDate && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{modalEmp.surname}, {modalEmp.first_names}</DialogTitle>
+                <DialogDescription>
+                  <span className="font-mono">{modalEmp.employee_code}</span>
+                  {" · "}
+                  {modalDate.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {(shiftTypes ?? []).map((st) => {
+                  const kind = shiftKindOf(st);
+                  const styles = KIND_STYLES[kind];
+                  const selected = modalCurrentShiftId === st.id;
+                  return (
+                    <button
+                      key={st.id}
+                      onClick={() => { setCell(modal.empId, modal.date, st.id); setModal(null); }}
+                      className={cn(
+                        "w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all text-left",
+                        styles.block,
+                        selected ? "ring-2 ring-accent ring-offset-1" : ""
+                      )}
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-foreground">{st.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {st.code} · {st.pay_rule}
+                        </div>
+                      </div>
+                      <span className={cn("text-xs font-bold px-2 py-1 rounded-full", styles.pill)}>
+                        {st.default_hours}h
+                      </span>
+                    </button>
+                  );
+                })}
+                {modalCurrentShiftId && (
+                  <button
+                    onClick={() => { setCell(modal.empId, modal.date, ""); setModal(null); }}
+                    className="w-full flex items-center justify-between p-3 rounded-lg border-2 border-border bg-muted/30 hover:bg-muted/60 transition-all text-left"
+                  >
+                    <div>
+                      <div className="text-sm font-bold text-muted-foreground">Clear shift</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">Remove this assignment</div>
+                    </div>
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setModal(null)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-type RowProps = {
-  emp: Employee;
-  days: Date[];
-  cellLabel: (empId: string, date: string) => { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null;
-  setCell: (empId: string, date: string, shiftId: string) => void;
-  weeklyTotals: Map<string, number>;
-  breaches: Array<{ empId: string; weekKey: string; hours: number; covered: boolean }>;
-  shiftTypes: ShiftType[];
-};
-
-function EmployeeRow({ emp, days, cellLabel, setCell, weeklyTotals, breaches, shiftTypes }: RowProps) {
-  // Show weekly hours for the ISO week containing the first day, but also color cells per their week
-  const weekKeys = useMemo(() => days.map((d) => isoWeekKey(d)), [days]);
-  const empBreaches = breaches.filter((b) => b.empId === emp.id);
-  const maxWeekHours = Math.max(0, ...weekKeys.map((wk) => weeklyTotals.get(`${emp.id}|${wk}`) ?? 0));
-  const overCap = empBreaches.length > 0;
-
+function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: React.ReactNode; label: string; tone?: "success" | "destructive" }) {
   return (
-    <tr className="hover:bg-muted/30">
-      <td className="px-2 py-1.5 sticky left-0 bg-background border-r border-b">
-        <div className="font-medium text-sm leading-tight">{emp.surname}, {emp.first_names}</div>
-        <div className="font-mono text-[10px] text-muted-foreground">{emp.employee_code}</div>
-      </td>
-      <td className={cn(
-        "px-2 py-1.5 text-center font-mono text-xs sticky left-[180px] bg-background border-r border-b",
-        overCap && empBreaches.every((b) => b.covered) && "text-warning",
-        overCap && empBreaches.some((b) => !b.covered) && "text-destructive font-bold"
+    <Card className="p-4 flex items-center gap-3">
+      <div className={cn(
+        "h-10 w-10 rounded-lg flex items-center justify-center",
+        tone === "success" ? "bg-success/15 text-success"
+          : tone === "destructive" ? "bg-destructive/15 text-destructive"
+          : "bg-accent/15 text-accent-foreground"
       )}>
-        {maxWeekHours.toFixed(0)}h
-        {overCap && (
-          <div className="text-[9px] uppercase tracking-wider">
-            {empBreaches.some((b) => !b.covered) ? "over" : "ps"}
-          </div>
-        )}
-      </td>
-      {days.map((d) => {
-        const date = fmtIso(d);
-        const cell = cellLabel(emp.id, date);
-        const wk = isoWeekKey(d);
-        const wkHours = weeklyTotals.get(`${emp.id}|${wk}`) ?? 0;
-        const cellInOverWeek = wkHours > WEEKLY_HOUR_CAP;
-        const cellBreach = breaches.find((b) => b.empId === emp.id && b.weekKey === wk);
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-        return (
-          <td key={date} className={cn(
-            "p-0 border-b border-r/30 align-middle text-center",
-            isWeekend && "bg-accent/5"
-          )}>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  className={cn(
-                    "w-full h-9 px-1 text-[11px] font-mono font-medium hover:bg-primary/10 transition-colors",
-                    cell?.pendingChange && "ring-1 ring-inset ring-warning",
-                    cellInOverWeek && (cellBreach && !cellBreach.covered ? "bg-destructive/15" : "bg-warning/15")
-                  )}
-                  title={cell ? `${cell.code} · ${cell.hours}h` : "Empty"}
-                >
-                  {cell ? cell.code : <span className="text-muted-foreground/40">·</span>}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-2" align="center">
-                <div className="text-xs text-muted-foreground mb-2 px-1">
-                  {emp.surname}, {emp.first_names} · {d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
-                </div>
-                <Select
-                  value={cell ? (shiftTypes.find((s) => s.code === cell.code)?.id ?? "") : ""}
-                  onValueChange={(v) => setCell(emp.id, date, v)}
-                >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Pick shift…" /></SelectTrigger>
-                  <SelectContent>
-                    {shiftTypes.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        <span className="font-mono text-xs">{s.code}</span>
-                        <span className="text-muted-foreground ml-2">{s.label} · {s.default_hours}h</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {cell && (
-                  <Button
-                    size="sm" variant="ghost"
-                    className="w-full mt-2 text-destructive hover:text-destructive"
-                    onClick={() => setCell(emp.id, date, "")}
-                  >
-                    Clear cell
-                  </Button>
-                )}
-              </PopoverContent>
-            </Popover>
-          </td>
-        );
-      })}
-    </tr>
+        {icon}
+      </div>
+      <div>
+        <div className={cn(
+          "text-2xl font-extrabold leading-none",
+          tone === "success" && "text-success",
+          tone === "destructive" && "text-destructive"
+        )}>
+          {value}
+        </div>
+        <div className="text-xs text-muted-foreground font-medium mt-1">{label}</div>
+      </div>
+    </Card>
+  );
+}
+
+function Legend({ dot, label, border }: { dot: string; label: string; border?: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5 font-medium">
+      <span className={cn(
+        "w-2.5 h-2.5 rounded",
+        dot,
+        border && "border-2 border-dashed border-muted-foreground/40"
+      )} />
+      {label}
+    </span>
   );
 }
