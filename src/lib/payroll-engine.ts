@@ -253,6 +253,18 @@ export function calculateNetPay(args: {
     }
   }
 
+  // Ad-hoc incident deductions from deductions table (recorded on attendance / disciplinary)
+  for (const d of adhoc) {
+    const amt = Number(d.amount || 0);
+    if (amt <= 0) continue;
+    if (d.requires_ca && !d.has_ca_ref) {
+      disqualified_fines += amt;
+      warnings.push(`Deduction N$${amt}${d.label ? ` (${d.label})` : ""} requires Collective Agreement ref — set to N$0`);
+    } else {
+      fine_deductions += amt;
+    }
+  }
+
   const total_deductions = paye_amount + ssc_amount + fine_deductions + consensual;
   const net_salary = gross_salary - total_deductions;
 
