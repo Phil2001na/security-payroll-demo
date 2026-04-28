@@ -375,8 +375,14 @@ function AttendancePage() {
       .slice(0, 40);
   }, [replaceFor, employees, assignments, weekHoursByEmp]);
 
-  async function applyReplacement(reliefEmpId: string) {
+  async function applyReplacement(reliefEmpId: string, overCap: boolean) {
     if (!replaceFor || !profile?.tenant_id || !payPeriod) return;
+    if (overCap) {
+      const ok = window.confirm(
+        "⚠️ This guard will exceed the 60-hour weekly cap.\n\nNamibian Labour Act limits weekly hours to 60h unless a PS exemption is on file. Proceeding without one may expose the company to penalties.\n\nContinue anyway?"
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       const a = replaceFor;
