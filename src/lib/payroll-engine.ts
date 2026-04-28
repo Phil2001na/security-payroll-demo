@@ -189,10 +189,19 @@ function bucketiseLogs(logs: ShiftLogRow[], suspensionDates: Set<string>): Paysl
 }
 
 // ---------- Full calculator ----------
+export type AdhocDeductionRow = {
+  employee_id: string;
+  amount: number;
+  requires_ca?: boolean;
+  has_ca_ref?: boolean;
+  label?: string;
+};
+
 export function calculateNetPay(args: {
   employee: EmployeeRow;
   logs: ShiftLogRow[];
   disciplinary: DisciplinaryRow[];
+  adhocDeductions?: AdhocDeductionRow[];
   consensualDeductions?: number;
   suspensionDates?: Set<string>;
   constants: PayrollConstants;
@@ -200,6 +209,7 @@ export function calculateNetPay(args: {
 }): PayslipCalc {
   const { employee, logs, disciplinary, constants, brackets } = args;
   const consensual = args.consensualDeductions ?? 0;
+  const adhoc = args.adhocDeductions ?? [];
   const suspensionDates = args.suspensionDates ?? new Set<string>();
   const warnings: string[] = [];
 
