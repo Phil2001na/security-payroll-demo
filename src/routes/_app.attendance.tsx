@@ -452,6 +452,47 @@ function AttendancePage() {
     }
   }
 
+  async function saveDeduction() {
+    if (!deductFor || !profile?.tenant_id || !payPeriod) {
+      toast.error("No open pay period for this date.");
+      return;
+    }
+    if (!deductTypeId) {
+      toast.error("Pick a deduction type.");
+      return;
+    }
+    const dt = deductionTypes?.find((x) => x.id === deductTypeId);
+    const amount = Number(deductAmount || dt?.default_amount || 0);
+    if (amount <= 0) {
+      toast.error("Amount must be greater than 0.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("deductions").insert({
+        tenant_id: profile.tenant_id,
+        employee_id: deductFor.employee_id,
+        pay_period_id: payPeriod.id,
+        deduction_type_id: deductTypeId,
+        amount,
+        incident_date: deductFor.date,
+        incident_site_id: deductFor.site_id,
+        note: deductNote || null,
+        created_by: profile.id,
+      });
+      if (error) throw error;
+      toast.success(`Deduction saved · will apply on next payroll run`);
+      setDeductFor(null);
+      setDeductTypeId("");
+      setDeductAmount("");
+      setDeductNote("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function shiftDay(delta: number) {
     const d = new Date(date);
     d.setDate(d.getDate() + delta);
