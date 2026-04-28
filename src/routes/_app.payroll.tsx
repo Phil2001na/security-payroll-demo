@@ -66,7 +66,7 @@ function PayrollPage() {
     try {
       const { constants, brackets } = await fetchPayrollConstants();
 
-      const [empRes, logRes, discRes] = await Promise.all([
+      const [empRes, logRes, discRes, dedRes] = await Promise.all([
         supabase.from("employees").select("*").eq("status", "active"),
         supabase
           .from("shift_logs")
@@ -77,14 +77,20 @@ function PayrollPage() {
           .select("id,employee_id,action_type,fine_amount,suspension_hours,collective_agreement_reference,offence_code,incident_date")
           .gte("incident_date", period.start_date)
           .lte("incident_date", period.end_date),
+        supabase
+          .from("deductions")
+          .select("employee_id,amount,disciplinary_action_id,deduction_types(code,label,category,requires_collective_agreement)")
+          .eq("pay_period_id", period.id),
       ]);
       if (empRes.error) throw empRes.error;
       if (logRes.error) throw logRes.error;
       if (discRes.error) throw discRes.error;
+      if (dedRes.error) throw dedRes.error;
 
       const employees = (empRes.data ?? []) as EmployeeRow[];
       const logs = (logRes.data ?? []) as any[];
       const disc = (discRes.data ?? []) as any[];
+      const deds = (dedRes.data ?? []) as any[];
 
       // Build a suspension-date map per employee from disciplinary_actions of type unpaid_suspension
       const suspensionByEmp = new Map<string, Set<string>>();
@@ -97,6 +103,23 @@ function PayrollPage() {
         }
       }
 
+      // Ad-hoc deductions keyed by employee — these come from attendance / incident logging
+      const adhocByEmp = new Map<string, any[]>();
+      for (const d of deds) {
+        const arr = adhocByEmp.get(d.employee_id) ?? [];
+        arr.push({
+          employee_id: d.employee_id,
+          amount: Number(d.amount || 0),
+          requires_ca: !!d.deduction_types?.requires_collective_agreement,
+          // If linked to a disciplinary action, reuse its CA ref status
+          has_ca_ref: d.disciplinary_action_id
+            ? !!disc.find((x) => x.id === d.disciplinary_action_id)?.collective_agreement_reference
+            : true, // non-offence deductions (loans, recovery, union) don't need CA
+          label: d.deduction_types?.label,
+        });
+        adhocByEmp.set(d.employee_id, arr);
+      }
+
       const out: PayslipCalc[] = [];
       for (const emp of employees) {
         const empLogs = logs.filter((l) => l.employee_id === emp.id);
@@ -105,6 +128,7 @@ function PayrollPage() {
           employee: emp,
           logs: empLogs,
           disciplinary: empDisc,
+          adhocDeductions: adhocByEmp.get(emp.id) ?? [],
           suspensionDates: suspensionByEmp.get(emp.id),
           constants,
           brackets,
