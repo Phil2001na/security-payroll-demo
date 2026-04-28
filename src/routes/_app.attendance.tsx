@@ -102,6 +102,21 @@ function AttendancePage() {
     },
   });
 
+  const { data: deductionTypes } = useQuery({
+    queryKey: ["deduction-types", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("deduction_types")
+        .select("id, code, label, category, default_amount, requires_collective_agreement, requires_evidence")
+        .eq("active", true)
+        .in("category", ["offence_fine", "loan", "other", "recurring"])
+        .order("label");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data: payPeriod } = useQuery<PayPeriod | null>({
     queryKey: ["pay-period-for", profile?.tenant_id, date],
     enabled: !!profile?.tenant_id,
