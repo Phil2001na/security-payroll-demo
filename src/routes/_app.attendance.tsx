@@ -69,6 +69,11 @@ function AttendancePage() {
   // Pending status changes by assignment.id
   const [pending, setPending] = useState<Record<string, { status: ShiftLog["status"]; notes?: string }>>({});
   const [replaceFor, setReplaceFor] = useState<Assignment | null>(null);
+  const [deductFor, setDeductFor] = useState<Assignment | null>(null);
+  const [deductTypeId, setDeductTypeId] = useState<string>("");
+  const [deductAmount, setDeductAmount] = useState<string>("");
+  const [deductNote, setDeductNote] = useState<string>("");
+  const [overrideCap, setOverrideCap] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const dateObj = useMemo(() => new Date(date), [date]);
