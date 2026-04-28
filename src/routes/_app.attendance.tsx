@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
   Loader2, Search, UserPlus, ShieldAlert, ShieldCheck, Save, Users,
+  Minus, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +18,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -66,6 +69,11 @@ function AttendancePage() {
   // Pending status changes by assignment.id
   const [pending, setPending] = useState<Record<string, { status: ShiftLog["status"]; notes?: string }>>({});
   const [replaceFor, setReplaceFor] = useState<Assignment | null>(null);
+  const [deductFor, setDeductFor] = useState<Assignment | null>(null);
+  const [deductTypeId, setDeductTypeId] = useState<string>("");
+  const [deductAmount, setDeductAmount] = useState<string>("");
+  const [deductNote, setDeductNote] = useState<string>("");
+  const [overrideCap, setOverrideCap] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const dateObj = useMemo(() => new Date(date), [date]);
@@ -91,6 +99,21 @@ function AttendancePage() {
         .eq("active", true).order("code");
       if (error) throw error;
       return (data ?? []) as ShiftType[];
+    },
+  });
+
+  const { data: deductionTypes } = useQuery({
+    queryKey: ["deduction-types", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("deduction_types")
+        .select("id, code, label, category, default_amount, requires_collective_agreement, requires_evidence")
+        .eq("active", true)
+        .in("category", ["offence_fine", "loan", "other", "recurring"])
+        .order("label");
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
@@ -331,6 +354,8 @@ function AttendancePage() {
   }
 
   // ----- Replacement logic -----
+  // Return ALL off-duty candidates; flag those who would exceed 60h/week so HR
+  // gets a warning before assigning them.
   const replacementCandidates = useMemo(() => {
     if (!replaceFor || !employees) return [];
     const assignedEmpIdsToday = new Set((assignments ?? []).map((a) => a.employee_id));
@@ -341,15 +366,23 @@ function AttendancePage() {
       .map((e) => {
         const wk = weekHoursByEmp.get(e.id) ?? 0;
         const wkAfter = wk + slotHours;
-        return { emp: e, weekBefore: wk, weekAfter: wkAfter };
+        return { emp: e, weekBefore: wk, weekAfter: wkAfter, overCap: wkAfter > WEEKLY_HOUR_CAP };
       })
-      .filter((c) => c.weekAfter <= WEEKLY_HOUR_CAP)
-      .sort((a, b) => a.weekAfter - b.weekAfter)
-      .slice(0, 25);
+      .sort((a, b) => {
+        if (a.overCap !== b.overCap) return a.overCap ? 1 : -1;
+        return a.weekAfter - b.weekAfter;
+      })
+      .slice(0, 40);
   }, [replaceFor, employees, assignments, weekHoursByEmp]);
 
-  async function applyReplacement(reliefEmpId: string) {
+  async function applyReplacement(reliefEmpId: string, overCap: boolean) {
     if (!replaceFor || !profile?.tenant_id || !payPeriod) return;
+    if (overCap) {
+      const ok = window.confirm(
+        "⚠️ This guard will exceed the 60-hour weekly cap.\n\nNamibian Labour Act limits weekly hours to 60h unless a PS exemption is on file. Proceeding without one may expose the company to penalties.\n\nContinue anyway?"
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       const a = replaceFor;
@@ -414,6 +447,47 @@ function AttendancePage() {
       ]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Replacement failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveDeduction() {
+    if (!deductFor || !profile?.tenant_id || !payPeriod) {
+      toast.error("No open pay period for this date.");
+      return;
+    }
+    if (!deductTypeId) {
+      toast.error("Pick a deduction type.");
+      return;
+    }
+    const dt = deductionTypes?.find((x) => x.id === deductTypeId);
+    const amount = Number(deductAmount || dt?.default_amount || 0);
+    if (amount <= 0) {
+      toast.error("Amount must be greater than 0.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("deductions").insert({
+        tenant_id: profile.tenant_id,
+        employee_id: deductFor.employee_id,
+        pay_period_id: payPeriod.id,
+        deduction_type_id: deductTypeId,
+        amount,
+        incident_date: deductFor.date,
+        incident_site_id: deductFor.site_id,
+        note: deductNote || null,
+        created_by: profile.id,
+      });
+      if (error) throw error;
+      toast.success(`Deduction saved · will apply on next payroll run`);
+      setDeductFor(null);
+      setDeductTypeId("");
+      setDeductAmount("");
+      setDeductNote("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -604,20 +678,32 @@ function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {replacementCandidates.map(({ emp, weekBefore, weekAfter }) => (
-                    <tr key={emp.id} className="border-t hover:bg-muted/30">
+                  {replacementCandidates.map(({ emp, weekBefore, weekAfter, overCap }) => (
+                    <tr key={emp.id} className={cn("border-t hover:bg-muted/30", overCap && "bg-destructive/5")}>
                       <td className="px-3 py-2">
-                        <div className="font-medium">{emp.surname}, {emp.first_names}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          {emp.surname}, {emp.first_names}
+                          {overCap && (
+                            <Badge variant="destructive" className="text-[10px] h-5">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> over 60h
+                            </Badge>
+                          )}
+                        </div>
                         <div className="font-mono text-[10px] text-muted-foreground">{emp.employee_code}</div>
                       </td>
                       <td className="px-3 py-2 text-right font-mono">{weekBefore.toFixed(0)}h</td>
                       <td className="px-3 py-2 text-right font-mono">
-                        <span className={cn(weekAfter > 50 && "text-warning", weekAfter > 55 && "text-destructive")}>{weekAfter.toFixed(0)}h</span>
+                        <span className={cn(weekAfter > 50 && "text-warning", weekAfter > WEEKLY_HOUR_CAP && "text-destructive font-bold")}>{weekAfter.toFixed(0)}h</span>
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Button size="sm" onClick={() => applyReplacement(emp.id)} disabled={saving}>
+                        <Button
+                          size="sm"
+                          variant={overCap ? "destructive" : "default"}
+                          onClick={() => applyReplacement(emp.id, overCap)}
+                          disabled={saving}
+                        >
                           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}
-                          Assign
+                          {overCap ? "Override & Assign" : "Assign"}
                         </Button>
                       </td>
                     </tr>

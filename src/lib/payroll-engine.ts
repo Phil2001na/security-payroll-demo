@@ -189,10 +189,19 @@ function bucketiseLogs(logs: ShiftLogRow[], suspensionDates: Set<string>): Paysl
 }
 
 // ---------- Full calculator ----------
+export type AdhocDeductionRow = {
+  employee_id: string;
+  amount: number;
+  requires_ca?: boolean;
+  has_ca_ref?: boolean;
+  label?: string;
+};
+
 export function calculateNetPay(args: {
   employee: EmployeeRow;
   logs: ShiftLogRow[];
   disciplinary: DisciplinaryRow[];
+  adhocDeductions?: AdhocDeductionRow[];
   consensualDeductions?: number;
   suspensionDates?: Set<string>;
   constants: PayrollConstants;
@@ -200,6 +209,7 @@ export function calculateNetPay(args: {
 }): PayslipCalc {
   const { employee, logs, disciplinary, constants, brackets } = args;
   const consensual = args.consensualDeductions ?? 0;
+  const adhoc = args.adhocDeductions ?? [];
   const suspensionDates = args.suspensionDates ?? new Set<string>();
   const warnings: string[] = [];
 
@@ -240,6 +250,18 @@ export function calculateNetPay(args: {
         disqualified_fines += amt;
         warnings.push(`Fine N$${amt} for ${d.offence_code} lacks Collective Agreement ref — set to N$0`);
       }
+    }
+  }
+
+  // Ad-hoc incident deductions from deductions table (recorded on attendance / disciplinary)
+  for (const d of adhoc) {
+    const amt = Number(d.amount || 0);
+    if (amt <= 0) continue;
+    if (d.requires_ca && !d.has_ca_ref) {
+      disqualified_fines += amt;
+      warnings.push(`Deduction N$${amt}${d.label ? ` (${d.label})` : ""} requires Collective Agreement ref — set to N$0`);
+    } else {
+      fine_deductions += amt;
     }
   }
 
