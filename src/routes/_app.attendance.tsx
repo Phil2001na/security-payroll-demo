@@ -637,20 +637,32 @@ function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {replacementCandidates.map(({ emp, weekBefore, weekAfter }) => (
-                    <tr key={emp.id} className="border-t hover:bg-muted/30">
+                  {replacementCandidates.map(({ emp, weekBefore, weekAfter, overCap }) => (
+                    <tr key={emp.id} className={cn("border-t hover:bg-muted/30", overCap && "bg-destructive/5")}>
                       <td className="px-3 py-2">
-                        <div className="font-medium">{emp.surname}, {emp.first_names}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          {emp.surname}, {emp.first_names}
+                          {overCap && (
+                            <Badge variant="destructive" className="text-[10px] h-5">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> over 60h
+                            </Badge>
+                          )}
+                        </div>
                         <div className="font-mono text-[10px] text-muted-foreground">{emp.employee_code}</div>
                       </td>
                       <td className="px-3 py-2 text-right font-mono">{weekBefore.toFixed(0)}h</td>
                       <td className="px-3 py-2 text-right font-mono">
-                        <span className={cn(weekAfter > 50 && "text-warning", weekAfter > 55 && "text-destructive")}>{weekAfter.toFixed(0)}h</span>
+                        <span className={cn(weekAfter > 50 && "text-warning", weekAfter > WEEKLY_HOUR_CAP && "text-destructive font-bold")}>{weekAfter.toFixed(0)}h</span>
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Button size="sm" onClick={() => applyReplacement(emp.id)} disabled={saving}>
+                        <Button
+                          size="sm"
+                          variant={overCap ? "destructive" : "default"}
+                          onClick={() => applyReplacement(emp.id, overCap)}
+                          disabled={saving}
+                        >
                           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 mr-1" />}
-                          Assign
+                          {overCap ? "Override & Assign" : "Assign"}
                         </Button>
                       </td>
                     </tr>
