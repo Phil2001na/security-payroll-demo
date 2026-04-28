@@ -593,7 +593,7 @@ function SchedulePage() {
     [fillWeek, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
   );
 
-  function cellLabel(empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null {
+  const cellLabel = (empId: string, date: string): { code: string; hours: number; pendingDelete: boolean; pendingChange: boolean } | null => {
     const k = `${empId}|${date}`;
     const sid = effectiveShiftId(empId, date);
     if (!sid) {
@@ -603,7 +603,7 @@ function SchedulePage() {
     if (!st) return null;
     const dirty = k in edits;
     return { code: st.code, hours: st.default_hours, pendingDelete: false, pendingChange: dirty };
-  }
+  };
 
   const monthLabel = month.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
