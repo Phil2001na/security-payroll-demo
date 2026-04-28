@@ -354,6 +354,8 @@ function AttendancePage() {
   }
 
   // ----- Replacement logic -----
+  // Return ALL off-duty candidates; flag those who would exceed 60h/week so HR
+  // gets a warning before assigning them.
   const replacementCandidates = useMemo(() => {
     if (!replaceFor || !employees) return [];
     const assignedEmpIdsToday = new Set((assignments ?? []).map((a) => a.employee_id));
@@ -364,11 +366,13 @@ function AttendancePage() {
       .map((e) => {
         const wk = weekHoursByEmp.get(e.id) ?? 0;
         const wkAfter = wk + slotHours;
-        return { emp: e, weekBefore: wk, weekAfter: wkAfter };
+        return { emp: e, weekBefore: wk, weekAfter: wkAfter, overCap: wkAfter > WEEKLY_HOUR_CAP };
       })
-      .filter((c) => c.weekAfter <= WEEKLY_HOUR_CAP)
-      .sort((a, b) => a.weekAfter - b.weekAfter)
-      .slice(0, 25);
+      .sort((a, b) => {
+        if (a.overCap !== b.overCap) return a.overCap ? 1 : -1;
+        return a.weekAfter - b.weekAfter;
+      })
+      .slice(0, 40);
   }, [replaceFor, employees, assignments, weekHoursByEmp]);
 
   async function applyReplacement(reliefEmpId: string) {
