@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteRequirementsDialog } from "@/components/site-requirements-dialog";
+import { SiteContractDialog } from "@/components/site-contract-dialog";
 
 export const Route = createFileRoute("/_app/sites")({
   component: SitesPage,
@@ -159,11 +160,16 @@ function SitesPage() {
                 )}
                 {s.address && <div className="text-muted-foreground text-xs">{s.address}</div>}
                 {profile?.tenant_id && (
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <SiteRequirementsDialog
                       siteId={s.id}
                       siteName={s.name}
                       tenantId={profile.tenant_id}
+                      canManage={canManage}
+                    />
+                    <SiteContractDialog
+                      siteId={s.id}
+                      siteName={s.name}
                       canManage={canManage}
                     />
                   </div>
