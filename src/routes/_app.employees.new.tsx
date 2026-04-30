@@ -19,12 +19,13 @@ export const Route = createFileRoute("/_app/employees/new")({
 });
 
 const positions = [
-  { value: "security_officer", label: "Security officer" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "site_manager", label: "Site manager" },
-  { value: "operations_manager", label: "Operations manager" },
-  { value: "admin", label: "Admin" },
-  { value: "other", label: "Other" },
+  { value: "security_officer", label: "Security officer", category: "officer" as const },
+  { value: "driver", label: "Driver", category: "officer" as const },
+  { value: "supervisor", label: "Supervisor", category: "officer" as const },
+  { value: "site_manager", label: "Site manager", category: "management" as const },
+  { value: "operations_manager", label: "Operations manager", category: "management" as const },
+  { value: "admin", label: "Admin", category: "management" as const },
+  { value: "other", label: "Other", category: "management" as const },
 ];
 
 const employeeSchema = z.object({
