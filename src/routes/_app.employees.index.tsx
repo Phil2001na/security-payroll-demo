@@ -157,6 +157,19 @@ function EmployeesPage() {
         </div>
       </header>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as GroupTab)}>
+        <TabsList>
+          <TabsTrigger value="officers" className="gap-2">
+            <Shield className="h-4 w-4" /> Officers
+            <Badge variant="secondary" className="ml-1 font-mono">{counts.officers}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="management" className="gap-2">
+            <Briefcase className="h-4 w-4" /> Management
+            <Badge variant="secondary" className="ml-1 font-mono">{counts.management}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -185,8 +198,8 @@ function EmployeesPage() {
               <TableHead>Employee</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Position</TableHead>
-              <TableHead>Home site</TableHead>
-              <TableHead className="text-right">Rate</TableHead>
+              <TableHead>{tab === "officers" ? "Home site" : "Role"}</TableHead>
+              <TableHead className="text-right">{tab === "officers" ? "Hourly" : "Monthly salary"}</TableHead>
               <TableHead className="text-right">Transport</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -206,7 +219,7 @@ function EmployeesPage() {
                       <Link to="/employees/new" className="text-primary underline underline-offset-4">Add your first employee</Link>
                     )} or <Link to="/employees/import" className="text-primary underline underline-offset-4">import a CSV</Link>.</>
                   ) : (
-                    "No employees match your filters."
+                    `No ${tab} match your filters.`
                   )}
                 </TableCell>
               </TableRow>
@@ -227,9 +240,23 @@ function EmployeesPage() {
                     </Link>
                   </TableCell>
                   <TableCell className="font-mono text-sm">{e.employee_code}</TableCell>
-                  <TableCell className="capitalize text-sm">{e.position.replace(/_/g, " ")}</TableCell>
-                  <TableCell className="text-sm">{e.sites?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="text-right font-mono">{formatNAD(e.hourly_rate)}</TableCell>
+                  <TableCell className="capitalize text-sm">
+                    <span className="inline-flex items-center gap-1.5">
+                      {e.position === "driver" && <Truck className="h-3.5 w-3.5 text-muted-foreground" />}
+                      {e.position === "security_officer" && <Shield className="h-3.5 w-3.5 text-muted-foreground" />}
+                      {e.position.replace(/_/g, " ")}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {tab === "officers"
+                      ? (e.sites?.name ?? <span className="text-muted-foreground">—</span>)
+                      : <span className="capitalize">{e.position.replace(/_/g, " ")}</span>}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {tab === "officers"
+                      ? `${formatNAD(e.hourly_rate)}/hr`
+                      : formatNAD(e.monthly_salary || 0)}
+                  </TableCell>
                   <TableCell className="text-right font-mono">{formatNAD(e.transport_allowance)}</TableCell>
                   <TableCell>
                     <StatusBadge status={e.status} />
