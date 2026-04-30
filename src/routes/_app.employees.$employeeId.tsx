@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, FileSignature } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,9 +45,16 @@ function EmployeeDetailPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-3">
-        <Link to="/employees"><ArrowLeft className="mr-1 h-4 w-4" /> Back to employees</Link>
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild className="-ml-3">
+          <Link to="/employees"><ArrowLeft className="mr-1 h-4 w-4" /> Back to employees</Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link to="/onboarding/$employeeId" params={{ employeeId }}>
+            <FileSignature className="mr-2 h-4 w-4" /> Start onboarding
+          </Link>
+        </Button>
+      </div>
 
       <div className="flex items-start gap-5">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-secondary-foreground font-display text-xl font-semibold">
