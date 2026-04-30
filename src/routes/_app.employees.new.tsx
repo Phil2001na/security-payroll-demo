@@ -176,13 +176,28 @@ function NewEmployeePage() {
               <Select value={form.position} onValueChange={(v) => setForm({ ...form, position: v as typeof form.position })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {positions.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                  {positions.map((p) => (
+                    <SelectItem
+                      key={p.value}
+                      value={p.value}
+                      disabled={p.category === "management" && !canCreateManagement}
+                    >
+                      {p.label}{p.category === "management" ? " — fixed salary" : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {isManagement && !canCreateManagement && (
+                <p className="text-xs text-destructive mt-1">Only Admin or Operations Manager can add management staff.</p>
+              )}
             </Field>
             <Field label="Home site">
-              <Select value={form.home_site_id || "none"} onValueChange={(v) => setForm({ ...form, home_site_id: v === "none" ? "" : v })}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+              <Select
+                value={form.home_site_id || "none"}
+                onValueChange={(v) => setForm({ ...form, home_site_id: v === "none" ? "" : v })}
+                disabled={isManagement}
+              >
+                <SelectTrigger><SelectValue placeholder={isManagement ? "N/A for management" : "Unassigned"} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Unassigned</SelectItem>
                   {sites?.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -193,7 +208,11 @@ function NewEmployeePage() {
               <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
             </Field>
             <Field label="Preferred shift">
-              <Select value={form.preferred_shift} onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}>
+              <Select
+                value={form.preferred_shift}
+                onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}
+                disabled={isManagement}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="both">Day or Night</SelectItem>
@@ -208,10 +227,19 @@ function NewEmployeePage() {
         <Card>
           <CardHeader><CardTitle>Compensation</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Hourly rate (NAD)" required>
-              <Input type="number" step="0.01" min="16" value={form.hourly_rate}
-                onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} required />
-            </Field>
+            {isManagement ? (
+              <Field label="Monthly salary (NAD)" required>
+                <Input type="number" step="0.01" min="0" value={form.monthly_salary}
+                  onChange={(e) => setForm({ ...form, monthly_salary: Number(e.target.value) })} required />
+                <p className="text-xs text-muted-foreground mt-1">Paid flat each pay period regardless of hours worked. PAYE + SSC still apply.</p>
+              </Field>
+            ) : (
+              <Field label="Hourly rate (NAD)" required>
+                <Input type="number" step="0.01" min="16" value={form.hourly_rate}
+                  onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} required />
+                <p className="text-xs text-muted-foreground mt-1">Min N$16/hr per 2026 sectoral determination. Guards & drivers paid the same rate.</p>
+              </Field>
+            )}
             <Field label="Transport allowance (NAD/month)">
               <Input type="number" step="0.01" min="0" value={form.transport_allowance}
                 onChange={(e) => setForm({ ...form, transport_allowance: Number(e.target.value) })} />
