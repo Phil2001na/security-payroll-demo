@@ -343,6 +343,7 @@ export type Database = {
           home_site_id: string | null
           hourly_rate: number
           id: string
+          monthly_salary: number
           national_id: string | null
           ordinarily_works_sundays: boolean
           phone: string | null
@@ -371,6 +372,7 @@ export type Database = {
           home_site_id?: string | null
           hourly_rate?: number
           id?: string
+          monthly_salary?: number
           national_id?: string | null
           ordinarily_works_sundays?: boolean
           phone?: string | null
@@ -399,6 +401,7 @@ export type Database = {
           home_site_id?: string | null
           hourly_rate?: number
           id?: string
+          monthly_salary?: number
           national_id?: string | null
           ordinarily_works_sundays?: boolean
           phone?: string | null
@@ -1487,6 +1490,7 @@ export type Database = {
         | "operations_manager"
         | "admin"
         | "other"
+        | "driver"
       employee_status: "active" | "suspended" | "terminated"
       installment_status: "active" | "paid_off" | "paused" | "written_off"
       pay_period_status: "open" | "locked" | "paid"
@@ -1661,6 +1665,7 @@ export const Constants = {
         "operations_manager",
         "admin",
         "other",
+        "driver",
       ],
       employee_status: ["active", "suspended", "terminated"],
       installment_status: ["active", "paid_off", "paused", "written_off"],
