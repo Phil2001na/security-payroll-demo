@@ -1205,6 +1205,51 @@ export type Database = {
           },
         ]
       }
+      signed_agreements: {
+        Row: {
+          contract_snapshot: string
+          created_at: string
+          employee_id: string
+          id: string
+          id_document_url: string
+          signature_url: string
+          signed_at: string
+          signed_by_supervisor: string | null
+          signed_ip: string | null
+          site_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contract_snapshot: string
+          created_at?: string
+          employee_id: string
+          id?: string
+          id_document_url: string
+          signature_url: string
+          signed_at?: string
+          signed_by_supervisor?: string | null
+          signed_ip?: string | null
+          site_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contract_snapshot?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+          id_document_url?: string
+          signature_url?: string
+          signed_at?: string
+          signed_by_supervisor?: string | null
+          signed_ip?: string | null
+          site_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       site_requirements: {
         Row: {
           created_at: string
@@ -1244,6 +1289,7 @@ export type Database = {
           address: string | null
           client_name: string | null
           code: string | null
+          contract_terms_text: string | null
           created_at: string
           default_shifts: Json
           id: string
@@ -1257,6 +1303,7 @@ export type Database = {
           address?: string | null
           client_name?: string | null
           code?: string | null
+          contract_terms_text?: string | null
           created_at?: string
           default_shifts?: Json
           id?: string
@@ -1270,6 +1317,7 @@ export type Database = {
           address?: string | null
           client_name?: string | null
           code?: string | null
+          contract_terms_text?: string | null
           created_at?: string
           default_shifts?: Json
           id?: string
@@ -1291,6 +1339,7 @@ export type Database = {
       tenants: {
         Row: {
           created_at: string
+          default_contract_terms: string | null
           default_hourly_rate: number
           default_transport_allowance: number
           id: string
@@ -1305,6 +1354,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_contract_terms?: string | null
           default_hourly_rate?: number
           default_transport_allowance?: number
           id?: string
@@ -1319,6 +1369,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_contract_terms?: string | null
           default_hourly_rate?: number
           default_transport_allowance?: number
           id?: string
