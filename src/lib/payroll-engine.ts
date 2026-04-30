@@ -19,6 +19,8 @@ export type EmployeeRow = {
   first_names: string;
   display_name: string | null;
   hourly_rate: number;
+  monthly_salary?: number | null;
+  category?: "officer" | "management" | null;
   transport_allowance: number;
   ordinarily_works_sundays: boolean;
   bank_name: string | null;
