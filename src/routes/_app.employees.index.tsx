@@ -34,6 +34,7 @@ type EmployeeRow = {
   category: string;
   status: string;
   hourly_rate: number;
+  monthly_salary: number;
   transport_allowance: number;
   phone: string | null;
   email: string | null;
@@ -44,6 +45,8 @@ type EmployeeRow = {
   start_date: string | null;
   sites: { name: string } | null;
 };
+
+type GroupTab = "officers" | "management";
 
 function EmployeesPage() {
   const { profile } = useAuth();
