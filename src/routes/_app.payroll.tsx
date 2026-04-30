@@ -140,7 +140,7 @@ function PayrollPage() {
       await supabase.from("payroll_runs").delete().eq("pay_period_id", period.id).eq("status", "draft");
 
       const rows = out
-        .filter((c) => c.gross_salary > 0 || c.total_deductions > 0)
+        .filter((c) => c.gross_salary > 0 || c.total_deductions > 0 || c.employee.category === "management")
         .map((c) => ({
           tenant_id: profile!.tenant_id,
           employee_id: c.employee.id,
