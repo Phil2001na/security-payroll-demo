@@ -20,6 +20,7 @@ import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
 import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
+import { Route as AppOnboardingEmployeeIdRouteImport } from './routes/_app.onboarding.$employeeId'
 import { Route as AppEmployeesNewRouteImport } from './routes/_app.employees.new'
 import { Route as AppEmployeesImportRouteImport } from './routes/_app.employees.import'
 import { Route as AppEmployeesEmployeeIdRouteImport } from './routes/_app.employees.$employeeId'
@@ -80,6 +81,11 @@ const AppEmployeesIndexRoute = AppEmployeesIndexRouteImport.update({
   path: '/employees/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOnboardingEmployeeIdRoute = AppOnboardingEmployeeIdRouteImport.update({
+  id: '/onboarding/$employeeId',
+  path: '/onboarding/$employeeId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEmployeesNewRoute = AppEmployeesNewRouteImport.update({
   id: '/employees/new',
   path: '/employees/new',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
   '/employees/import': typeof AppEmployeesImportRoute
   '/employees/new': typeof AppEmployeesNewRoute
+  '/onboarding/$employeeId': typeof AppOnboardingEmployeeIdRoute
   '/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
   '/employees/import': typeof AppEmployeesImportRoute
   '/employees/new': typeof AppEmployeesNewRoute
+  '/onboarding/$employeeId': typeof AppOnboardingEmployeeIdRoute
   '/employees': typeof AppEmployeesIndexRoute
 }
 export interface FileRoutesById {
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/_app/employees/$employeeId': typeof AppEmployeesEmployeeIdRoute
   '/_app/employees/import': typeof AppEmployeesImportRoute
   '/_app/employees/new': typeof AppEmployeesNewRoute
+  '/_app/onboarding/$employeeId': typeof AppOnboardingEmployeeIdRoute
   '/_app/employees/': typeof AppEmployeesIndexRoute
 }
 export interface FileRouteTypes {
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/employees/$employeeId'
     | '/employees/import'
     | '/employees/new'
+    | '/onboarding/$employeeId'
     | '/employees/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/employees/$employeeId'
     | '/employees/import'
     | '/employees/new'
+    | '/onboarding/$employeeId'
     | '/employees'
   id:
     | '__root__'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/_app/employees/$employeeId'
     | '/_app/employees/import'
     | '/_app/employees/new'
+    | '/_app/onboarding/$employeeId'
     | '/_app/employees/'
   fileRoutesById: FileRoutesById
 }
@@ -299,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEmployeesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/onboarding/$employeeId': {
+      id: '/_app/onboarding/$employeeId'
+      path: '/onboarding/$employeeId'
+      fullPath: '/onboarding/$employeeId'
+      preLoaderRoute: typeof AppOnboardingEmployeeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/employees/new': {
       id: '/_app/employees/new'
       path: '/employees/new'
@@ -350,6 +369,7 @@ interface AppRouteChildren {
   AppEmployeesEmployeeIdRoute: typeof AppEmployeesEmployeeIdRoute
   AppEmployeesImportRoute: typeof AppEmployeesImportRoute
   AppEmployeesNewRoute: typeof AppEmployeesNewRoute
+  AppOnboardingEmployeeIdRoute: typeof AppOnboardingEmployeeIdRoute
   AppEmployeesIndexRoute: typeof AppEmployeesIndexRoute
 }
 
@@ -366,6 +386,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEmployeesEmployeeIdRoute: AppEmployeesEmployeeIdRoute,
   AppEmployeesImportRoute: AppEmployeesImportRoute,
   AppEmployeesNewRoute: AppEmployeesNewRoute,
+  AppOnboardingEmployeeIdRoute: AppOnboardingEmployeeIdRoute,
   AppEmployeesIndexRoute: AppEmployeesIndexRoute,
 }
 
@@ -379,12 +400,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
