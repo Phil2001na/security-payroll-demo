@@ -19,12 +19,13 @@ export const Route = createFileRoute("/_app/employees/new")({
 });
 
 const positions = [
-  { value: "security_officer", label: "Security officer" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "site_manager", label: "Site manager" },
-  { value: "operations_manager", label: "Operations manager" },
-  { value: "admin", label: "Admin" },
-  { value: "other", label: "Other" },
+  { value: "security_officer", label: "Security officer", category: "officer" as const },
+  { value: "driver", label: "Driver", category: "officer" as const },
+  { value: "supervisor", label: "Supervisor", category: "officer" as const },
+  { value: "site_manager", label: "Site manager", category: "management" as const },
+  { value: "operations_manager", label: "Operations manager", category: "management" as const },
+  { value: "admin", label: "Admin", category: "management" as const },
+  { value: "other", label: "Other", category: "management" as const },
 ];
 
 const employeeSchema = z.object({
@@ -32,8 +33,9 @@ const employeeSchema = z.object({
   surname: z.string().trim().min(1, "Required").max(80),
   first_names: z.string().trim().min(1, "Required").max(120),
   national_id: z.string().trim().max(40).optional().or(z.literal("")),
-  position: z.enum(["security_officer", "supervisor", "site_manager", "operations_manager", "admin", "other"]),
-  hourly_rate: z.coerce.number().min(16, "Minimum N$16/hr (security minimum wage)"),
+  position: z.enum(["security_officer", "driver", "supervisor", "site_manager", "operations_manager", "admin", "other"]),
+  hourly_rate: z.coerce.number().min(0),
+  monthly_salary: z.coerce.number().min(0),
   transport_allowance: z.coerce.number().min(0),
   phone: z.string().trim().max(30).optional().or(z.literal("")),
   email: z.string().trim().email().optional().or(z.literal("")),
@@ -50,15 +52,19 @@ function NewEmployeePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const canCreateManagement = profile?.role === "admin" || profile?.role === "operations";
   const [form, setForm] = useState({
     employee_code: "", surname: "", first_names: "", national_id: "",
-    position: "security_officer" as const,
-    hourly_rate: 16, transport_allowance: 350,
+    position: "security_officer" as typeof positions[number]["value"],
+    hourly_rate: 16, monthly_salary: 0, transport_allowance: 350,
     phone: "", email: "", start_date: "", home_site_id: "",
     bank_name: "", bank_account_number: "",
     union_member: false, ordinarily_works_sundays: false,
     preferred_shift: "both" as "day" | "night" | "both",
   });
+
+  const positionMeta = positions.find((p) => p.value === form.position)!;
+  const isManagement = positionMeta.category === "management";
 
   const { data: sites } = useQuery({
     queryKey: ["sites-list", profile?.tenant_id],
@@ -73,6 +79,19 @@ function NewEmployeePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.tenant_id) return;
+    const meta = positions.find((p) => p.value === form.position)!;
+    if (meta.category === "management" && !canCreateManagement) {
+      toast.error("Only Admin or Operations Manager can create management staff.");
+      return;
+    }
+    if (meta.category === "officer" && form.hourly_rate < 16) {
+      toast.error("Officers must be paid at least N$16/hr (security minimum wage).");
+      return;
+    }
+    if (meta.category === "management" && form.monthly_salary <= 0) {
+      toast.error("Management staff need a monthly salary > 0.");
+      return;
+    }
     const parsed = employeeSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Validation error");
@@ -81,7 +100,7 @@ function NewEmployeePage() {
     setSubmitting(true);
     try {
       const v = parsed.data;
-      const category = v.position === "security_officer" || v.position === "supervisor" ? "officer" : "management";
+      const category = meta.category;
       const { data, error } = await supabase.from("employees").insert({
         tenant_id: profile.tenant_id,
         employee_code: v.employee_code,
@@ -90,12 +109,13 @@ function NewEmployeePage() {
         national_id: v.national_id || null,
         position: v.position,
         category,
-        hourly_rate: v.hourly_rate,
+        hourly_rate: category === "officer" ? v.hourly_rate : 0,
+        monthly_salary: category === "management" ? v.monthly_salary : 0,
         transport_allowance: v.transport_allowance,
         phone: v.phone || null,
         email: v.email || null,
         start_date: v.start_date || null,
-        home_site_id: v.home_site_id || null,
+        home_site_id: category === "officer" ? (v.home_site_id || null) : null,
         bank_name: v.bank_name || null,
         bank_account_number: v.bank_account_number || null,
         union_member: v.union_member,
@@ -156,13 +176,28 @@ function NewEmployeePage() {
               <Select value={form.position} onValueChange={(v) => setForm({ ...form, position: v as typeof form.position })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {positions.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                  {positions.map((p) => (
+                    <SelectItem
+                      key={p.value}
+                      value={p.value}
+                      disabled={p.category === "management" && !canCreateManagement}
+                    >
+                      {p.label}{p.category === "management" ? " — fixed salary" : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {isManagement && !canCreateManagement && (
+                <p className="text-xs text-destructive mt-1">Only Admin or Operations Manager can add management staff.</p>
+              )}
             </Field>
             <Field label="Home site">
-              <Select value={form.home_site_id || "none"} onValueChange={(v) => setForm({ ...form, home_site_id: v === "none" ? "" : v })}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+              <Select
+                value={form.home_site_id || "none"}
+                onValueChange={(v) => setForm({ ...form, home_site_id: v === "none" ? "" : v })}
+                disabled={isManagement}
+              >
+                <SelectTrigger><SelectValue placeholder={isManagement ? "N/A for management" : "Unassigned"} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Unassigned</SelectItem>
                   {sites?.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -173,7 +208,11 @@ function NewEmployeePage() {
               <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
             </Field>
             <Field label="Preferred shift">
-              <Select value={form.preferred_shift} onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}>
+              <Select
+                value={form.preferred_shift}
+                onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}
+                disabled={isManagement}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="both">Day or Night</SelectItem>
@@ -188,10 +227,19 @@ function NewEmployeePage() {
         <Card>
           <CardHeader><CardTitle>Compensation</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Hourly rate (NAD)" required>
-              <Input type="number" step="0.01" min="16" value={form.hourly_rate}
-                onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} required />
-            </Field>
+            {isManagement ? (
+              <Field label="Monthly salary (NAD)" required>
+                <Input type="number" step="0.01" min="0" value={form.monthly_salary}
+                  onChange={(e) => setForm({ ...form, monthly_salary: Number(e.target.value) })} required />
+                <p className="text-xs text-muted-foreground mt-1">Paid flat each pay period regardless of hours worked. PAYE + SSC still apply.</p>
+              </Field>
+            ) : (
+              <Field label="Hourly rate (NAD)" required>
+                <Input type="number" step="0.01" min="16" value={form.hourly_rate}
+                  onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} required />
+                <p className="text-xs text-muted-foreground mt-1">Min N$16/hr per 2026 sectoral determination. Guards & drivers paid the same rate.</p>
+              </Field>
+            )}
             <Field label="Transport allowance (NAD/month)">
               <Input type="number" step="0.01" min="0" value={form.transport_allowance}
                 onChange={(e) => setForm({ ...form, transport_allowance: Number(e.target.value) })} />
