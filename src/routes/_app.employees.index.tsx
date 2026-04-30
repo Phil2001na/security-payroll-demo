@@ -52,6 +52,7 @@ function EmployeesPage() {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [tab, setTab] = useState<GroupTab>("officers");
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ["employees", profile?.tenant_id],
@@ -61,7 +62,7 @@ function EmployeesPage() {
         .from("employees")
         .select(`
           id, employee_code, surname, first_names, display_name,
-          position, category, status, hourly_rate, transport_allowance,
+          position, category, status, hourly_rate, monthly_salary, transport_allowance,
           phone, email, home_site_id, national_id, union_member,
           ordinarily_works_sundays, start_date,
           sites:home_site_id ( name )
@@ -73,10 +74,17 @@ function EmployeesPage() {
     },
   });
 
+  const counts = useMemo(() => {
+    const officers = employees?.filter((e) => e.category === "officer").length ?? 0;
+    const management = employees?.filter((e) => e.category === "management").length ?? 0;
+    return { officers, management };
+  }, [employees]);
+
   const filtered = useMemo(() => {
     if (!employees) return [];
     const q = search.trim().toLowerCase();
     return employees.filter((e) => {
+      if (e.category !== tab.replace(/s$/, "")) return false;
       if (statusFilter !== "all" && e.status !== statusFilter) return false;
       if (!q) return true;
       const name = `${e.first_names} ${e.surname}`.toLowerCase();
@@ -87,7 +95,7 @@ function EmployeesPage() {
         (e.phone ?? "").toLowerCase().includes(q)
       );
     });
-  }, [employees, search, statusFilter]);
+  }, [employees, search, statusFilter, tab]);
 
   const handleExport = () => {
     if (!filtered.length) {
