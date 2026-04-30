@@ -215,18 +215,25 @@ export function calculateNetPay(args: {
   const suspensionDates = args.suspensionDates ?? new Set<string>();
   const warnings: string[] = [];
 
-  const buckets = bucketiseLogs(logs, suspensionDates);
+  const isManagement = employee.category === "management" && Number(employee.monthly_salary || 0) > 0;
+
+  const buckets = isManagement
+    ? { normal_hours: 0, overtime_hours: 0, sunday_hours: 0, public_holiday_hours: 0, night_hours: 0, suspended_hours: 0 }
+    : bucketiseLogs(logs, suspensionDates);
+
   const rate = Number(employee.hourly_rate) || constants.min_wage_security;
 
-  if (rate < constants.min_wage_security) {
+  if (!isManagement && rate < constants.min_wage_security) {
     warnings.push(`Rate N$${rate} below statutory minimum N$${constants.min_wage_security}`);
   }
 
-  const normal_amount = buckets.normal_hours * rate;
-  const overtime_amount = buckets.overtime_hours * rate * constants.overtime_multiplier;
-  const sunday_amount = buckets.sunday_hours * rate * constants.sunday_multiplier;
-  const public_holiday_amount = buckets.public_holiday_hours * rate * constants.sunday_multiplier;
-  const night_premium_amount = buckets.night_hours * rate * constants.night_premium_rate;
+  const normal_amount = isManagement
+    ? Number(employee.monthly_salary || 0)
+    : buckets.normal_hours * rate;
+  const overtime_amount = isManagement ? 0 : buckets.overtime_hours * rate * constants.overtime_multiplier;
+  const sunday_amount = isManagement ? 0 : buckets.sunday_hours * rate * constants.sunday_multiplier;
+  const public_holiday_amount = isManagement ? 0 : buckets.public_holiday_hours * rate * constants.sunday_multiplier;
+  const night_premium_amount = isManagement ? 0 : buckets.night_hours * rate * constants.night_premium_rate;
 
   const transport_allowance = Number(employee.transport_allowance) || 0;
 
