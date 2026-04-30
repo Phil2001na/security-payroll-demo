@@ -52,15 +52,19 @@ function NewEmployeePage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const canCreateManagement = profile?.role === "admin" || profile?.role === "operations";
   const [form, setForm] = useState({
     employee_code: "", surname: "", first_names: "", national_id: "",
-    position: "security_officer" as const,
-    hourly_rate: 16, transport_allowance: 350,
+    position: "security_officer" as typeof positions[number]["value"],
+    hourly_rate: 16, monthly_salary: 0, transport_allowance: 350,
     phone: "", email: "", start_date: "", home_site_id: "",
     bank_name: "", bank_account_number: "",
     union_member: false, ordinarily_works_sundays: false,
     preferred_shift: "both" as "day" | "night" | "both",
   });
+
+  const positionMeta = positions.find((p) => p.value === form.position)!;
+  const isManagement = positionMeta.category === "management";
 
   const { data: sites } = useQuery({
     queryKey: ["sites-list", profile?.tenant_id],
