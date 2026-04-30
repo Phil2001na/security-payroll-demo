@@ -79,6 +79,19 @@ function NewEmployeePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.tenant_id) return;
+    const meta = positions.find((p) => p.value === form.position)!;
+    if (meta.category === "management" && !canCreateManagement) {
+      toast.error("Only Admin or Operations Manager can create management staff.");
+      return;
+    }
+    if (meta.category === "officer" && form.hourly_rate < 16) {
+      toast.error("Officers must be paid at least N$16/hr (security minimum wage).");
+      return;
+    }
+    if (meta.category === "management" && form.monthly_salary <= 0) {
+      toast.error("Management staff need a monthly salary > 0.");
+      return;
+    }
     const parsed = employeeSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Validation error");
@@ -87,7 +100,7 @@ function NewEmployeePage() {
     setSubmitting(true);
     try {
       const v = parsed.data;
-      const category = v.position === "security_officer" || v.position === "supervisor" ? "officer" : "management";
+      const category = meta.category;
       const { data, error } = await supabase.from("employees").insert({
         tenant_id: profile.tenant_id,
         employee_code: v.employee_code,
@@ -96,12 +109,13 @@ function NewEmployeePage() {
         national_id: v.national_id || null,
         position: v.position,
         category,
-        hourly_rate: v.hourly_rate,
+        hourly_rate: category === "officer" ? v.hourly_rate : 0,
+        monthly_salary: category === "management" ? v.monthly_salary : 0,
         transport_allowance: v.transport_allowance,
         phone: v.phone || null,
         email: v.email || null,
         start_date: v.start_date || null,
-        home_site_id: v.home_site_id || null,
+        home_site_id: category === "officer" ? (v.home_site_id || null) : null,
         bank_name: v.bank_name || null,
         bank_account_number: v.bank_account_number || null,
         union_member: v.union_member,
