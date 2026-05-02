@@ -67,7 +67,7 @@ function PayrollPage() {
       const { constants, brackets } = await fetchPayrollConstants();
 
       const [empRes, logRes, discRes, dedRes] = await Promise.all([
-        supabase.from("employees").select("*").eq("status", "active"),
+        supabase.from("employees").select("*").eq("status", "active").not("contract_signed_at", "is", null),
         supabase
           .from("shift_logs")
           .select("id,employee_id,date,hours_worked,night_hours,status,shift_types(pay_rule,rate_multiplier)")
