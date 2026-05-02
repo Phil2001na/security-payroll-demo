@@ -49,9 +49,10 @@ function EmployeeDetailPage() {
         <Button variant="ghost" size="sm" asChild className="-ml-3">
           <Link to="/employees"><ArrowLeft className="mr-1 h-4 w-4" /> Back to employees</Link>
         </Button>
-        <Button asChild size="sm">
+        <Button asChild size="sm" variant={data.contract_signed_at ? "outline" : "default"}>
           <Link to="/onboarding/$employeeId" params={{ employeeId }}>
-            <FileSignature className="mr-2 h-4 w-4" /> Start onboarding
+            <FileSignature className="mr-2 h-4 w-4" />
+            {data.contract_signed_at ? "View contract" : "Set up contract"}
           </Link>
         </Button>
       </div>
