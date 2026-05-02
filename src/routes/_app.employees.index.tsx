@@ -198,6 +198,14 @@ function EmployeesPage() {
             <SelectItem value="terminated">Terminated</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={contractFilter} onValueChange={(v) => setContractFilter(v as typeof contractFilter)}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All contracts</SelectItem>
+            <SelectItem value="pending">Contract pending{pendingCount ? ` (${pendingCount})` : ""}</SelectItem>
+            <SelectItem value="signed">Contract signed</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-lg border bg-card overflow-hidden">
@@ -210,6 +218,7 @@ function EmployeesPage() {
               <TableHead>{tab === "officers" ? "Home site" : "Role"}</TableHead>
               <TableHead className="text-right">{tab === "officers" ? "Hourly" : "Monthly salary"}</TableHead>
               <TableHead className="text-right">Transport</TableHead>
+              <TableHead>Contract</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
