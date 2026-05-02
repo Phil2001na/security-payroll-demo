@@ -164,10 +164,11 @@ function AttendancePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status")
+        .select("id, employee_code, surname, first_names, home_site_id, status, contract_signed_at, category")
         .eq("status", "active");
       if (error) throw error;
-      return data ?? [];
+      // Replacement candidates must have a signed contract (officers).
+      return (data ?? []).filter((e: any) => e.category !== "officer" || !!e.contract_signed_at) as Employee[];
     },
   });
 
