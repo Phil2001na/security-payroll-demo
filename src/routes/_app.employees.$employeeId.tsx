@@ -62,11 +62,20 @@ function EmployeeDetailPage() {
           {initials(`${data.first_names} ${data.surname}`)}
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display text-3xl font-bold tracking-tight">
               {data.surname}, {data.first_names}
             </h1>
             <Badge variant="outline" className="capitalize">{data.status}</Badge>
+            {data.contract_signed_at ? (
+              <Badge variant="outline" className="bg-success/15 text-success border-success/30">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Contract signed
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-warning/15 text-warning border-warning/40">
+                <AlertCircle className="mr-1 h-3 w-3" /> Contract pending
+              </Badge>
+            )}
           </div>
           <div className="text-sm text-muted-foreground mt-1 font-mono">{data.employee_code}</div>
           <div className="text-sm text-muted-foreground capitalize">{data.position.replace(/_/g, " ")}</div>
