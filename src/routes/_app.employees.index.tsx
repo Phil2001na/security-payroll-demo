@@ -226,12 +226,12 @@ function EmployeesPage() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
+                  <TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   {employees?.length === 0 ? (
                     <>No employees yet. {canManage && (
                       <Link to="/employees/new" className="text-primary underline underline-offset-4">Add your first employee</Link>
@@ -276,6 +276,15 @@ function EmployeesPage() {
                       : formatNAD(e.monthly_salary || 0)}
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatNAD(e.transport_allowance)}</TableCell>
+                  <TableCell>
+                    <Link to="/onboarding/$employeeId" params={{ employeeId: e.id }} className="inline-block">
+                      {e.contract_signed_at ? (
+                        <Badge variant="outline" className="bg-success/15 text-success border-success/30">Signed</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-warning/15 text-warning border-warning/40">Pending</Badge>
+                      )}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={e.status} />
                   </TableCell>
