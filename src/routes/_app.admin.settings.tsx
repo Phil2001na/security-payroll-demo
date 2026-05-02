@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Save, Loader2, ShieldCheck } from "lucide-react";
+import { Settings, Save, Loader2, ShieldCheck, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/admin/settings")({
   component: SettingsPage,
@@ -112,6 +114,8 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
+      <ContractTemplatesCard />
+
       <div className="flex justify-end">
         <Button
           onClick={() => update.mutate()}
@@ -122,5 +126,115 @@ function SettingsPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+type TemplateRow = {
+  id: string;
+  contract_template_officer: string | null;
+  contract_template_driver: string | null;
+  contract_template_management: string | null;
+};
+
+const KIND_LABELS = {
+  officer: "Security Officer",
+  driver: "Driver",
+  management: "Management",
+} as const;
+type Kind = keyof typeof KIND_LABELS;
+
+const TOKEN_HINT =
+  "Available tokens: {{company_name}}, {{employee_full_name}}, {{employee_code}}, {{national_id}}, {{position}}, {{compensation_line}}, {{hourly_rate}}, {{monthly_salary}}, {{transport_allowance}}, {{home_site}}, {{start_date}}, {{today}}";
+
+function ContractTemplatesCard() {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<Kind>("officer");
+  const [draft, setDraft] = useState<Record<Kind, string>>({ officer: "", driver: "", management: "" });
+  const [loaded, setLoaded] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["contract-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("id, contract_template_officer, contract_template_driver, contract_template_management")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as TemplateRow | null;
+    },
+  });
+
+  useEffect(() => {
+    if (!data || loaded) return;
+    setDraft({
+      officer: data.contract_template_officer ?? "",
+      driver: data.contract_template_driver ?? "",
+      management: data.contract_template_management ?? "",
+    });
+    setLoaded(true);
+  }, [data, loaded]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!data?.id) throw new Error("Tenant not loaded");
+      const { error } = await supabase
+        .from("tenants")
+        .update({
+          contract_template_officer: draft.officer.trim() || null,
+          contract_template_driver: draft.driver.trim() || null,
+          contract_template_management: draft.management.trim() || null,
+        })
+        .eq("id", data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Contract templates saved");
+      void qc.invalidateQueries({ queryKey: ["contract-templates"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-4 w-4" /> Contract templates
+        </CardTitle>
+        <CardDescription>
+          One template per employee category. The PDF generated for each guard merges these tokens with their record.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <div className="text-center py-6"><Loader2 className="h-5 w-5 animate-spin inline" /></div>
+        ) : (
+          <Tabs value={tab} onValueChange={(v) => setTab(v as Kind)}>
+            <TabsList>
+              {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
+                <TabsTrigger key={k} value={k}>{KIND_LABELS[k]}</TabsTrigger>
+              ))}
+            </TabsList>
+            {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
+              <TabsContent key={k} value={k} className="space-y-2">
+                <Textarea
+                  value={draft[k]}
+                  onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+                  className="min-h-[320px] font-mono text-xs"
+                  placeholder={`Enter the ${KIND_LABELS[k].toLowerCase()} contract body…`}
+                />
+                <p className="text-[11px] text-muted-foreground">{TOKEN_HINT}</p>
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !data}>
+            {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save templates
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

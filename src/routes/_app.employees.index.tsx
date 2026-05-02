@@ -43,6 +43,7 @@ type EmployeeRow = {
   union_member: boolean;
   ordinarily_works_sundays: boolean;
   start_date: string | null;
+  contract_signed_at: string | null;
   sites: { name: string } | null;
 };
 
@@ -52,6 +53,7 @@ function EmployeesPage() {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [contractFilter, setContractFilter] = useState<"all" | "signed" | "pending">("all");
   const [tab, setTab] = useState<GroupTab>("officers");
 
   const { data: employees, isLoading } = useQuery({
@@ -64,7 +66,7 @@ function EmployeesPage() {
           id, employee_code, surname, first_names, display_name,
           position, category, status, hourly_rate, monthly_salary, transport_allowance,
           phone, email, home_site_id, national_id, union_member,
-          ordinarily_works_sundays, start_date,
+          ordinarily_works_sundays, start_date, contract_signed_at,
           sites:home_site_id ( name )
         `)
         .order("surname", { ascending: true })
@@ -86,6 +88,8 @@ function EmployeesPage() {
     return employees.filter((e) => {
       if (e.category !== tab.replace(/s$/, "")) return false;
       if (statusFilter !== "all" && e.status !== statusFilter) return false;
+      if (contractFilter === "signed" && !e.contract_signed_at) return false;
+      if (contractFilter === "pending" && e.contract_signed_at) return false;
       if (!q) return true;
       const name = `${e.first_names} ${e.surname}`.toLowerCase();
       return (
@@ -95,7 +99,12 @@ function EmployeesPage() {
         (e.phone ?? "").toLowerCase().includes(q)
       );
     });
-  }, [employees, search, statusFilter, tab]);
+  }, [employees, search, statusFilter, contractFilter, tab]);
+
+  const pendingCount = useMemo(
+    () => employees?.filter((e) => !e.contract_signed_at && e.status === "active").length ?? 0,
+    [employees],
+  );
 
   const handleExport = () => {
     if (!filtered.length) {
@@ -189,6 +198,14 @@ function EmployeesPage() {
             <SelectItem value="terminated">Terminated</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={contractFilter} onValueChange={(v) => setContractFilter(v as typeof contractFilter)}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All contracts</SelectItem>
+            <SelectItem value="pending">Contract pending{pendingCount ? ` (${pendingCount})` : ""}</SelectItem>
+            <SelectItem value="signed">Contract signed</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-lg border bg-card overflow-hidden">
@@ -201,6 +218,7 @@ function EmployeesPage() {
               <TableHead>{tab === "officers" ? "Home site" : "Role"}</TableHead>
               <TableHead className="text-right">{tab === "officers" ? "Hourly" : "Monthly salary"}</TableHead>
               <TableHead className="text-right">Transport</TableHead>
+              <TableHead>Contract</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -208,12 +226,12 @@ function EmployeesPage() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
+                  <TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   {employees?.length === 0 ? (
                     <>No employees yet. {canManage && (
                       <Link to="/employees/new" className="text-primary underline underline-offset-4">Add your first employee</Link>
@@ -258,6 +276,15 @@ function EmployeesPage() {
                       : formatNAD(e.monthly_salary || 0)}
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatNAD(e.transport_allowance)}</TableCell>
+                  <TableCell>
+                    <Link to="/onboarding/$employeeId" params={{ employeeId: e.id }} className="inline-block">
+                      {e.contract_signed_at ? (
+                        <Badge variant="outline" className="bg-success/15 text-success border-success/30">Signed</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-warning/15 text-warning border-warning/40">Pending</Badge>
+                      )}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={e.status} />
                   </TableCell>

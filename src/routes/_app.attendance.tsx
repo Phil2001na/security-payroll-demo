@@ -164,10 +164,11 @@ function AttendancePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status")
+        .select("id, employee_code, surname, first_names, home_site_id, status, contract_signed_at, category")
         .eq("status", "active");
       if (error) throw error;
-      return data ?? [];
+      // Replacement candidates must have a signed contract (officers).
+      return (data ?? []).filter((e: any) => e.category !== "officer" || !!e.contract_signed_at) as Employee[];
     },
   });
 
@@ -446,7 +447,16 @@ function AttendancePage() {
         qc.invalidateQueries({ queryKey: ["assignments-week"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Replacement failed");
+      // Surface Postgres / PostgREST detail so the cause is actually visible
+      const e = err as { message?: string; code?: string; details?: string; hint?: string } | null;
+      const parts = [
+        e?.message ?? "Replacement failed",
+        e?.code ? `(code ${e.code})` : "",
+        e?.details ? `\n${e.details}` : "",
+        e?.hint ? `\nHint: ${e.hint}` : "",
+      ].filter(Boolean);
+      console.error("Replacement failed:", err);
+      toast.error(parts.join(" "), { duration: 10000 });
     } finally {
       setSaving(false);
     }
