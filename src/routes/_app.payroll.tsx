@@ -300,6 +300,8 @@ function PayrollPage() {
         </div>
       )}
 
+      <UnsignedNotice />
+
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <SummaryCard label="Total Gross" value={formatNAD(summary.gross)} />
         <SummaryCard label="PAYE" value={formatNAD(summary.paye)} />
