@@ -43,6 +43,7 @@ type EmployeeRow = {
   union_member: boolean;
   ordinarily_works_sundays: boolean;
   start_date: string | null;
+  contract_signed_at: string | null;
   sites: { name: string } | null;
 };
 
