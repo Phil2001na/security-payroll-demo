@@ -416,3 +416,33 @@ function SummaryCard({ label, value, emphasis, hint }: { label: string; value: s
     </Card>
   );
 }
+
+function UnsignedNotice() {
+  const { data } = useQuery({
+    queryKey: ["unsigned-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, surname, first_names, employee_code")
+        .eq("status", "active")
+        .is("contract_signed_at", null)
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+      <div className="font-medium">
+        {data.length} active employee{data.length === 1 ? "" : "s"} excluded — contract pending
+      </div>
+      <div className="text-xs text-muted-foreground mt-1">
+        These employees won't appear in payroll until their contract is signed:{" "}
+        {data.slice(0, 6).map((e) => `${e.surname} (${e.employee_code})`).join(", ")}
+        {data.length > 6 ? ` …and ${data.length - 6} more` : ""}.
+      </div>
+    </div>
+  );
+}
+
