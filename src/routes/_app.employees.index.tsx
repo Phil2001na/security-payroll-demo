@@ -88,6 +88,8 @@ function EmployeesPage() {
     return employees.filter((e) => {
       if (e.category !== tab.replace(/s$/, "")) return false;
       if (statusFilter !== "all" && e.status !== statusFilter) return false;
+      if (contractFilter === "signed" && !e.contract_signed_at) return false;
+      if (contractFilter === "pending" && e.contract_signed_at) return false;
       if (!q) return true;
       const name = `${e.first_names} ${e.surname}`.toLowerCase();
       return (
@@ -97,7 +99,12 @@ function EmployeesPage() {
         (e.phone ?? "").toLowerCase().includes(q)
       );
     });
-  }, [employees, search, statusFilter, tab]);
+  }, [employees, search, statusFilter, contractFilter, tab]);
+
+  const pendingCount = useMemo(
+    () => employees?.filter((e) => !e.contract_signed_at && e.status === "active").length ?? 0,
+    [employees],
+  );
 
   const handleExport = () => {
     if (!filtered.length) {
