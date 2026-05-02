@@ -335,6 +335,9 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           category: Database["public"]["Enums"]["employee_category"]
+          contract_signed_at: string | null
+          contract_signed_pdf_url: string | null
+          contract_template_kind: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -364,6 +367,9 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           category?: Database["public"]["Enums"]["employee_category"]
+          contract_signed_at?: string | null
+          contract_signed_pdf_url?: string | null
+          contract_template_kind?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -393,6 +399,9 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           category?: Database["public"]["Enums"]["employee_category"]
+          contract_signed_at?: string | null
+          contract_signed_pdf_url?: string | null
+          contract_template_kind?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -1338,6 +1347,9 @@ export type Database = {
       }
       tenants: {
         Row: {
+          contract_template_driver: string | null
+          contract_template_management: string | null
+          contract_template_officer: string | null
           created_at: string
           default_contract_terms: string | null
           default_hourly_rate: number
@@ -1353,6 +1365,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          contract_template_driver?: string | null
+          contract_template_management?: string | null
+          contract_template_officer?: string | null
           created_at?: string
           default_contract_terms?: string | null
           default_hourly_rate?: number
@@ -1368,6 +1383,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          contract_template_driver?: string | null
+          contract_template_management?: string | null
+          contract_template_officer?: string | null
           created_at?: string
           default_contract_terms?: string | null
           default_hourly_rate?: number
