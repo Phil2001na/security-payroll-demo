@@ -113,7 +113,8 @@ function OnboardingPortal() {
   }, [template, contractEmployee, contractTenant]);
 
   useEffect(() => {
-    if (!data?.employee?.contract_signed_pdf_url) {
+    const path = data?.employee?.contract_signed_pdf_url;
+    if (!path) {
       setPreviewUrl(null);
       return;
     }
@@ -121,7 +122,7 @@ function OnboardingPortal() {
     void (async () => {
       const { data: signed } = await supabase.storage
         .from("onboarding")
-        .createSignedUrl(data.employee.contract_signed_pdf_url!, 60 * 10);
+        .createSignedUrl(path, 60 * 10);
       if (!cancelled) setPreviewUrl(signed?.signedUrl ?? null);
     })();
     return () => { cancelled = true; };
