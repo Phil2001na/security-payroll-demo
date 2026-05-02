@@ -446,7 +446,16 @@ function AttendancePage() {
         qc.invalidateQueries({ queryKey: ["assignments-week"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Replacement failed");
+      // Surface Postgres / PostgREST detail so the cause is actually visible
+      const e = err as { message?: string; code?: string; details?: string; hint?: string } | null;
+      const parts = [
+        e?.message ?? "Replacement failed",
+        e?.code ? `(code ${e.code})` : "",
+        e?.details ? `\n${e.details}` : "",
+        e?.hint ? `\nHint: ${e.hint}` : "",
+      ].filter(Boolean);
+      console.error("Replacement failed:", err);
+      toast.error(parts.join(" "), { duration: 10000 });
     } finally {
       setSaving(false);
     }
