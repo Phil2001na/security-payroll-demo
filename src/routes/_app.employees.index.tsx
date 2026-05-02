@@ -53,6 +53,7 @@ function EmployeesPage() {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [contractFilter, setContractFilter] = useState<"all" | "signed" | "pending">("all");
   const [tab, setTab] = useState<GroupTab>("officers");
 
   const { data: employees, isLoading } = useQuery({
@@ -65,7 +66,7 @@ function EmployeesPage() {
           id, employee_code, surname, first_names, display_name,
           position, category, status, hourly_rate, monthly_salary, transport_allowance,
           phone, email, home_site_id, national_id, union_member,
-          ordinarily_works_sundays, start_date,
+          ordinarily_works_sundays, start_date, contract_signed_at,
           sites:home_site_id ( name )
         `)
         .order("surname", { ascending: true })
