@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, FileSignature } from "lucide-react";
+import { ArrowLeft, Loader2, FileSignature, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,9 +49,10 @@ function EmployeeDetailPage() {
         <Button variant="ghost" size="sm" asChild className="-ml-3">
           <Link to="/employees"><ArrowLeft className="mr-1 h-4 w-4" /> Back to employees</Link>
         </Button>
-        <Button asChild size="sm">
+        <Button asChild size="sm" variant={data.contract_signed_at ? "outline" : "default"}>
           <Link to="/onboarding/$employeeId" params={{ employeeId }}>
-            <FileSignature className="mr-2 h-4 w-4" /> Start onboarding
+            <FileSignature className="mr-2 h-4 w-4" />
+            {data.contract_signed_at ? "View contract" : "Set up contract"}
           </Link>
         </Button>
       </div>
@@ -61,11 +62,20 @@ function EmployeeDetailPage() {
           {initials(`${data.first_names} ${data.surname}`)}
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display text-3xl font-bold tracking-tight">
               {data.surname}, {data.first_names}
             </h1>
             <Badge variant="outline" className="capitalize">{data.status}</Badge>
+            {data.contract_signed_at ? (
+              <Badge variant="outline" className="bg-success/15 text-success border-success/30">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Contract signed
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-warning/15 text-warning border-warning/40">
+                <AlertCircle className="mr-1 h-3 w-3" /> Contract pending
+              </Badge>
+            )}
           </div>
           <div className="text-sm text-muted-foreground mt-1 font-mono">{data.employee_code}</div>
           <div className="text-sm text-muted-foreground capitalize">{data.position.replace(/_/g, " ")}</div>

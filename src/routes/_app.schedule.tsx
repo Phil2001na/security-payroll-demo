@@ -152,11 +152,14 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift")
+        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
-      return (data ?? []) as Employee[];
+      // Officers without a signed contract may not be rostered. Management
+      // staff are salaried and don't appear here anyway, so filter on category=officer.
+      const list = (data ?? []) as (Employee & { contract_signed_at: string | null; category: string })[];
+      return list.filter((e) => e.category !== "officer" || !!e.contract_signed_at) as Employee[];
     },
   });
 
