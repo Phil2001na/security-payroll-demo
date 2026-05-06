@@ -168,7 +168,7 @@ function AttendancePage() {
         .eq("status", "active");
       if (error) throw error;
       // Replacement candidates must have a signed contract (officers).
-      return (data ?? []).filter((e: any) => e.category !== "officer" || !!e.contract_signed_at) as Employee[];
+      return (data ?? []) as Employee[];
     },
   });
 
