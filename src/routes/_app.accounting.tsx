@@ -10,10 +10,11 @@ function AccountingPage() {
   const { data: aging = [] } = useQuery({
     queryKey: ["ar-aging"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("id,due_date,total,status").eq("type", "AR").neq("status", "paid");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).from("invoices").select("id,due_date,total,status").eq("type", "AR").neq("status", "paid");
       if (error) throw error;
       const now = new Date();
-      return (data ?? []).map((d) => {
+      return (data ?? []).map((d: { id: string; due_date: string; total: number; status: string }) => {
         const days = Math.floor((now.getTime() - new Date(d.due_date).getTime()) / (1000 * 60 * 60 * 24));
         return { ...d, bucket: days <= 30 ? "0-30" : days <= 60 ? "31-60" : "61-90+" };
       });
@@ -23,7 +24,8 @@ function AccountingPage() {
   const { data: pl = [] } = useQuery({
     queryKey: ["pl"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("ledger_lines")
         .select("debit,credit,chart_of_accounts!inner(type,name)");
       if (error) throw error;

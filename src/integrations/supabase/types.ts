@@ -1535,7 +1535,7 @@ export type Database = {
       is_admin_or_ops: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "operations" | "supervisor" | "viewer"
+      app_role: "admin" | "accountant" | "operations" | "supervisor" | "viewer"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
       deduction_category:
         | "statutory"
@@ -1708,7 +1708,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "operations", "supervisor", "viewer"],
+      app_role: ["admin", "accountant", "operations", "supervisor", "viewer"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",

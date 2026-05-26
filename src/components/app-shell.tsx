@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList,
-  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit,
+  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -19,7 +19,7 @@ type NavItem = {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: Array<"admin" | "operations" | "supervisor" | "viewer">;
+  roles?: Array<"admin" | "accountant" | "operations" | "supervisor" | "viewer">;
 };
 
 const NAV: NavItem[] = [
@@ -42,6 +42,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
+  const isFinance = profile?.role === "admin" || profile?.role === "accountant";
   const isCeo = profile?.is_ceo_executive === true;
 
   const renderItem = (item: NavItem) => {
@@ -77,6 +78,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             Executive
           </div>
           {renderItem({ to: "/ai-assistant", label: "AI Assistant", icon: BrainCircuit })}
+        </>
+      )}
+      {isFinance && (
+        <>
+          <div className="px-2 pt-5 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
+            Finance
+          </div>
+          {renderItem({ to: "/accounting", label: "Accounting", icon: BookOpen })}
         </>
       )}
       {isAdmin && (
