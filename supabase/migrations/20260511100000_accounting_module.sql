@@ -66,6 +66,8 @@ CREATE TABLE public.invoice_items (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Row-level trigger: Postgres forbids transition tables on multi-event triggers,
+-- so we check balance per affected ledger_id using the row's own ledger_id.
 CREATE OR REPLACE FUNCTION public.fn_check_ledger_balance()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
@@ -73,20 +75,16 @@ DECLARE
   v_debits numeric(14,2);
   v_credits numeric(14,2);
 BEGIN
-  FOR v_ledger_id IN
-    SELECT DISTINCT ledger_id FROM new_rows
-    UNION
-    SELECT DISTINCT ledger_id FROM old_rows
-  LOOP
-    SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0)
-      INTO v_debits, v_credits
-    FROM public.ledger_lines
-    WHERE ledger_id = v_ledger_id;
+  v_ledger_id := COALESCE(NEW.ledger_id, OLD.ledger_id);
 
-    IF v_debits <> v_credits THEN
-      RAISE EXCEPTION 'Ledger % is unbalanced. Debits: %, Credits: %', v_ledger_id, v_debits, v_credits;
-    END IF;
-  END LOOP;
+  SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0)
+    INTO v_debits, v_credits
+  FROM public.ledger_lines
+  WHERE ledger_id = v_ledger_id;
+
+  IF v_debits <> v_credits THEN
+    RAISE EXCEPTION 'Ledger % is unbalanced. Debits: %, Credits: %', v_ledger_id, v_debits, v_credits;
+  END IF;
 
   RETURN NULL;
 END;
@@ -94,8 +92,7 @@ $$;
 
 CREATE TRIGGER trg_check_ledger_balance
 AFTER INSERT OR UPDATE OR DELETE ON public.ledger_lines
-REFERENCING NEW TABLE AS new_rows OLD TABLE AS old_rows
-FOR EACH STATEMENT
+FOR EACH ROW
 EXECUTE FUNCTION public.fn_check_ledger_balance();
 
 CREATE OR REPLACE FUNCTION public.fn_post_invoice_to_ledger()
