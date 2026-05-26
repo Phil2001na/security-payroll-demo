@@ -1,6 +1,5 @@
 -- Accounting & Invoicing module
-
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'accountant';
+-- Note: 'accountant' enum value added in 20260510235900_add_accountant_role.sql
 
 CREATE TYPE public.account_type AS ENUM ('asset', 'liability', 'equity', 'income', 'expense');
 CREATE TYPE public.normal_balance_type AS ENUM ('debit', 'credit');
