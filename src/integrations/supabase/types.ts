@@ -12,8 +12,338 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      ai_audit_events: {
+        Row: {
+          created_at: string
+          data_sources: Json
+          event_type: string
+          id: string
+          message_id: string | null
+          model_name: string | null
+          model_provider: string
+          prompt_hash: string
+          prompt_preview: string | null
+          read_only: boolean
+          request_metadata: Json
+          response_hash: string | null
+          retrieval_plan: Json
+          rows_examined: number
+          session_id: string | null
+          tenant_id: string
+          token_usage: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_sources?: Json
+          event_type: string
+          id?: string
+          message_id?: string | null
+          model_name?: string | null
+          model_provider?: string
+          prompt_hash: string
+          prompt_preview?: string | null
+          read_only?: boolean
+          request_metadata?: Json
+          response_hash?: string | null
+          retrieval_plan?: Json
+          rows_examined?: number
+          session_id?: string | null
+          tenant_id: string
+          token_usage?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data_sources?: Json
+          event_type?: string
+          id?: string
+          message_id?: string | null
+          model_name?: string | null
+          model_provider?: string
+          prompt_hash?: string
+          prompt_preview?: string | null
+          read_only?: boolean
+          request_metadata?: Json
+          response_hash?: string | null
+          retrieval_plan?: Json
+          rows_examined?: number
+          session_id?: string | null
+          tenant_id?: string
+          token_usage?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_audit_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversation_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_audit_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversation_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_audit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_audit_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversation_messages: {
+        Row: {
+          actor_user_id: string | null
+          content: string
+          content_summary: string | null
+          created_at: string
+          data_sources: Json
+          id: string
+          metadata: Json
+          retrieval_snapshot: Json
+          role: string
+          session_id: string
+          tenant_id: string
+          token_usage: Json
+        }
+        Insert: {
+          actor_user_id?: string | null
+          content: string
+          content_summary?: string | null
+          created_at?: string
+          data_sources?: Json
+          id?: string
+          metadata?: Json
+          retrieval_snapshot?: Json
+          role: string
+          session_id: string
+          tenant_id: string
+          token_usage?: Json
+        }
+        Update: {
+          actor_user_id?: string | null
+          content?: string
+          content_summary?: string | null
+          created_at?: string
+          data_sources?: Json
+          id?: string
+          metadata?: Json
+          retrieval_snapshot?: Json
+          role?: string
+          session_id?: string
+          tenant_id?: string
+          token_usage?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversation_messages_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversation_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversation_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string | null
+          metadata: Json
+          model_name: string | null
+          model_provider: string
+          owner_user_id: string
+          purpose: string
+          status: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json
+          model_name?: string | null
+          model_provider?: string
+          owner_user_id: string
+          purpose?: string
+          status?: string
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json
+          model_name?: string | null
+          model_provider?: string
+          owner_user_id?: string
+          purpose?: string
+          status?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversation_sessions_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversation_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_executive_memories: {
+        Row: {
+          confidence: number
+          content: string
+          created_at: string
+          created_by: string | null
+          executive_user_id: string
+          id: string
+          label: string
+          last_used_at: string | null
+          memory_type: string
+          metadata: Json
+          sensitivity: string
+          source: string
+          source_message_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          content: string
+          created_at?: string
+          created_by?: string | null
+          executive_user_id: string
+          id?: string
+          label: string
+          last_used_at?: string | null
+          memory_type: string
+          metadata?: Json
+          sensitivity?: string
+          source?: string
+          source_message_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          executive_user_id?: string
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          memory_type?: string
+          metadata?: Json
+          sensitivity?: string
+          source?: string
+          source_message_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_executive_memories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_executive_memories_executive_user_id_fkey"
+            columns: ["executive_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_executive_memories_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversation_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_executive_memories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           action: string
@@ -60,6 +390,47 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chart_of_accounts: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          normal_balance: Database["public"]["Enums"]["normal_balance_type"]
+          tenant_id: string
+          type: Database["public"]["Enums"]["account_type"]
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          normal_balance: Database["public"]["Enums"]["normal_balance_type"]
+          tenant_id: string
+          type: Database["public"]["Enums"]["account_type"]
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          normal_balance?: Database["public"]["Enums"]["normal_balance_type"]
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["account_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -528,6 +899,101 @@ export type Database = {
           },
         ]
       }
+      invoice_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          invoice_id: string
+          quantity: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_id: string
+          created_at: string
+          due_date: string
+          id: string
+          issued_at: string | null
+          paid_at: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          tax: number
+          tenant_id: string
+          total: number
+          type: Database["public"]["Enums"]["invoice_type"]
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          issued_at?: string | null
+          paid_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          tax?: number
+          tenant_id: string
+          total: number
+          type: Database["public"]["Enums"]["invoice_type"]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          issued_at?: string | null
+          paid_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          tax?: number
+          tenant_id?: string
+          total?: number
+          type?: Database["public"]["Enums"]["invoice_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leave_balances: {
         Row: {
           annual_days: number
@@ -569,6 +1035,96 @@ export type Database = {
           },
           {
             foreignKeyName: "leave_balances_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_entries: {
+        Row: {
+          created_at: string
+          description: string
+          entry_date: string
+          id: string
+          reference_id: string | null
+          reference_type: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          entry_date: string
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          entry_date?: string
+          id?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_lines: {
+        Row: {
+          account_id: string
+          created_at: string
+          credit: number
+          debit: number
+          id: string
+          ledger_id: string
+          tenant_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          credit?: number
+          debit?: number
+          id?: string
+          ledger_id: string
+          tenant_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          credit?: number
+          debit?: number
+          id?: string
+          ledger_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_lines_ledger_id_fkey"
+            columns: ["ledger_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_lines_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -847,6 +1403,8 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          is_ceo_executive: boolean
+          onboarding_complete: boolean
           role: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           updated_at: string
@@ -858,6 +1416,8 @@ export type Database = {
           full_name?: string
           id: string
           is_active?: boolean
+          is_ceo_executive?: boolean
+          onboarding_complete?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id: string
           updated_at?: string
@@ -869,6 +1429,8 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          is_ceo_executive?: boolean
+          onboarding_complete?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id?: string
           updated_at?: string
@@ -1296,6 +1858,7 @@ export type Database = {
         Row: {
           active: boolean
           address: string | null
+          billing_rate: number
           client_name: string | null
           code: string | null
           contract_terms_text: string | null
@@ -1310,6 +1873,7 @@ export type Database = {
         Insert: {
           active?: boolean
           address?: string | null
+          billing_rate?: number
           client_name?: string | null
           code?: string | null
           contract_terms_text?: string | null
@@ -1324,6 +1888,7 @@ export type Database = {
         Update: {
           active?: boolean
           address?: string | null
+          billing_rate?: number
           client_name?: string | null
           code?: string | null
           contract_terms_text?: string | null
@@ -1524,6 +2089,20 @@ export type Database = {
         Args: { _any_date: string; _employee_id: string }
         Returns: number
       }
+      finalize_payroll_period: {
+        Args: { p_period: string }
+        Returns: undefined
+      }
+      fn_get_or_create_account: {
+        Args: {
+          p_code: string
+          p_name: string
+          p_normal: Database["public"]["Enums"]["normal_balance_type"]
+          p_tenant: string
+          p_type: Database["public"]["Enums"]["account_type"]
+        }
+        Returns: string
+      }
       has_ps_exemption: {
         Args: { _date: string; _employee_id: string }
         Returns: boolean
@@ -1533,9 +2112,15 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_ops: { Args: never; Returns: boolean }
+      is_ceo_executive: { Args: never; Returns: boolean }
+      replace_draft_payroll: {
+        Args: { p_period: string; p_rows: Json }
+        Returns: undefined
+      }
     }
     Enums: {
-      app_role: "admin" | "accountant" | "operations" | "supervisor" | "viewer"
+      account_type: "asset" | "liability" | "equity" | "income" | "expense"
+      app_role: "admin" | "operations" | "supervisor" | "viewer" | "accountant"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
       deduction_category:
         | "statutory"
@@ -1562,6 +2147,9 @@ export type Database = {
         | "driver"
       employee_status: "active" | "suspended" | "terminated"
       installment_status: "active" | "paid_off" | "paused" | "written_off"
+      invoice_status: "draft" | "issued" | "paid" | "void"
+      invoice_type: "AR" | "AP"
+      normal_balance_type: "debit" | "credit"
       pay_period_status: "open" | "locked" | "paid"
       pay_rule:
         | "standard"
@@ -1706,9 +2294,13 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      app_role: ["admin", "accountant", "operations", "supervisor", "viewer"],
+      account_type: ["asset", "liability", "equity", "income", "expense"],
+      app_role: ["admin", "operations", "supervisor", "viewer", "accountant"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",
@@ -1738,6 +2330,9 @@ export const Constants = {
       ],
       employee_status: ["active", "suspended", "terminated"],
       installment_status: ["active", "paid_off", "paused", "written_off"],
+      invoice_status: ["draft", "issued", "paid", "void"],
+      invoice_type: ["AR", "AP"],
+      normal_balance_type: ["debit", "credit"],
       pay_period_status: ["open", "locked", "paid"],
       pay_rule: [
         "standard",

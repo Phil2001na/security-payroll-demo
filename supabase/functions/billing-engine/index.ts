@@ -5,64 +5,137 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const { startDate, endDate, siteId, issue = false } = await req.json();
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    return json({ error: "Server is missing required configuration." }, 500);
+  }
 
-  const { data: rows, error: scheduleError } = await supabase
+  // --- Authenticate the caller ---
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json({ error: "Missing or invalid Authorization header." }, 401);
+  }
+  const jwt = authHeader.slice("Bearer ".length);
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: userData, error: userErr } = await userClient.auth.getUser(jwt);
+  if (userErr || !userData.user) return json({ error: "Unauthorized." }, 401);
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // Tenant + role come from the server-side profile, never from the client.
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("tenant_id, role, is_active")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+
+  if (!profile?.is_active || !["admin", "operations", "accountant"].includes(profile.role)) {
+    return json({ error: "Access denied. Billing requires admin, operations or accountant." }, 403);
+  }
+  const tenantId: string = profile.tenant_id;
+
+  const body = await req.json().catch(() => null) as
+    | { startDate?: string; endDate?: string; siteId?: string; issue?: boolean }
+    | null;
+  const startDate = body?.startDate;
+  const endDate = body?.endDate;
+  if (!startDate || !endDate) return json({ error: "startDate and endDate are required." }, 400);
+  const issue = body?.issue === true;
+
+  // Approved shift hours in range, scoped to the caller's tenant.
+  let query = admin
     .from("shift_logs")
-    .select("site_id, employee_id, hours_worked, assignments!inner(date), sites!inner(id, billing_rate, name)")
+    .select("site_id, hours_worked, date, sites!inner(id, name, billing_rate)")
+    .eq("tenant_id", tenantId)
     .eq("status", "approved")
-    .gte("assignments.date", startDate)
-    .lte("assignments.date", endDate)
-    .match(siteId ? { site_id: siteId } : {});
+    .gte("date", startDate)
+    .lte("date", endDate);
+  if (body?.siteId) query = query.eq("site_id", body.siteId);
 
-  if (scheduleError) return new Response(JSON.stringify({ error: scheduleError.message }), { status: 400, headers: corsHeaders });
+  const { data: rows, error: rowsErr } = await query;
+  if (rowsErr) return json({ error: rowsErr.message }, 400);
 
   const bySite = new Map<string, { siteName: string; totalHours: number; rate: number }>();
   for (const row of rows ?? []) {
     const site = Array.isArray((row as any).sites) ? (row as any).sites[0] : (row as any).sites;
     const key = row.site_id as string;
-    const current = bySite.get(key) ?? { siteName: site?.name ?? "Unknown Site", totalHours: 0, rate: Number(site?.billing_rate ?? 0) };
+    const current = bySite.get(key) ?? {
+      siteName: site?.name ?? "Unknown Site",
+      totalHours: 0,
+      rate: Number(site?.billing_rate ?? 0),
+    };
     current.totalHours += Number(row.hours_worked ?? 0);
     bySite.set(key, current);
   }
 
-  const invoices = [];
+  const invoices: Array<Record<string, unknown>> = [];
   for (const [resolvedSiteId, summary] of bySite) {
-    const total = Number((summary.totalHours * summary.rate).toFixed(2));
-    const invoicePayload = {
-      tenant_id: req.headers.get("x-tenant-id"),
-      type: "AR",
-      status: issue ? "issued" : "draft",
-      client_id: resolvedSiteId,
-      total,
-      tax: 0,
-      due_date: endDate,
-      issued_at: issue ? new Date().toISOString() : null,
-    };
+    const hours = Number(summary.totalHours.toFixed(2));
+    if (hours <= 0 || summary.rate <= 0) continue;
 
-    const { data: invoice, error: invoiceError } = await supabase
+    // Create as draft, attach the line item (a trigger derives invoice.total),
+    // then issue — which posts the correct total to the ledger.
+    const { data: invoice, error: invErr } = await admin
       .from("invoices")
-      .insert(invoicePayload)
+      .insert({
+        tenant_id: tenantId,
+        type: "AR",
+        status: "draft",
+        client_id: resolvedSiteId,
+        total: 0,
+        tax: 0,
+        due_date: endDate,
+      })
       .select("id")
       .single();
+    if (invErr || !invoice) return json({ error: invErr?.message ?? "Invoice insert failed" }, 400);
 
-    if (invoiceError) return new Response(JSON.stringify({ error: invoiceError.message }), { status: 400, headers: corsHeaders });
-
-    const { error: itemError } = await supabase.from("invoice_items").insert({
+    const { error: itemErr } = await admin.from("invoice_items").insert({
       invoice_id: invoice.id,
       description: `Guarding services (${startDate} to ${endDate}) - ${summary.siteName}`,
-      quantity: Number(summary.totalHours.toFixed(2)),
+      quantity: hours,
       unit_price: summary.rate,
     });
+    if (itemErr) {
+      await admin.from("invoices").delete().eq("id", invoice.id);
+      return json({ error: itemErr.message }, 400);
+    }
 
-    if (itemError) return new Response(JSON.stringify({ error: itemError.message }), { status: 400, headers: corsHeaders });
+    if (issue) {
+      const { error: issueErr } = await admin
+        .from("invoices")
+        .update({ status: "issued", issued_at: new Date().toISOString() })
+        .eq("id", invoice.id);
+      if (issueErr) return json({ error: issueErr.message }, 400);
+    }
 
-    invoices.push({ id: invoice.id, siteId: resolvedSiteId, ...summary, total });
+    invoices.push({
+      id: invoice.id,
+      siteId: resolvedSiteId,
+      siteName: summary.siteName,
+      hours,
+      rate: summary.rate,
+      total: Number((hours * summary.rate).toFixed(2)),
+      status: issue ? "issued" : "draft",
+    });
   }
 
-  return new Response(JSON.stringify({ invoices }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  return json({ invoices });
 });

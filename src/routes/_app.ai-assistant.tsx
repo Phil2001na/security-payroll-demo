@@ -204,7 +204,7 @@ function ChatArea({
         {
           id: "optimistic-user",
           role: "user",
-          content: input || sendMutation.variables ?? "",
+          content: input || (sendMutation.variables ?? ""),
           created_at: new Date().toISOString(),
         } as Message,
       ]

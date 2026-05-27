@@ -19,6 +19,8 @@ import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
 import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
+import { Route as AppAiAssistantRouteImport } from './routes/_app.ai-assistant'
+import { Route as AppAccountingRouteImport } from './routes/_app.accounting'
 import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
 import { Route as AppOnboardingEmployeeIdRouteImport } from './routes/_app.onboarding.$employeeId'
 import { Route as AppEmployeesNewRouteImport } from './routes/_app.employees.new'
@@ -76,6 +78,16 @@ const AppAttendanceRoute = AppAttendanceRouteImport.update({
   path: '/attendance',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAiAssistantRoute = AppAiAssistantRouteImport.update({
+  id: '/ai-assistant',
+  path: '/ai-assistant',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountingRoute = AppAccountingRouteImport.update({
+  id: '/accounting',
+  path: '/accounting',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppEmployeesIndexRoute = AppEmployeesIndexRouteImport.update({
   id: '/employees/',
   path: '/employees/',
@@ -115,6 +127,8 @@ const AppAdminSettingsRoute = AppAdminSettingsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/accounting': typeof AppAccountingRoute
+  '/ai-assistant': typeof AppAiAssistantRoute
   '/attendance': typeof AppAttendanceRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
@@ -133,6 +147,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/accounting': typeof AppAccountingRoute
+  '/ai-assistant': typeof AppAiAssistantRoute
   '/attendance': typeof AppAttendanceRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
@@ -153,6 +169,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_app/accounting': typeof AppAccountingRoute
+  '/_app/ai-assistant': typeof AppAiAssistantRoute
   '/_app/attendance': typeof AppAttendanceRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/disciplinary': typeof AppDisciplinaryRoute
@@ -173,6 +191,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/accounting'
+    | '/ai-assistant'
     | '/attendance'
     | '/dashboard'
     | '/disciplinary'
@@ -191,6 +211,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/accounting'
+    | '/ai-assistant'
     | '/attendance'
     | '/dashboard'
     | '/disciplinary'
@@ -210,6 +232,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/auth'
+    | '/_app/accounting'
+    | '/_app/ai-assistant'
     | '/_app/attendance'
     | '/_app/dashboard'
     | '/_app/disciplinary'
@@ -304,6 +328,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAttendanceRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ai-assistant': {
+      id: '/_app/ai-assistant'
+      path: '/ai-assistant'
+      fullPath: '/ai-assistant'
+      preLoaderRoute: typeof AppAiAssistantRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounting': {
+      id: '/_app/accounting'
+      path: '/accounting'
+      fullPath: '/accounting'
+      preLoaderRoute: typeof AppAccountingRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/employees/': {
       id: '/_app/employees/'
       path: '/employees'
@@ -357,6 +395,8 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAccountingRoute: typeof AppAccountingRoute
+  AppAiAssistantRoute: typeof AppAiAssistantRoute
   AppAttendanceRoute: typeof AppAttendanceRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDisciplinaryRoute: typeof AppDisciplinaryRoute
@@ -374,6 +414,8 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountingRoute: AppAccountingRoute,
+  AppAiAssistantRoute: AppAiAssistantRoute,
   AppAttendanceRoute: AppAttendanceRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDisciplinaryRoute: AppDisciplinaryRoute,
