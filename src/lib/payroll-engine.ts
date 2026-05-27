@@ -2,6 +2,12 @@
 // Implements Labour Act + Income Tax calculations using live payroll_constants.
 import { supabase } from "@/integrations/supabase/client";
 
+// Round to cents. All monetary components are rounded before summing so that
+// stored gross/deductions/net are exact 2dp values and net === gross - deductions.
+export function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 export type ShiftLogRow = {
   id: string;
   employee_id: string;
@@ -47,6 +53,9 @@ export type PayrollConstants = {
   night_premium_rate: number;
   overtime_multiplier: number;
   sunday_multiplier: number;
+  public_holiday_multiplier: number;
+  weekly_ordinary_cap: number;
+  periods_per_year: number;
 };
 
 export type PayeBracket = {
@@ -109,6 +118,9 @@ export async function fetchPayrollConstants(): Promise<{ constants: PayrollConst
     night_premium_rate: map.get("night_premium_rate") ?? 0.06,
     overtime_multiplier: map.get("overtime_multiplier") ?? 1.5,
     sunday_multiplier: map.get("sunday_default_multiplier") ?? map.get("sunday_multiplier") ?? 2.0,
+    public_holiday_multiplier: map.get("public_holiday_multiplier") ?? 2.0,
+    weekly_ordinary_cap: map.get("weekly_ordinary_cap") ?? 60,
+    periods_per_year: map.get("periods_per_year") ?? 12,
   };
 
   const brackets: PayeBracket[] = (bracketRows ?? []).map((b) => ({
@@ -121,18 +133,35 @@ export async function fetchPayrollConstants(): Promise<{ constants: PayrollConst
   return { constants, brackets };
 }
 
-// ---------- PAYE — monthly (annualise → tax → /12) ----------
-export function calcPAYE(monthlyTaxable: number, brackets: PayeBracket[]): number {
-  if (monthlyTaxable <= 0 || brackets.length === 0) return 0;
-  const annual = monthlyTaxable * 12;
+// ---------- PAYE — annualise → tax → divide back to the period ----------
+// periodsPerYear lets non-monthly cycles annualise correctly (12 for monthly).
+export function calcPAYE(periodTaxable: number, brackets: PayeBracket[], periodsPerYear = 12): number {
+  if (periodTaxable <= 0 || brackets.length === 0) return 0;
+  const annual = periodTaxable * periodsPerYear;
   const b = brackets.find((x) => annual >= x.lower_bound && (x.upper_bound == null || annual < x.upper_bound));
   if (!b) return 0;
   const annualTax = b.base_tax + (annual - b.lower_bound) * b.marginal_rate;
-  return Math.max(0, annualTax / 12);
+  return Math.max(0, annualTax / periodsPerYear);
+}
+
+// ISO-week key (the week's Monday as YYYY-MM-DD). Computed from the date parts
+// directly so the result is independent of the host machine's timezone.
+export function weekKeyOf(d: string): string {
+  const [y, m, day] = d.slice(0, 10).split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, day));
+  const dow = dt.getUTCDay() || 7; // Mon=1..Sun=7
+  dt.setUTCDate(dt.getUTCDate() - dow + 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 // ---------- Bucketise shift logs ----------
-function bucketiseLogs(logs: ShiftLogRow[], suspensionDates: Set<string>): PayslipBuckets {
+function bucketiseLogs(
+  logs: ShiftLogRow[],
+  suspensionDates: Set<string>,
+  weeklyCap: number,
+  warnings: string[],
+  exemptWeekKeys: Set<string>,
+): PayslipBuckets {
   const b: PayslipBuckets = {
     normal_hours: 0, overtime_hours: 0, sunday_hours: 0,
     public_holiday_hours: 0, night_hours: 0, suspended_hours: 0,
@@ -140,12 +169,6 @@ function bucketiseLogs(logs: ShiftLogRow[], suspensionDates: Set<string>): Paysl
 
   // Week map — ISO week of date → hours (for OT calc).
   const weekHours = new Map<string, number>();
-  const weekKey = (d: string) => {
-    const dt = new Date(d + "T00:00:00Z");
-    const day = dt.getUTCDay() || 7;
-    dt.setUTCDate(dt.getUTCDate() - day + 1);
-    return dt.toISOString().slice(0, 10);
-  };
 
   // Sort chronologically for correct weekly OT accumulation.
   const sorted = [...logs].sort((a, z) => a.date.localeCompare(z.date));
@@ -172,19 +195,27 @@ function bucketiseLogs(logs: ShiftLogRow[], suspensionDates: Set<string>): Paysl
       // leave paid at 1x as normal hours; off days do not accumulate
       if (rule === "leave") b.normal_hours += hrs;
     } else {
-      // standard — split across 60h/week threshold for OT
-      const wk = weekKey(l.date);
+      // standard — split across the weekly ordinary cap for OT
+      const wk = weekKeyOf(l.date);
       const prior = weekHours.get(wk) ?? 0;
       const newTotal = prior + hrs;
-      if (prior >= 60) {
+      if (prior >= weeklyCap) {
         b.overtime_hours += hrs;
-      } else if (newTotal > 60) {
-        b.normal_hours += 60 - prior;
-        b.overtime_hours += newTotal - 60;
+      } else if (newTotal > weeklyCap) {
+        b.normal_hours += weeklyCap - prior;
+        b.overtime_hours += newTotal - weeklyCap;
       } else {
         b.normal_hours += hrs;
       }
       weekHours.set(wk, newTotal);
+    }
+  }
+
+  // Labour Act: weeks exceeding the ordinary cap require a Permanent Secretary
+  // exemption. Flag any uncovered week so payroll surfaces the compliance risk.
+  for (const [wk, hours] of weekHours) {
+    if (hours > weeklyCap && !exemptWeekKeys.has(wk)) {
+      warnings.push(`Week of ${wk}: ${hours.toFixed(1)}h exceeds the ${weeklyCap}h/week cap without a PS exemption`);
     }
   }
   return b;
@@ -206,20 +237,22 @@ export function calculateNetPay(args: {
   adhocDeductions?: AdhocDeductionRow[];
   consensualDeductions?: number;
   suspensionDates?: Set<string>;
+  psExemptWeekKeys?: Set<string>;
   constants: PayrollConstants;
   brackets: PayeBracket[];
 }): PayslipCalc {
   const { employee, logs, disciplinary, constants, brackets } = args;
-  const consensual = args.consensualDeductions ?? 0;
+  const consensual = round2(args.consensualDeductions ?? 0);
   const adhoc = args.adhocDeductions ?? [];
   const suspensionDates = args.suspensionDates ?? new Set<string>();
+  const exemptWeekKeys = args.psExemptWeekKeys ?? new Set<string>();
   const warnings: string[] = [];
 
   const isManagement = employee.category === "management" && Number(employee.monthly_salary || 0) > 0;
 
   const buckets = isManagement
     ? { normal_hours: 0, overtime_hours: 0, sunday_hours: 0, public_holiday_hours: 0, night_hours: 0, suspended_hours: 0 }
-    : bucketiseLogs(logs, suspensionDates);
+    : bucketiseLogs(logs, suspensionDates, constants.weekly_ordinary_cap, warnings, exemptWeekKeys);
 
   const rate = Number(employee.hourly_rate) || constants.min_wage_security;
 
@@ -227,25 +260,28 @@ export function calculateNetPay(args: {
     warnings.push(`Rate N$${rate} below statutory minimum N$${constants.min_wage_security}`);
   }
 
-  const normal_amount = isManagement
+  // Every monetary component is rounded to cents before summing so the stored
+  // gross/deductions/net are exact and satisfy net === gross - deductions.
+  const normal_amount = round2(isManagement
     ? Number(employee.monthly_salary || 0)
-    : buckets.normal_hours * rate;
-  const overtime_amount = isManagement ? 0 : buckets.overtime_hours * rate * constants.overtime_multiplier;
-  const sunday_amount = isManagement ? 0 : buckets.sunday_hours * rate * constants.sunday_multiplier;
-  const public_holiday_amount = isManagement ? 0 : buckets.public_holiday_hours * rate * constants.sunday_multiplier;
-  const night_premium_amount = isManagement ? 0 : buckets.night_hours * rate * constants.night_premium_rate;
+    : buckets.normal_hours * rate);
+  const overtime_amount = isManagement ? 0 : round2(buckets.overtime_hours * rate * constants.overtime_multiplier);
+  const sunday_amount = isManagement ? 0 : round2(buckets.sunday_hours * rate * constants.sunday_multiplier);
+  const public_holiday_amount = isManagement ? 0 : round2(buckets.public_holiday_hours * rate * constants.public_holiday_multiplier);
+  const night_premium_amount = isManagement ? 0 : round2(buckets.night_hours * rate * constants.night_premium_rate);
 
-  const transport_allowance = Number(employee.transport_allowance) || 0;
+  const transport_allowance = round2(Number(employee.transport_allowance) || 0);
 
-  const gross_salary =
+  const gross_salary = round2(
     normal_amount + overtime_amount + sunday_amount +
-    public_holiday_amount + night_premium_amount + transport_allowance;
+    public_holiday_amount + night_premium_amount + transport_allowance,
+  );
 
   // Transport allowance is non-taxable; PAYE on earnings only
   const taxable = gross_salary - transport_allowance;
 
-  const paye_amount = calcPAYE(taxable, brackets);
-  const ssc_amount = Math.min(gross_salary * constants.ssc_rate, constants.ssc_max_deduction);
+  const paye_amount = round2(calcPAYE(taxable, brackets, constants.periods_per_year));
+  const ssc_amount = round2(Math.min(gross_salary * constants.ssc_rate, constants.ssc_max_deduction));
 
   // Fines — require CA ref (Labour Act s.12(5))
   let fine_deductions = 0;
@@ -273,9 +309,11 @@ export function calculateNetPay(args: {
       fine_deductions += amt;
     }
   }
+  fine_deductions = round2(fine_deductions);
+  disqualified_fines = round2(disqualified_fines);
 
-  const total_deductions = paye_amount + ssc_amount + fine_deductions + consensual;
-  const net_salary = gross_salary - total_deductions;
+  const total_deductions = round2(paye_amount + ssc_amount + fine_deductions + consensual);
+  const net_salary = round2(gross_salary - total_deductions);
 
   return {
     ...buckets,

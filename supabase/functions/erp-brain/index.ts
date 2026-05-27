@@ -30,31 +30,6 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function parseJwtClaims(token: string): Record<string, unknown> | null {
-  try {
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-    return JSON.parse(atob(padded)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function extractTenantId(claims: Record<string, unknown> | null, appMeta: Record<string, unknown>): string | null {
-  const candidates = [
-    claims?.tenant_id,
-    claims?.org_id,
-    (claims?.app_metadata as Record<string, unknown> | undefined)?.tenant_id,
-    appMeta?.tenant_id,
-  ];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.length > 0) return c;
-  }
-  return null;
-}
-
 async function sha256hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -91,7 +66,7 @@ function buildContextBlock(
     "",
     `Open disciplinary actions: ${data.openDisciplinary.length}`,
     ...(data.openDisciplinary.length > 0
-      ? data.openDisciplinary.map((d) => `  - ${d.category} / ${d.severity} on ${d.incident_date}`)
+      ? data.openDisciplinary.map((d) => `  - ${d.action_type} (${d.offence_code}) on ${d.incident_date}`)
       : []),
     "",
   ];
@@ -106,7 +81,7 @@ function buildContextBlock(
     lines.push("", "Recent payroll runs:");
     for (const r of data.payrollRuns) {
       const when = r.finalized_at ? r.finalized_at.split("T")[0] : "pending";
-      lines.push(`  - ${r.status} on ${when}: gross NAD ${Number(r.gross_total ?? 0).toLocaleString("en-NA", { minimumFractionDigits: 2 })}, net NAD ${Number(r.net_total ?? 0).toLocaleString("en-NA", { minimumFractionDigits: 2 })}`);
+      lines.push(`  - ${r.status} on ${when}: gross NAD ${Number(r.gross_salary ?? 0).toLocaleString("en-NA", { minimumFractionDigits: 2 })}, net NAD ${Number(r.net_salary ?? 0).toLocaleString("en-NA", { minimumFractionDigits: 2 })}`);
     }
   }
 
@@ -162,27 +137,23 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Unauthorized." }, 401);
     }
     const userId = userData.user.id;
-    const claims = parseJwtClaims(jwt);
-    const tenantId = extractTenantId(claims, userData.user.app_metadata ?? {});
-    if (!tenantId) {
-      return jsonResponse({ error: "No tenant_id found in token." }, 403);
-    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // CEO gate — must have explicit is_ceo_executive flag
+    // CEO gate — fetch profile to get tenant_id and check executive flag
     const { data: profile } = await adminClient
       .from("profiles")
-      .select("is_ceo_executive, is_active")
+      .select("is_ceo_executive, is_active, tenant_id")
       .eq("id", userId)
-      .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (!profile?.is_ceo_executive || !profile?.is_active) {
       return jsonResponse({ error: "Access denied. Executive assistant is CEO-only." }, 403);
     }
+
+    const tenantId: string = profile.tenant_id;
 
     const body = await req.json().catch(() => null) as { message?: string; session_id?: string } | null;
     const userMessage = body?.message?.trim();
@@ -248,10 +219,10 @@ Deno.serve(async (req) => {
         .eq("status", "active"),
       adminClient
         .from("payroll_runs")
-        .select("id, status, gross_total, net_total, deductions_total, finalized_at")
+        .select("id, status, gross_salary, net_salary, total_deductions, finalized_at")
         .eq("tenant_id", tenantId)
-        .order("finalized_at", { ascending: false })
-        .limit(3),
+        .order("finalized_at", { ascending: false, nullsFirst: false })
+        .limit(5),
       adminClient
         .from("pay_periods")
         .select("id, label, status, start_date, end_date")
@@ -260,9 +231,8 @@ Deno.serve(async (req) => {
         .maybeSingle(),
       adminClient
         .from("disciplinary_actions")
-        .select("id, employee_id, incident_date, category, severity")
+        .select("id, employee_id, incident_date, action_type, offence_code")
         .eq("tenant_id", tenantId)
-        .is("resolved_at", null)
         .order("incident_date", { ascending: false })
         .limit(20),
       adminClient
@@ -270,7 +240,7 @@ Deno.serve(async (req) => {
         .select("id, employee_id, site_id, date, status, hours_worked")
         .eq("tenant_id", tenantId)
         .gte("date", fourteenDaysAgo)
-        .in("status", ["absent", "late", "rejected", "pending"])
+        .in("status", ["pending", "no_show", "suspended_unpaid"])
         .order("date", { ascending: false })
         .limit(30),
       adminClient
@@ -280,6 +250,22 @@ Deno.serve(async (req) => {
         .eq("active", true)
         .order("name"),
     ]);
+
+    // Surface retrieval failures instead of silently treating them as "no data" —
+    // a query error must never be presented to the CEO as an empty/healthy result.
+    const retrievalErrors: string[] = [];
+    const checkRes = (label: string, err: { message: string } | null) => {
+      if (err) {
+        console.error(`erp-brain retrieval error [${label}]:`, err.message);
+        retrievalErrors.push(`${label}: ${err.message}`);
+      }
+    };
+    checkRes("employees", employeesRes.error);
+    checkRes("payroll_runs", payrollRunsRes.error);
+    checkRes("pay_periods", openPeriodRes.error);
+    checkRes("disciplinary_actions", disciplinaryRes.error);
+    checkRes("shift_logs", shiftsRes.error);
+    checkRes("sites", sitesRes.error);
 
     const retrievalContext = {
       employees: employeesRes.data ?? [],
@@ -296,7 +282,12 @@ Deno.serve(async (req) => {
       retrievalContext.sites.length;
 
     const today = new Date().toISOString().split("T")[0];
-    const contextBlock = buildContextBlock(retrievalContext, memoriesRes.data ?? [], today);
+    let contextBlock = buildContextBlock(retrievalContext, memoriesRes.data ?? [], today);
+    if (retrievalErrors.length > 0) {
+      contextBlock +=
+        "\n\n[DATA RETRIEVAL WARNINGS — some sources failed to load; do NOT treat the affected sections as zero/empty]\n" +
+        retrievalErrors.map((e) => `  - ${e}`).join("\n");
+    }
 
     // --- Build Anthropic messages ---
     const history = historyRes.data ?? [];
@@ -423,6 +414,7 @@ Deno.serve(async (req) => {
       answer,
       data_sources: dataSources,
       token_usage: tokenUsage,
+      retrieval_errors: retrievalErrors,
     });
   } catch (error) {
     return jsonResponse(

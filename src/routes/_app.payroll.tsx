@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Download, FileText, Lock, Play, AlertTriangle } from "lucide-react";
 import {
-  calculateNetPay, fetchPayrollConstants, calcVETLevy,
-  type EmployeeRow, type PayslipCalc,
+  calculateNetPay, fetchPayrollConstants, calcVETLevy, weekKeyOf, round2,
+  type EmployeeRow, type PayslipCalc, type PayrollConstants,
 } from "@/lib/payroll-engine";
 import { buildABSACsv, buildPayslipPDF } from "@/lib/payslip-pdf";
 import { formatNAD } from "@/lib/format";
@@ -35,6 +35,7 @@ function PayrollPage() {
   const [periodId, setPeriodId] = useState<string>("");
   const [calcs, setCalcs] = useState<PayslipCalc[]>([]);
   const [running, setRunning] = useState(false);
+  const [constants, setConstants] = useState<PayrollConstants | null>(null);
 
   const { data: periods } = useQuery({
     queryKey: ["pay_periods"],
@@ -65,8 +66,9 @@ function PayrollPage() {
     setRunning(true);
     try {
       const { constants, brackets } = await fetchPayrollConstants();
+      setConstants(constants);
 
-      const [empRes, logRes, discRes, dedRes] = await Promise.all([
+      const [empRes, logRes, discRes, dedRes, exRes] = await Promise.all([
         supabase.from("employees").select("*").eq("status", "active"),
         supabase
           .from("shift_logs")
@@ -81,16 +83,36 @@ function PayrollPage() {
           .from("deductions")
           .select("employee_id,amount,disciplinary_action_id,deduction_types(code,label,category,requires_collective_agreement)")
           .eq("pay_period_id", period.id),
+        supabase
+          .from("ps_exemptions")
+          .select("employee_id,effective_from,effective_to")
+          .lte("effective_from", period.end_date)
+          .gte("effective_to", period.start_date),
       ]);
       if (empRes.error) throw empRes.error;
       if (logRes.error) throw logRes.error;
       if (discRes.error) throw discRes.error;
       if (dedRes.error) throw dedRes.error;
+      if (exRes.error) throw exRes.error;
 
       const employees = (empRes.data ?? []) as EmployeeRow[];
       const logs = (logRes.data ?? []) as any[];
       const disc = (discRes.data ?? []) as any[];
       const deds = (dedRes.data ?? []) as any[];
+      const exemptions = (exRes.data ?? []) as any[];
+
+      // Map each employee to the ISO-week keys covered by a PS exemption, so the
+      // engine can suppress the >cap compliance warning for those weeks.
+      const exemptWeeksByEmp = new Map<string, Set<string>>();
+      for (const ex of exemptions) {
+        const set = exemptWeeksByEmp.get(ex.employee_id) ?? new Set<string>();
+        const from = new Date(ex.effective_from + "T00:00:00Z");
+        const to = new Date(ex.effective_to + "T00:00:00Z");
+        for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+          set.add(weekKeyOf(d.toISOString().slice(0, 10)));
+        }
+        exemptWeeksByEmp.set(ex.employee_id, set);
+      }
 
       // Build a suspension-date map per employee from disciplinary_actions of type unpaid_suspension
       const suspensionByEmp = new Map<string, Set<string>>();
@@ -130,21 +152,18 @@ function PayrollPage() {
           disciplinary: empDisc,
           adhocDeductions: adhocByEmp.get(emp.id) ?? [],
           suspensionDates: suspensionByEmp.get(emp.id),
+          psExemptWeekKeys: exemptWeeksByEmp.get(emp.id),
           constants,
           brackets,
         });
         out.push(calc);
       }
 
-      // Persist draft payroll_runs (idempotent — delete existing drafts for this period then insert)
-      await supabase.from("payroll_runs").delete().eq("pay_period_id", period.id).eq("status", "draft");
-
+      // Persist draft payroll_runs atomically (delete existing drafts + insert in one txn).
       const rows = out
         .filter((c) => c.gross_salary > 0 || c.total_deductions > 0 || c.employee.category === "management")
         .map((c) => ({
-          tenant_id: profile!.tenant_id,
           employee_id: c.employee.id,
-          pay_period_id: period.id,
           normal_hours: c.normal_hours,
           overtime_hours: c.overtime_hours,
           sunday_hours: c.sunday_hours,
@@ -160,16 +179,16 @@ function PayrollPage() {
           gross_salary: c.gross_salary,
           paye_amount: c.paye_amount,
           ssc_amount: c.ssc_amount,
-          consensual_deductions: c.consensual_deductions + c.fine_deductions,
+          consensual_deductions: round2(c.consensual_deductions + c.fine_deductions),
           total_deductions: c.total_deductions,
           net_salary: c.net_salary,
-          compliance_warnings: c.warnings as unknown as any,
-          status: "draft" as const,
+          compliance_warnings: c.warnings,
         }));
-      if (rows.length) {
-        const { error } = await supabase.from("payroll_runs").insert(rows);
-        if (error) throw error;
-      }
+      const { error: rpcErr } = await supabase.rpc("replace_draft_payroll", {
+        p_period: period.id,
+        p_rows: rows as unknown as any,
+      });
+      if (rpcErr) throw rpcErr;
 
       setCalcs(out);
       toast.success(`Payroll computed for ${out.length} employees`);
@@ -199,18 +218,9 @@ function PayrollPage() {
   const finalizeMut = useMutation({
     mutationFn: async () => {
       if (!period) throw new Error("no period");
-      // lock the period — trigger prevents further edits to shift_logs/deductions
-      const { error: pErr } = await supabase
-        .from("pay_periods")
-        .update({ status: "locked", locked_at: new Date().toISOString(), locked_by: profile!.id })
-        .eq("id", period.id);
-      if (pErr) throw pErr;
-      const { error: rErr } = await supabase
-        .from("payroll_runs")
-        .update({ status: "finalized", finalized_at: new Date().toISOString() })
-        .eq("pay_period_id", period.id)
-        .eq("status", "draft");
-      if (rErr) throw rErr;
+      // Single transaction: finalize runs (posts to the ledger) then lock the period.
+      const { error } = await supabase.rpc("finalize_payroll_period", { p_period: period.id });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Payroll finalized & period locked");
@@ -261,10 +271,7 @@ function PayrollPage() {
   }
 
   const isLocked = period?.status === "locked" || period?.status === "paid";
-  const vetLevy = calcs.length
-    ? // rough: compute using constants held in closure would require re-fetch; approximate with 1% > 83,333
-      summary.gross > 83333 ? summary.gross * 0.01 : 0
-    : 0;
+  const vetLevy = calcs.length && constants ? calcVETLevy(summary.gross, constants) : 0;
 
   return (
     <div className="space-y-6">
@@ -310,7 +317,7 @@ function PayrollPage() {
         <SummaryCard
           label="VET Levy (1%)"
           value={formatNAD(vetLevy)}
-          hint={vetLevy > 0 ? "Employer liability" : "Below N$83,333 threshold"}
+          hint={vetLevy > 0 ? "Employer liability" : `Below ${formatNAD(constants?.vet_threshold ?? 83333)} threshold`}
         />
       </div>
 
