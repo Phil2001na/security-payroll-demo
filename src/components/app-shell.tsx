@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList,
-  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen,
+  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen, Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -86,6 +86,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             Finance
           </div>
           {renderItem({ to: "/accounting", label: "Accounting", icon: BookOpen })}
+          {renderItem({ to: "/invoices", label: "Invoices", icon: Receipt })}
         </>
       )}
       {isAdmin && (
