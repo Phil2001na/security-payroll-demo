@@ -52,12 +52,13 @@ Deno.serve(async (req) => {
   const tenantId: string = profile.tenant_id;
 
   const body = await req.json().catch(() => null) as
-    | { startDate?: string; endDate?: string; siteId?: string; issue?: boolean }
+    | { startDate?: string; endDate?: string; siteId?: string; issue?: boolean; payPeriodId?: string }
     | null;
   const startDate = body?.startDate;
   const endDate = body?.endDate;
   if (!startDate || !endDate) return json({ error: "startDate and endDate are required." }, 400);
   const issue = body?.issue === true;
+  const payPeriodId = body?.payPeriodId ?? null;
 
   // Approved shift hours in range, scoped to the caller's tenant.
   let query = admin
@@ -99,6 +100,7 @@ Deno.serve(async (req) => {
         type: "AR",
         status: "draft",
         client_id: resolvedSiteId,
+        pay_period_id: payPeriodId,
         total: 0,
         tax: 0,
         due_date: endDate,
