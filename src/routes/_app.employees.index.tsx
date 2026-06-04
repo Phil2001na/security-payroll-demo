@@ -21,7 +21,7 @@ import {
 
 export const Route = createFileRoute("/_app/employees/")({
   component: EmployeesPage,
-  head: () => ({ meta: [{ title: "Employees — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Employees — Demo Payroll System" }] }),
 });
 
 type EmployeeRow = {

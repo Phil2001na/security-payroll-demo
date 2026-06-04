@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/employees/new")({
   component: NewEmployeePage,
-  head: () => ({ meta: [{ title: "New employee — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "New employee — Demo Payroll System" }] }),
 });
 
 const positions = [

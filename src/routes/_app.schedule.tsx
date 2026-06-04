@@ -24,7 +24,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/schedule")({
   component: SchedulePage,
-  head: () => ({ meta: [{ title: "Schedule — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Schedule — Demo Payroll System" }] }),
 });
 
 type ShiftType = {

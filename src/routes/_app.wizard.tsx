@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/wizard")({
   component: WizardPage,
-  head: () => ({ meta: [{ title: "Getting Started — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Getting Started — Demo Payroll System" }] }),
 });
 
 type Step = {
@@ -71,7 +71,7 @@ function WizardPage() {
     {
       n: 1, key: "constants", icon: Settings,
       title: "Verify payroll constants",
-      blurb: "Confirm Namibian 2026 rates (min wage N$16, SSC 0.9%, PAYE threshold N$100k).",
+      blurb: "Confirm payroll rates (min wage N$16, SSC 0.9%, PAYE threshold N$100k).",
       why: "Every paycheck math call reads these values live — wrong constants = wrong net pay.",
       to: "/admin/settings", cta: "Open Admin Settings",
       done: (data?.constants ?? 0) >= 4,
@@ -147,7 +147,7 @@ function WizardPage() {
           Setup wizard
         </div>
         <h1 className="font-display text-3xl font-bold tracking-tight">
-          The Dog Force workflow, end-to-end
+          The payroll workflow, end-to-end
         </h1>
         <p className="text-muted-foreground max-w-2xl">
           Work through these seven steps in order. Each step unlocks the data the next one needs.
@@ -220,12 +220,12 @@ function WizardPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p>1. <strong className="text-foreground">Admin Settings</strong> → confirm the 4 constants exist and match 2026 rates.</p>
-          <p>2. <strong className="text-foreground">Sites</strong> → create 2 sites (e.g. "Woermann Windhoek", "FNB Katutura").</p>
-          <p>3. <strong className="text-foreground">Employees</strong> → either use the 20 seeded guards, or test the CSV importer with a messy Excel file.</p>
+          <p>2. <strong className="text-foreground">Sites</strong> → create 2 sites (e.g. "Main Office", "Downtown Branch").</p>
+          <p>3. <strong className="text-foreground">Employees</strong> → either use the seeded demo guards, or test the CSV importer with a sample Excel file.</p>
           <p>4. <strong className="text-foreground">Schedule</strong> → drop 12h Day + 12h Night onto a guard for 7 days straight and watch the 60h validator fire.</p>
           <p>5. <strong className="text-foreground">Attendance</strong> → mark one guard absent today and use "Replace" to see relief-guard suggestions.</p>
-          <p>6. <strong className="text-foreground">Disciplinary</strong> → try to save a "Sleeping" fine without a Collective Agreement ref → should be blocked.</p>
-          <p>7. <strong className="text-foreground">Payroll</strong> → generate the run, download one PDF payslip, download ABSA CSV, then Finalize → lock.</p>
+          <p>6. <strong className="text-foreground">Disciplinary</strong> → try to save a fine without a Collective Agreement ref → should be blocked.</p>
+          <p>7. <strong className="text-foreground">Payroll</strong> → generate the run, download one PDF payslip, download bank CSV, then Finalize → lock.</p>
         </CardContent>
       </Card>
     </div>

@@ -142,7 +142,7 @@ function SidebarBrand() {
         <Shield className="h-5 w-5" />
       </div>
       <div>
-        <div className="font-display text-sm font-bold text-sidebar-foreground leading-none">Dog Force</div>
+        <div className="font-display text-sm font-bold text-sidebar-foreground leading-none">Demo Payroll</div>
         <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50 mt-1">Payroll & Ops</div>
       </div>
     </div>
@@ -172,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Shield className="h-4 w-4" />
             </div>
-            <span className="font-display font-bold">Dog Force</span>
+            <span className="font-display font-bold">Demo Payroll</span>
           </div>
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>

@@ -25,7 +25,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/attendance")({
   component: AttendancePage,
-  head: () => ({ meta: [{ title: "Daily Muster — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Daily Muster — Demo Payroll System" }] }),
 });
 
 const WEEKLY_HOUR_CAP = 60;

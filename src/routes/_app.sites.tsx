@@ -22,7 +22,7 @@ import { formatNAD } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/sites")({
   component: SitesPage,
-  head: () => ({ meta: [{ title: "Sites — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Sites — Demo Payroll System" }] }),
 });
 
 type Site = {

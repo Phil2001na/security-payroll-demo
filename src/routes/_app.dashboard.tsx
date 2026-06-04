@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: DashboardPage,
-  head: () => ({ meta: [{ title: "Dashboard — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Demo Payroll System" }] }),
 });
 
 function DashboardPage() {
@@ -60,7 +60,7 @@ function DashboardPage() {
           Welcome back, {profile?.full_name?.split(" ")[0] ?? "Operator"}
         </h1>
         <p className="text-muted-foreground">
-          Here's a snapshot of operations across Dog Force Security Services.
+          Here's a snapshot of operations across Demo Payroll System.
         </p>
       </header>
 

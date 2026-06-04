@@ -19,7 +19,7 @@ import {
 
 export const Route = createFileRoute("/_app/onboarding/$employeeId")({
   component: OnboardingPortal,
-  head: () => ({ meta: [{ title: "Contract — Dog Force" }] }),
+  head: () => ({ meta: [{ title: "Contract — Demo Payroll System" }] }),
 });
 
 function OnboardingPortal() {

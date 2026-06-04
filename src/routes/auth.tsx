@@ -18,7 +18,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   component: AuthPage,
   head: () => ({
-    meta: [{ title: "Sign in — Dog Force Payroll" }],
+    meta: [{ title: "Sign in — Demo Payroll System" }],
   }),
 });
 
@@ -103,16 +103,16 @@ function AuthPage() {
             <Shield className="h-6 w-6" />
           </div>
           <div>
-            <div className="font-display text-lg font-bold leading-none">Dog Force</div>
-            <div className="text-xs text-sidebar-foreground/60 mt-1">Security Services</div>
+            <div className="font-display text-lg font-bold leading-none">Demo Payroll</div>
+            <div className="text-xs text-sidebar-foreground/60 mt-1">Management System</div>
           </div>
         </div>
         <div className="relative z-10 space-y-6">
           <h1 className="font-display text-4xl font-bold leading-tight">
-            Payroll, scheduling, and compliance — built for Namibian guarding.
+            Payroll, scheduling, and compliance — built for security services.
           </h1>
           <p className="text-sidebar-foreground/70 max-w-md">
-            Labour Act compliant. SSC and PAYE handled. Site-scoped supervision and complete audit trail.
+            Compliance-ready. Tax calculations handled. Site-scoped supervision and complete audit trail.
           </p>
           <div className="grid grid-cols-3 gap-3 max-w-md pt-4">
             {[
@@ -128,7 +128,7 @@ function AuthPage() {
           </div>
         </div>
         <div className="relative z-10 text-xs text-sidebar-foreground/50">
-          © {new Date().getFullYear()} Dog Force Security Services
+          © {new Date().getFullYear()} Demo Payroll System
         </div>
       </div>
 
@@ -139,7 +139,7 @@ function AuthPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Shield className="h-5 w-5" />
             </div>
-            <div className="font-display text-lg font-bold">Dog Force</div>
+            <div className="font-display text-lg font-bold">Demo Payroll</div>
           </div>
 
           <div>

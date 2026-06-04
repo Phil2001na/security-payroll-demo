@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/admin/settings")({
   component: SettingsPage,
-  head: () => ({ meta: [{ title: "Admin settings — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Admin settings — Demo Payroll System" }] }),
 });
 
 type Constant = { key: string; value: number; description: string | null };

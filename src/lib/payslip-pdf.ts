@@ -91,7 +91,7 @@ export function buildPayslipPDF(opts: {
     y += 20;
     doc.setTextColor(0, 0, 0);
   }
-  doc.text("Computed per Namibian Labour Act (2007) and Income Tax Act. PAYE based on 2026 brackets.", 40, y, { maxWidth: W - 80 });
+  doc.text("Computed per applicable Labour Act and Income Tax Act. PAYE based on current tax brackets.", 40, y, { maxWidth: W - 80 });
 
   return doc;
 }
