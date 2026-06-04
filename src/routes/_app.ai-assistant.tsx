@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/ai-assistant")({
   component: AiAssistantPage,
-  head: () => ({ meta: [{ title: "AI Assistant — Dog Force" }] }),
+  head: () => ({ meta: [{ title: "AI Assistant — Demo Payroll System" }] }),
 });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ function generatePdf(input: PdfInput) {
   doc.rect(0, 0, pageW, 18, "F");
   doc.setFontSize(8);
   doc.setTextColor(180, 180, 180);
-  doc.text("DOG FORCE SECURITY SERVICES — CONFIDENTIAL", 14, 11.5);
+  doc.text("DEMO PAYROLL SYSTEM — CONFIDENTIAL", 14, 11.5);
 
   // Title
   doc.setTextColor(15, 15, 15);
@@ -173,7 +173,7 @@ function generatePdf(input: PdfInput) {
   doc.setFontSize(7.5);
   doc.setTextColor(160, 160, 160);
   doc.text(
-    `Generated ${new Date().toLocaleDateString("en-NA", { dateStyle: "long" })} · Dog Force ERP`,
+    `Generated ${new Date().toLocaleDateString("en-NA", { dateStyle: "long" })} · Demo Payroll System`,
     14,
     doc.internal.pageSize.getHeight() - 10,
   );

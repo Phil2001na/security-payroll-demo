@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_app/invoices")({
   component: InvoicesPage,
-  head: () => ({ meta: [{ title: "Invoices — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Invoices — Demo Payroll System" }] }),
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────

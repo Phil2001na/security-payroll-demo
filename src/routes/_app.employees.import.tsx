@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/employees/import")({
   component: ImportPage,
-  head: () => ({ meta: [{ title: "Import employees — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "Import employees — Demo Payroll System" }] }),
 });
 
 type FieldDef = { key: string; label: string; required?: boolean };

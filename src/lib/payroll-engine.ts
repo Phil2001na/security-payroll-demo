@@ -1,4 +1,4 @@
-// Dog Force Payroll Engine — Namibia 2026
+// Demo Payroll System Engine — Gross-to-Net Calculator
 // Implements Labour Act + Income Tax calculations using live payroll_constants.
 import { supabase } from "@/integrations/supabase/client";
 

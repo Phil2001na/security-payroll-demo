@@ -253,7 +253,7 @@ function PayrollPage() {
         periodLabel: period!.label,
         periodStart: period!.start_date,
         periodEnd: period!.end_date,
-        tenantName: tenant?.name ?? "Dog Force Security",
+        tenantName: tenant?.name ?? "Demo Payroll System",
       });
       pdf.save(`Payslip_${c.employee.employee_code}_${period!.label.replace(/\s+/g, "_")}.pdf`);
     });
@@ -265,7 +265,7 @@ function PayrollPage() {
       periodLabel: period!.label,
       periodStart: period!.start_date,
       periodEnd: period!.end_date,
-      tenantName: tenant?.name ?? "Dog Force Security",
+      tenantName: tenant?.name ?? "Demo Payroll System",
     });
     pdf.save(`Payslip_${c.employee.employee_code}.pdf`);
   }
@@ -279,7 +279,7 @@ function PayrollPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Payroll</h1>
           <p className="text-sm text-muted-foreground">
-            Gross-to-net engine — 2026 Namibian rates. Ordinary ≤60h/wk @1×, OT 1.5×, Sunday/PH 2×.
+            Gross-to-net engine — industry-standard rates. Ordinary ≤60h/wk @1×, OT 1.5×, Sunday/PH 2×.
           </p>
         </div>
         <div className="flex items-center gap-2">
