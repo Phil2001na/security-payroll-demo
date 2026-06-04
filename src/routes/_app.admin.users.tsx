@@ -22,7 +22,7 @@ import { initials } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/admin/users")({
   component: SystemUsersPage,
-  head: () => ({ meta: [{ title: "System users — Dog Force Payroll" }] }),
+  head: () => ({ meta: [{ title: "System users — Demo Payroll System" }] }),
 });
 
 type UserProfile = {

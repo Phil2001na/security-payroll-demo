@@ -65,7 +65,7 @@ export function RoleOnboardingDialog() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-xl mx-4">
         <div className="mb-5">
-          <p className="font-display text-xl font-bold">Welcome to Dog Force Payroll</p>
+          <p className="font-display text-xl font-bold">Welcome to Demo Payroll System</p>
           <p className="text-sm text-muted-foreground mt-1">
             Select your access level to get started.
           </p>
