@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, signOut } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,12 +32,23 @@ function AppLayout() {
     }
   }, [loading, session, navigate]);
 
-  if (loading || !session || !profile) {
+  if (loading || !session) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-destructive">Profile not found. Contact your administrator.</p>
+          <button className="text-xs text-muted-foreground underline" onClick={() => void signOut()}>Sign out</button>
         </div>
       </div>
     );
