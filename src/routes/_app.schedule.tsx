@@ -4,10 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
   Loader2, Search, ShieldCheck, Eraser, Users, Wand2, Plus, X,
-  Clock, Sparkles, ListChecks, CalendarRange,
+  Clock, Sparkles, ListChecks, CalendarRange, DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
+import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,7 @@ type Employee = {
   id: string; employee_code: string; surname: string; first_names: string;
   home_site_id: string | null; status: string;
   preferred_shift: "day" | "night" | "both";
+  hourly_rate: number;
 };
 type Assignment = {
   id: string;
@@ -60,6 +63,13 @@ type SiteRequirement = {
 };
 
 const WEEKLY_HOUR_CAP = 60;
+const SCHED_CONSTANTS = {
+  weekly_ordinary_cap: 60,
+  overtime_multiplier: 1.5,
+  sunday_multiplier: 2.0,
+  public_holiday_multiplier: 2.0,
+  night_premium_rate: 0.06,
+} as const;
 
 // ── Shift visual category (drives color) ─────────────────────────────────────
 type ShiftKind = "day" | "night" | "double" | "leave" | "other";
@@ -152,7 +162,7 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category")
+        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category, hourly_rate")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
@@ -215,6 +225,25 @@ function SchedulePage() {
       return (data ?? []) as SiteRequirement[];
     },
   });
+
+  const { data: publicHolidays } = useQuery<{ date: string }[]>({
+    queryKey: ["public-holidays", rangeStart, rangeEnd, profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("public_holidays")
+        .select("date")
+        .gte("date", rangeStart)
+        .lte("date", rangeEnd);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const publicHolidayDates = useMemo(
+    () => new Set((publicHolidays ?? []).map((h) => h.date)),
+    [publicHolidays],
+  );
 
   // Roster shows: guards whose home_site = active site, plus anyone with an assignment on this site this week
   const siteEmployees = useMemo(() => {
@@ -389,16 +418,35 @@ function SchedulePage() {
     const weekDates = days.map((d) => ({ date: fmtIso(d), dow: d.getDay() }));
     const weekDateSet = new Set(weekDates.map((w) => w.date));
 
+    // Process ordinary weekdays first, then Sunday, then public holidays so
+    // guards who accumulate hours on weekdays are naturally excluded from premium
+    // slots — rest days fall on the expensive days, cheapest remaining guards cover them.
+    const orderedDates = [...weekDates].sort((a, b) => {
+      const aPriority = publicHolidayDates.has(a.date) ? 2 : a.dow === 0 ? 1 : 0;
+      const bPriority = publicHolidayDates.has(b.date) ? 2 : b.dow === 0 ? 1 : 0;
+      return aPriority - bPriority || a.date.localeCompare(b.date);
+    });
+
     const empDates = new Map<string, Set<string>>();
     const empWeekHours = new Map<string, number>();
-    for (const emp of employees) { empDates.set(emp.id, new Set()); empWeekHours.set(emp.id, 0); }
+    const empWeekOrdinaryHours = new Map<string, number>();
+    for (const emp of employees) {
+      empDates.set(emp.id, new Set());
+      empWeekHours.set(emp.id, 0);
+      empWeekOrdinaryHours.set(emp.id, 0);
+    }
     const editedKeys = new Set(Object.keys(edits));
     for (const a of weekAssignments) {
       if (!weekDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
       if (editedKeys.has(k)) continue;
       empDates.get(a.employee_id)?.add(a.date);
-      empWeekHours.set(a.employee_id, (empWeekHours.get(a.employee_id) ?? 0) + Number(a.planned_hours));
+      const aHours = Number(a.planned_hours);
+      empWeekHours.set(a.employee_id, (empWeekHours.get(a.employee_id) ?? 0) + aHours);
+      const aSt = shiftTypeById.get(a.shift_type_id);
+      if (aSt && aSt.pay_rule === "standard") {
+        empWeekOrdinaryHours.set(a.employee_id, (empWeekOrdinaryHours.get(a.employee_id) ?? 0) + aHours);
+      }
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
@@ -407,6 +455,9 @@ function SchedulePage() {
       if (!st) continue;
       empDates.get(empId)?.add(date);
       empWeekHours.set(empId, (empWeekHours.get(empId) ?? 0) + st.default_hours);
+      if (st.pay_rule === "standard") {
+        empWeekOrdinaryHours.set(empId, (empWeekOrdinaryHours.get(empId) ?? 0) + st.default_hours);
+      }
     }
 
     const coverage = new Map<string, number>();
@@ -437,7 +488,7 @@ function SchedulePage() {
     }
 
     for (const site of sites) {
-      for (const wd of weekDates) {
+      for (const wd of orderedDates) {
         for (const kind of ["day", "night"] as const) {
           const req = requirements.find((r) =>
             r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
@@ -446,6 +497,9 @@ function SchedulePage() {
           if (required === 0) continue;
           const stForKind = kind === "day" ? autoShiftTypes.day : autoShiftTypes.night;
           if (!stForKind) continue;
+          const isSunday = wd.dow === 0;
+          const isPH = publicHolidayDates.has(wd.date);
+          const shiftPayRule = isPH ? "public_holiday_ordinary" : isSunday ? "sunday_default" : stForKind.pay_rule;
           const ck = `${site.id}|${wd.date}|${kind}`;
           let have = coverage.get(ck) ?? 0;
           const needed = required - have;
@@ -460,12 +514,25 @@ function SchedulePage() {
             return true;
           });
           pool.sort((a, b) => {
+            // 1. Home site preference (logistics/familiarity)
             const aHome = a.home_site_id === site.id ? 0 : 1;
             const bHome = b.home_site_id === site.id ? 0 : 1;
             if (aHome !== bHome) return aHome - bHome;
+            // 2. Shift preference specificity (avoids no-shows)
             const aSpec = a.preferred_shift === kind ? 1 : 0;
             const bSpec = b.preferred_shift === kind ? 1 : 0;
             if (aSpec !== bSpec) return bSpec - aSpec;
+            // 3. Cheapest guard for this specific shift (cost optimisation)
+            const aCost = estimateShiftCost(
+              a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(a.id) ?? 0,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS,
+            );
+            const bCost = estimateShiftCost(
+              b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(b.id) ?? 0,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS,
+            );
+            if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
+            // 4. Load-balance tie-break
             return (empWeekHours.get(a.id) ?? 0) - (empWeekHours.get(b.id) ?? 0);
           });
           let assigned = 0;
@@ -477,6 +544,9 @@ function SchedulePage() {
             });
             empDates.get(emp.id)?.add(wd.date);
             empWeekHours.set(emp.id, (empWeekHours.get(emp.id) ?? 0) + shiftHours);
+            if (shiftPayRule === "standard") {
+              empWeekOrdinaryHours.set(emp.id, (empWeekOrdinaryHours.get(emp.id) ?? 0) + shiftHours);
+            }
             coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
             have++;
             assigned++;
@@ -525,7 +595,7 @@ function SchedulePage() {
 
   const shortfallPreview = useMemo(() => computeFillPlan().shortfalls,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId]
+    [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId, publicHolidayDates]
   );
 
   // ── Stats ───────────────────────────────────────────────────────────────
@@ -533,21 +603,33 @@ function SchedulePage() {
   const stats = useMemo(() => {
     let totalShifts = 0;
     let totalHours = 0;
+    let estimatedWeeklyCost = 0;
     const dayCounts = days.map(() => 0);
+    const empOrdHrs = new Map<string, number>();
     siteEmployees.forEach((emp) => {
       days.forEach((d, i) => {
-        const sid = effectiveShiftId(emp.id, fmtIso(d));
+        const date = fmtIso(d);
+        const sid = effectiveShiftId(emp.id, date);
         if (!sid) return;
         const st = shiftTypeById.get(sid);
         if (!st) return;
         totalShifts += 1;
         totalHours += st.default_hours;
         dayCounts[i] += 1;
+        const isSunday = d.getDay() === 0;
+        const isPH = publicHolidayDates.has(date);
+        const payRule = isPH ? "public_holiday_ordinary" : isSunday ? "sunday_default" : st.pay_rule;
+        const ordHrs = empOrdHrs.get(emp.id) ?? 0;
+        const shiftCost = estimateShiftCost(
+          emp.hourly_rate, st.default_hours, ordHrs, payRule, st.period === "night", SCHED_CONSTANTS,
+        );
+        estimatedWeeklyCost = round2(estimatedWeeklyCost + shiftCost);
+        if (payRule === "standard") empOrdHrs.set(emp.id, ordHrs + st.default_hours);
       });
     });
-    return { totalShifts, totalHours, dayCounts };
+    return { totalShifts, totalHours, dayCounts, estimatedWeeklyCost };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, siteEmployees, edits, assignments, shiftTypeById]);
+  }, [days, siteEmployees, edits, assignments, shiftTypeById, publicHolidayDates]);
 
   const weekLabel = `${days[0].toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${days[6].toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
   const activeSite = sites?.find((s) => s.id === activeSiteId) ?? null;
@@ -656,10 +738,11 @@ function SchedulePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard icon={<Users className="h-5 w-5" />} value={siteEmployees.length} label="Guards on site" />
         <StatCard icon={<ListChecks className="h-5 w-5" />} value={stats.totalShifts} label="Shifts this week" />
         <StatCard icon={<Clock className="h-5 w-5" />} value={`${stats.totalHours}h`} label="Total hours" />
+        <StatCard icon={<DollarSign className="h-5 w-5" />} value={formatNAD(stats.estimatedWeeklyCost)} label="Est. payroll cost" />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" />}
           value={shortfallPreview.length === 0 ? "OK" : `${shortfallPreview.length} gaps`}

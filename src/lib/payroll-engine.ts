@@ -8,6 +8,37 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+export function estimateShiftCost(
+  hourlyRate: number,
+  shiftHours: number,
+  currentWeeklyOrdinaryHours: number,
+  payRule: string,
+  isNightPeriod: boolean,
+  constants: {
+    weekly_ordinary_cap: number;
+    overtime_multiplier: number;
+    sunday_multiplier: number;
+    public_holiday_multiplier: number;
+    night_premium_rate: number;
+  },
+): number {
+  const nightAdder = isNightPeriod ? shiftHours * hourlyRate * constants.night_premium_rate : 0;
+  if (payRule === "sunday_default" || payRule === "sunday_ordinary") {
+    return round2(shiftHours * hourlyRate * constants.sunday_multiplier + nightAdder);
+  }
+  if (payRule.startsWith("public_holiday")) {
+    return round2(shiftHours * hourlyRate * constants.public_holiday_multiplier + nightAdder);
+  }
+  const ordinaryRemaining = Math.max(0, constants.weekly_ordinary_cap - currentWeeklyOrdinaryHours);
+  const ordinaryHours = Math.min(shiftHours, ordinaryRemaining);
+  const overtimeHours = shiftHours - ordinaryHours;
+  return round2(
+    ordinaryHours * hourlyRate +
+    overtimeHours * hourlyRate * constants.overtime_multiplier +
+    nightAdder,
+  );
+}
+
 export type ShiftLogRow = {
   id: string;
   employee_id: string;
