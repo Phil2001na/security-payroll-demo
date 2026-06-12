@@ -46,9 +46,22 @@ function AppLayout() {
   if (!profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <p className="text-sm text-destructive">Profile not found. Contact your administrator.</p>
-          <button className="text-xs text-muted-foreground underline" onClick={() => void signOut()}>Sign out</button>
+        <div className="flex flex-col items-center gap-4 max-w-sm text-center px-6">
+          <p className="text-sm font-medium">Setting up your workspace…</p>
+          <p className="text-xs text-muted-foreground">
+            If this takes more than a few seconds, try refreshing the page. If the problem persists,
+            your account may not be linked to a company yet — contact your administrator.
+          </p>
+          <div className="flex gap-3">
+            <button
+              className="text-xs text-primary underline"
+              onClick={() => { void refresh(); }}
+            >
+              Retry
+            </button>
+            <span className="text-xs text-muted-foreground">·</span>
+            <button className="text-xs text-muted-foreground underline" onClick={() => void signOut()}>Sign out</button>
+          </div>
         </div>
       </div>
     );

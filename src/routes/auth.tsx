@@ -30,6 +30,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ function AuthPage() {
           password,
           options: {
             emailRedirectTo: redirectUrl,
-            data: { full_name: fullName },
+            data: { full_name: fullName, company_name: companyName },
           },
         });
         if (error) throw error;
@@ -203,7 +204,12 @@ function AuthPage() {
             <TabsContent value="signup" className="mt-6">
               <form onSubmit={handleEmailAuth} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name-up">Full name</Label>
+                  <Label htmlFor="company-up">Company name</Label>
+                  <Input id="company-up" type="text" required placeholder="e.g. Apex Shield Security"
+                    value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name-up">Your full name</Label>
                   <Input id="name-up" type="text" required
                     value={fullName} onChange={(e) => setFullName(e.target.value)} />
                 </div>
