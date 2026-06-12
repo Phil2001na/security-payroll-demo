@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Save, Loader2, ShieldCheck, FileText } from "lucide-react";
+import { Settings, Save, Loader2, ShieldCheck, FileText, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -114,6 +114,8 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
+      <CompanyBillingCard />
+
       <ContractTemplatesCard />
 
       <div className="flex justify-end">
@@ -126,6 +128,191 @@ function SettingsPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─── Company & billing profile ────────────────────────────────────────────────
+
+type BillingProfile = {
+  id: string;
+  legal_name: string | null;
+  registered_address: string | null;
+  vat_number: string | null;
+  company_phone: string | null;
+  company_email: string | null;
+  company_website: string | null;
+  logo_url: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_branch_name: string | null;
+  bank_branch_code: string | null;
+  default_tax_rate: number;
+  invoice_due_days: number;
+  invoice_penalty_note: string | null;
+  invoice_footer_note: string | null;
+};
+
+const BLANK_BILLING: Omit<BillingProfile, "id"> = {
+  legal_name: "", registered_address: "", vat_number: "", company_phone: "",
+  company_email: "", company_website: "", logo_url: "", bank_name: "",
+  bank_account_name: "", bank_account_number: "", bank_branch_name: "",
+  bank_branch_code: "", default_tax_rate: 0.15, invoice_due_days: 7,
+  invoice_penalty_note: "", invoice_footer_note: "",
+};
+
+function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function CompanyBillingCard() {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<Omit<BillingProfile, "id">>(BLANK_BILLING);
+  const [id, setId] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["company-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tenants")
+        .select(`id, legal_name, registered_address, vat_number, company_phone, company_email,
+                 company_website, logo_url, bank_name, bank_account_name, bank_account_number,
+                 bank_branch_name, bank_branch_code, default_tax_rate, invoice_due_days,
+                 invoice_penalty_note, invoice_footer_note`)
+        .limit(1).maybeSingle();
+      if (error) throw error;
+      return data as BillingProfile | null;
+    },
+  });
+
+  useEffect(() => {
+    if (!data || loaded) return;
+    const { id: tid, ...rest } = data;
+    setId(tid);
+    setDraft({
+      ...BLANK_BILLING,
+      ...Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, v ?? (k === "default_tax_rate" ? 0.15 : k === "invoice_due_days" ? 7 : "")])),
+    } as Omit<BillingProfile, "id">);
+    setLoaded(true);
+  }, [data, loaded]);
+
+  const set = (patch: Partial<Omit<BillingProfile, "id">>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error("Tenant not loaded");
+      const payload = {
+        ...draft,
+        legal_name: draft.legal_name?.trim() || null,
+        registered_address: draft.registered_address?.trim() || null,
+        vat_number: draft.vat_number?.trim() || null,
+        company_phone: draft.company_phone?.trim() || null,
+        company_email: draft.company_email?.trim() || null,
+        company_website: draft.company_website?.trim() || null,
+        logo_url: draft.logo_url?.trim() || null,
+        bank_name: draft.bank_name?.trim() || null,
+        bank_account_name: draft.bank_account_name?.trim() || null,
+        bank_account_number: draft.bank_account_number?.trim() || null,
+        bank_branch_name: draft.bank_branch_name?.trim() || null,
+        bank_branch_code: draft.bank_branch_code?.trim() || null,
+        invoice_penalty_note: draft.invoice_penalty_note?.trim() || null,
+        invoice_footer_note: draft.invoice_footer_note?.trim() || null,
+        default_tax_rate: Number(draft.default_tax_rate) || 0,
+        invoice_due_days: Math.max(0, Math.round(Number(draft.invoice_due_days) || 0)),
+      };
+      const { error } = await supabase.from("tenants").update(payload).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Company profile saved");
+      void qc.invalidateQueries({ queryKey: ["company-billing"] });
+      void qc.invalidateQueries({ queryKey: ["tenant-billing-meta"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Company &amp; billing profile</CardTitle>
+        <CardDescription>
+          Appears on every invoice and bill PDF. Nothing here is hardcoded — each tenant sets their own identity, bank details and tax defaults.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {isLoading ? (
+          <div className="text-center py-6"><Loader2 className="h-5 w-5 animate-spin inline" /></div>
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Legal / trading name">
+                <Input value={draft.legal_name ?? ""} onChange={(e) => set({ legal_name: e.target.value })} placeholder="Acme Security (Pty) Ltd" />
+              </Field>
+              <Field label="VAT registration number">
+                <Input value={draft.vat_number ?? ""} onChange={(e) => set({ vat_number: e.target.value })} placeholder="1234567-01-2" />
+              </Field>
+              <Field label="Registered address" hint="One line per row — shown under the company name.">
+                <Textarea value={draft.registered_address ?? ""} onChange={(e) => set({ registered_address: e.target.value })} rows={3} />
+              </Field>
+              <div className="space-y-4">
+                <Field label="Phone"><Input value={draft.company_phone ?? ""} onChange={(e) => set({ company_phone: e.target.value })} /></Field>
+                <Field label="Email"><Input value={draft.company_email ?? ""} onChange={(e) => set({ company_email: e.target.value })} /></Field>
+              </div>
+              <Field label="Website"><Input value={draft.company_website ?? ""} onChange={(e) => set({ company_website: e.target.value })} placeholder="https://…" /></Field>
+              <Field label="Logo URL" hint="Public PNG/JPG. Optional — falls back to the company name.">
+                <Input value={draft.logo_url ?? ""} onChange={(e) => set({ logo_url: e.target.value })} placeholder="https://…/logo.png" />
+              </Field>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-3">Banking details</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Bank name"><Input value={draft.bank_name ?? ""} onChange={(e) => set({ bank_name: e.target.value })} /></Field>
+                <Field label="Account name"><Input value={draft.bank_account_name ?? ""} onChange={(e) => set({ bank_account_name: e.target.value })} /></Field>
+                <Field label="Account number"><Input value={draft.bank_account_number ?? ""} onChange={(e) => set({ bank_account_number: e.target.value })} /></Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Branch name"><Input value={draft.bank_branch_name ?? ""} onChange={(e) => set({ bank_branch_name: e.target.value })} /></Field>
+                  <Field label="Branch code"><Input value={draft.bank_branch_code ?? ""} onChange={(e) => set({ bank_branch_code: e.target.value })} /></Field>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-3">Invoice defaults</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Default VAT rate (%)" hint="Applied to new line items.">
+                  <Input type="number" step="any" value={Math.round((Number(draft.default_tax_rate) || 0) * 10000) / 100}
+                    onChange={(e) => set({ default_tax_rate: (Number(e.target.value) || 0) / 100 })} />
+                </Field>
+                <Field label="Payment terms (days)" hint="Default gap between invoice date and due date.">
+                  <Input type="number" value={draft.invoice_due_days}
+                    onChange={(e) => set({ invoice_due_days: Number(e.target.value) })} />
+                </Field>
+                <Field label="Penalty note" hint="Shown near the payment communication.">
+                  <Textarea value={draft.invoice_penalty_note ?? ""} onChange={(e) => set({ invoice_penalty_note: e.target.value })} rows={2} />
+                </Field>
+                <Field label="Footer note" hint="Shown centered at the bottom of the page.">
+                  <Textarea value={draft.invoice_footer_note ?? ""} onChange={(e) => set({ invoice_footer_note: e.target.value })} rows={2} />
+                </Field>
+              </div>
+            </div>
+          </>
+        )}
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !id}>
+            {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save company profile
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

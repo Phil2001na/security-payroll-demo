@@ -227,9 +227,12 @@ function OnboardingPortal() {
       const idExt = idFile.name.split(".").pop()?.toLowerCase() ?? "bin";
       const idPath = `${employeeId}/id-${ts}.${idExt}`;
 
-      // Generate the contract PDF locally and store it as the signed artifact reference
+      // Generate the contract PDF locally with the captured signature drawn onto
+      // the employee signature line, and store it as the signed artifact.
       const { blob: pdfBlob } = generateContractPdf({
         template, kind, employee: contractEmployee, tenant: contractTenant,
+        signatureDataUrl: sigDataUrl,
+        signedDate: new Date().toISOString().slice(0, 10),
       });
       const pdfPath = `${employeeId}/contract-${ts}.pdf`;
 

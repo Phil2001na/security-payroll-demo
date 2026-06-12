@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       ai_audit_events: {
@@ -122,13 +97,6 @@ export type Database = {
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ai_audit_events_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ai_conversation_messages: {
@@ -175,13 +143,6 @@ export type Database = {
           token_usage?: Json
         }
         Relationships: [
-          {
-            foreignKeyName: "ai_conversation_messages_actor_user_id_fkey"
-            columns: ["actor_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ai_conversation_messages_session_id_fkey"
             columns: ["session_id"]
@@ -242,13 +203,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "ai_conversation_sessions_owner_user_id_fkey"
-            columns: ["owner_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ai_conversation_sessions_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -315,20 +269,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_executive_memories_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ai_executive_memories_executive_user_id_fkey"
-            columns: ["executive_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ai_executive_memories_source_message_id_fkey"
             columns: ["source_message_id"]
             isOneToOne: false
@@ -343,6 +283,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      attendance_logs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          assignment_id: string | null
+          created_at: string | null
+          date: string | null
+          employee_id: string | null
+          hours_worked: number | null
+          id: string | null
+          night_hours: number | null
+          notes: string | null
+          pay_period_id: string | null
+          shift_type_id: string | null
+          site_id: string | null
+          status: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assignment_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours_worked?: number | null
+          id?: string | null
+          night_hours?: number | null
+          notes?: string | null
+          pay_period_id?: string | null
+          shift_type_id?: string | null
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          assignment_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          employee_id?: string | null
+          hours_worked?: number | null
+          id?: string | null
+          night_hours?: number | null
+          notes?: string | null
+          pay_period_id?: string | null
+          shift_type_id?: string | null
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["shift_log_status"] | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       audit_events: {
         Row: {
@@ -384,12 +381,160 @@ export type Database = {
           table_name?: string
           tenant_id?: string | null
         }
+        Relationships: []
+      }
+      availability_templates_yango: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          provider_id: string
+          start_time: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          provider_id: string
+          start_time: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          provider_id?: string
+          start_time?: string
+          weekday?: number
+        }
         Relationships: [
           {
-            foreignKeyName: "audit_events_actor_id_fkey"
-            columns: ["actor_id"]
+            foreignKeyName: "availability_templates_yango_provider_id_fkey"
+            columns: ["provider_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "providers_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_services_yango: {
+        Row: {
+          booking_id: string
+          duration_minutes: number
+          id: string
+          price_cents: number
+          service_id: string
+        }
+        Insert: {
+          booking_id: string
+          duration_minutes: number
+          id?: string
+          price_cents: number
+          service_id: string
+        }
+        Update: {
+          booking_id?: string
+          duration_minutes?: number
+          id?: string
+          price_cents?: number
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_services_yango_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_yango"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_services_yango_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings_yango: {
+        Row: {
+          client_id: string
+          created_at: string
+          ends_at: string
+          id: string
+          notes: string | null
+          provider_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["yango_booking_status"]
+          total_cents: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          ends_at: string
+          id?: string
+          notes?: string | null
+          provider_id: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["yango_booking_status"]
+          total_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          ends_at?: string
+          id?: string
+          notes?: string | null
+          provider_id?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["yango_booking_status"]
+          total_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      break_rules_yango: {
+        Row: {
+          created_at: string
+          id: string
+          min_chunk_minutes: number
+          preferred_after_minutes: number
+          provider_id: string
+          total_break_minutes: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_chunk_minutes?: number
+          preferred_after_minutes?: number
+          provider_id: string
+          total_break_minutes?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_chunk_minutes?: number
+          preferred_after_minutes?: number
+          provider_id?: string
+          total_break_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "break_rules_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "providers_yango"
             referencedColumns: ["id"]
           },
         ]
@@ -431,6 +576,91 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          active: boolean
+          address: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          payment_terms_days: number | null
+          phone: string | null
+          tenant_id: string
+          updated_at: string
+          vat_number: string | null
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          payment_terms_days?: number | null
+          phone?: string | null
+          tenant_id: string
+          updated_at?: string
+          vat_number?: string | null
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          payment_terms_days?: number | null
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
+          vat_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients_yango: {
+        Row: {
+          created_at: string
+          id: string
+          preferred_provider_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          preferred_provider_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          preferred_provider_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_yango_preferred_provider_id_fkey"
+            columns: ["preferred_provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
             referencedColumns: ["id"]
           },
         ]
@@ -548,13 +778,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "deductions_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "deductions_deduction_type_id_fkey"
             columns: ["deduction_type_id"]
             isOneToOne: false
@@ -664,13 +887,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "disciplinary_actions_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "disciplinary_actions_employee_id_fkey"
             columns: ["employee_id"]
@@ -906,6 +1122,7 @@ export type Database = {
           id: string
           invoice_id: string
           quantity: number
+          tax_rate: number
           unit_price: number
         }
         Insert: {
@@ -914,6 +1131,7 @@ export type Database = {
           id?: string
           invoice_id: string
           quantity: number
+          tax_rate?: number
           unit_price: number
         }
         Update: {
@@ -922,6 +1140,7 @@ export type Database = {
           id?: string
           invoice_id?: string
           quantity?: number
+          tax_rate?: number
           unit_price?: number
         }
         Relationships: [
@@ -936,51 +1155,86 @@ export type Database = {
       }
       invoices: {
         Row: {
-          client_id: string
+          client_id: string | null
           created_at: string
           due_date: string
           id: string
+          invoice_date: string
+          invoice_number: string | null
           issued_at: string | null
+          notes: string | null
           paid_at: string | null
+          pay_period_id: string | null
+          receipt_url: string | null
+          site_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           tax: number
           tenant_id: string
           total: number
           type: Database["public"]["Enums"]["invoice_type"]
           updated_at: string
+          vendor_id: string | null
         }
         Insert: {
-          client_id: string
+          client_id?: string | null
           created_at?: string
           due_date: string
           id?: string
+          invoice_date?: string
+          invoice_number?: string | null
           issued_at?: string | null
+          notes?: string | null
           paid_at?: string | null
+          pay_period_id?: string | null
+          receipt_url?: string | null
+          site_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           tax?: number
           tenant_id: string
           total: number
           type: Database["public"]["Enums"]["invoice_type"]
           updated_at?: string
+          vendor_id?: string | null
         }
         Update: {
-          client_id?: string
+          client_id?: string | null
           created_at?: string
           due_date?: string
           id?: string
+          invoice_date?: string
+          invoice_number?: string | null
           issued_at?: string | null
+          notes?: string | null
           paid_at?: string | null
+          pay_period_id?: string | null
+          receipt_url?: string | null
+          site_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           tax?: number
           tenant_id?: string
           total?: number
           type?: Database["public"]["Enums"]["invoice_type"]
           updated_at?: string
+          vendor_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "invoices_client_id_fkey"
             columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_pay_period_id_fkey"
+            columns: ["pay_period_id"]
+            isOneToOne: false
+            referencedRelation: "pay_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_site_id_fkey"
+            columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
             referencedColumns: ["id"]
@@ -990,6 +1244,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -1029,7 +1290,7 @@ export type Database = {
           {
             foreignKeyName: "leave_balances_employee_id_fkey"
             columns: ["employee_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -1174,13 +1435,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "pay_periods_locked_by_fkey"
-            columns: ["locked_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "pay_periods_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1226,6 +1480,85 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments_yango: {
+        Row: {
+          authorized_cents: number
+          booking_id: string
+          captured_cents: number
+          created_at: string
+          external_ref: string | null
+          id: string
+          provider_tag: string
+          status: Database["public"]["Enums"]["yango_payment_status"]
+          updated_at: string
+        }
+        Insert: {
+          authorized_cents?: number
+          booking_id: string
+          captured_cents?: number
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          provider_tag?: string
+          status?: Database["public"]["Enums"]["yango_payment_status"]
+          updated_at?: string
+        }
+        Update: {
+          authorized_cents?: number
+          booking_id?: string
+          captured_cents?: number
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          provider_tag?: string
+          status?: Database["public"]["Enums"]["yango_payment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_yango_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payouts_yango: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          paid_at: string | null
+          provider_id: string
+          status: Database["public"]["Enums"]["yango_payout_status"]
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          provider_id: string
+          status?: Database["public"]["Enums"]["yango_payout_status"]
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          provider_id?: string
+          status?: Database["public"]["Enums"]["yango_payout_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payouts_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
             referencedColumns: ["id"]
           },
         ]
@@ -1395,6 +1728,41 @@ export type Database = {
           },
         ]
       }
+      portfolio_images_yango: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          position: number
+          provider_id: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          provider_id: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          provider_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_images_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           assigned_site_ids: string[]
@@ -1445,6 +1813,84 @@ export type Database = {
           },
         ]
       }
+      profiles_yango: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      providers_yango: {
+        Row: {
+          address: string | null
+          avatar_url: string | null
+          bio: string | null
+          business_name: string
+          city: string
+          cover_url: string | null
+          created_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          rating: number | null
+          rating_count: number | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          address?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          business_name: string
+          city: string
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          address?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          business_name?: string
+          city?: string
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          rating?: number | null
+          rating_count?: number | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ps_exemptions: {
         Row: {
           created_at: string
@@ -1485,7 +1931,22 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ps_exemptions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ps_exemptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       public_holidays: {
         Row: {
@@ -1515,6 +1976,51 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ratings_yango: {
+        Row: {
+          booking_id: string
+          client_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          provider_id: string
+          stars: number
+        }
+        Insert: {
+          booking_id: string
+          client_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          provider_id: string
+          stars: number
+        }
+        Update: {
+          booking_id?: string
+          client_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          provider_id?: string
+          stars?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_yango_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings_yango"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
             referencedColumns: ["id"]
           },
         ]
@@ -1567,13 +2073,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "schedule_assignments_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "schedule_assignments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -1606,6 +2105,129 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_slots_yango: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          ends_at: string
+          id: string
+          provider_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["yango_slot_status"]
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          ends_at: string
+          id?: string
+          provider_id: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["yango_slot_status"]
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          ends_at?: string
+          id?: string
+          provider_id?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["yango_slot_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_slots_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_items: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_rate: number
+          description: string | null
+          id: string
+          name: string
+          tenant_id: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_rate?: number
+          description?: string | null
+          id?: string
+          name: string
+          tenant_id: string
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_rate?: number
+          description?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services_yango: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          name: string
+          price_cents: number
+          provider_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes: number
+          id?: string
+          is_active?: boolean
+          name: string
+          price_cents: number
+          provider_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          price_cents?: number
+          provider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_yango_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers_yango"
             referencedColumns: ["id"]
           },
         ]
@@ -1666,13 +2288,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "shift_logs_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "shift_logs_assignment_id_fkey"
             columns: ["assignment_id"]
@@ -1819,7 +2434,29 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "signed_agreements_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signed_agreements_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signed_agreements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_requirements: {
         Row: {
@@ -1852,13 +2489,31 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "site_requirements_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_requirements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sites: {
         Row: {
           active: boolean
           address: string | null
           billing_rate: number
+          client_address: string | null
+          client_contact_email: string | null
+          client_id: string | null
           client_name: string | null
           code: string | null
           contract_terms_text: string | null
@@ -1874,6 +2529,9 @@ export type Database = {
           active?: boolean
           address?: string | null
           billing_rate?: number
+          client_address?: string | null
+          client_contact_email?: string | null
+          client_id?: string | null
           client_name?: string | null
           code?: string | null
           contract_terms_text?: string | null
@@ -1889,6 +2547,9 @@ export type Database = {
           active?: boolean
           address?: string | null
           billing_rate?: number
+          client_address?: string | null
+          client_contact_email?: string | null
+          client_id?: string | null
           client_name?: string | null
           code?: string | null
           contract_terms_text?: string | null
@@ -1902,6 +2563,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "sites_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sites_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1912,163 +2580,170 @@ export type Database = {
       }
       tenants: {
         Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_branch_code: string | null
+          bank_branch_name: string | null
+          bank_name: string | null
+          company_email: string | null
+          company_phone: string | null
+          company_website: string | null
           contract_template_driver: string | null
           contract_template_management: string | null
           contract_template_officer: string | null
           created_at: string
           default_contract_terms: string | null
           default_hourly_rate: number
+          default_tax_rate: number
           default_transport_allowance: number
           id: string
+          invoice_due_days: number
+          invoice_footer_note: string | null
+          invoice_penalty_note: string | null
           legal_name: string | null
+          logo_url: string | null
           name: string
           pay_date_day: number
           pay_period_start_day: number
+          registered_address: string | null
           s17_3_exemption_document_url: string | null
           s17_3_exemption_reference: string | null
           sesorb_registration_number: string | null
           updated_at: string
+          vat_number: string | null
         }
         Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch_code?: string | null
+          bank_branch_name?: string | null
+          bank_name?: string | null
+          company_email?: string | null
+          company_phone?: string | null
+          company_website?: string | null
           contract_template_driver?: string | null
           contract_template_management?: string | null
           contract_template_officer?: string | null
           created_at?: string
           default_contract_terms?: string | null
           default_hourly_rate?: number
+          default_tax_rate?: number
           default_transport_allowance?: number
           id?: string
+          invoice_due_days?: number
+          invoice_footer_note?: string | null
+          invoice_penalty_note?: string | null
           legal_name?: string | null
+          logo_url?: string | null
           name: string
           pay_date_day?: number
           pay_period_start_day?: number
+          registered_address?: string | null
           s17_3_exemption_document_url?: string | null
           s17_3_exemption_reference?: string | null
           sesorb_registration_number?: string | null
           updated_at?: string
+          vat_number?: string | null
         }
         Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch_code?: string | null
+          bank_branch_name?: string | null
+          bank_name?: string | null
+          company_email?: string | null
+          company_phone?: string | null
+          company_website?: string | null
           contract_template_driver?: string | null
           contract_template_management?: string | null
           contract_template_officer?: string | null
           created_at?: string
           default_contract_terms?: string | null
           default_hourly_rate?: number
+          default_tax_rate?: number
           default_transport_allowance?: number
           id?: string
+          invoice_due_days?: number
+          invoice_footer_note?: string | null
+          invoice_penalty_note?: string | null
           legal_name?: string | null
+          logo_url?: string | null
           name?: string
           pay_date_day?: number
           pay_period_start_day?: number
+          registered_address?: string | null
           s17_3_exemption_document_url?: string | null
           s17_3_exemption_reference?: string | null
           sesorb_registration_number?: string | null
           updated_at?: string
+          vat_number?: string | null
         }
         Relationships: []
       }
-    }
-    Views: {
-      attendance_logs: {
+      user_roles_yango: {
         Row: {
-          approved_at: string | null
-          approved_by: string | null
-          assignment_id: string | null
-          created_at: string | null
-          date: string | null
-          employee_id: string | null
-          hours_worked: number | null
-          id: string | null
-          night_hours: number | null
-          notes: string | null
-          pay_period_id: string | null
-          shift_type_id: string | null
-          site_id: string | null
-          status: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id: string | null
-          updated_at: string | null
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["yango_app_role"]
+          user_id: string
         }
         Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string | null
-          date?: string | null
-          employee_id?: string | null
-          hours_worked?: number | null
-          id?: string | null
-          night_hours?: number | null
-          notes?: string | null
-          pay_period_id?: string | null
-          shift_type_id?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["yango_app_role"]
+          user_id: string
         }
         Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string | null
-          date?: string | null
-          employee_id?: string | null
-          hours_worked?: number | null
-          id?: string | null
-          night_hours?: number | null
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["yango_app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          active: boolean
+          address: string | null
+          contact_email: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          tenant_id: string
+          updated_at: string
+          vat_number: string | null
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          contact_email?: string | null
+          created_at?: string
+          id?: string
+          name: string
           notes?: string | null
-          pay_period_id?: string | null
-          shift_type_id?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
+          phone?: string | null
+          tenant_id: string
+          updated_at?: string
+          vat_number?: string | null
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          contact_email?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
+          vat_number?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "shift_logs_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_assignment_id_fkey"
-            columns: ["assignment_id"]
-            isOneToOne: false
-            referencedRelation: "schedule_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_shift_type_id_fkey"
-            columns: ["shift_type_id"]
-            isOneToOne: false
-            referencedRelation: "shift_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shift_logs_tenant_id_fkey"
+            foreignKeyName: "vendors_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2077,18 +2752,10 @@ export type Database = {
         ]
       }
     }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      can_access_site: { Args: { _site_id: string }; Returns: boolean }
-      current_role: {
-        Args: never
-        Returns: Database["public"]["Enums"]["app_role"]
-      }
-      current_site_ids: { Args: never; Returns: string[] }
-      current_tenant_id: { Args: never; Returns: string }
-      employee_week_hours: {
-        Args: { _any_date: string; _employee_id: string }
-        Returns: number
-      }
       finalize_payroll_period: {
         Args: { p_period: string }
         Returns: undefined
@@ -2103,24 +2770,22 @@ export type Database = {
         }
         Returns: string
       }
-      has_ps_exemption: {
-        Args: { _date: string; _employee_id: string }
-        Returns: boolean
-      }
-      has_role: {
-        Args: { _role: Database["public"]["Enums"]["app_role"] }
-        Returns: boolean
-      }
-      is_admin_or_ops: { Args: never; Returns: boolean }
-      is_ceo_executive: { Args: never; Returns: boolean }
+      get_my_tenant_id: { Args: never; Returns: string }
       replace_draft_payroll: {
         Args: { p_period: string; p_rows: Json }
         Returns: undefined
       }
+      yango_has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["yango_app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
-      app_role: "admin" | "operations" | "supervisor" | "viewer" | "accountant"
+      app_role: "admin" | "accountant" | "operations" | "supervisor" | "viewer"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
       deduction_category:
         | "statutory"
@@ -2169,6 +2834,21 @@ export type Database = {
         | "suspended_unpaid"
       shift_period: "morning" | "day" | "night" | "full_day"
       shift_preference: "day" | "night" | "both"
+      yango_app_role: "admin" | "provider" | "client"
+      yango_booking_status:
+        | "pending"
+        | "confirmed"
+        | "completed"
+        | "no_show"
+        | "cancelled"
+      yango_payment_status:
+        | "pending"
+        | "authorized"
+        | "captured"
+        | "released"
+        | "failed"
+      yango_payout_status: "pending" | "paid" | "failed"
+      yango_slot_status: "open" | "booked" | "blocked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2294,13 +2974,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "income", "expense"],
-      app_role: ["admin", "operations", "supervisor", "viewer", "accountant"],
+      app_role: ["admin", "accountant", "operations", "supervisor", "viewer"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",
@@ -2354,6 +3031,23 @@ export const Constants = {
       ],
       shift_period: ["morning", "day", "night", "full_day"],
       shift_preference: ["day", "night", "both"],
+      yango_app_role: ["admin", "provider", "client"],
+      yango_booking_status: [
+        "pending",
+        "confirmed",
+        "completed",
+        "no_show",
+        "cancelled",
+      ],
+      yango_payment_status: [
+        "pending",
+        "authorized",
+        "captured",
+        "released",
+        "failed",
+      ],
+      yango_payout_status: ["pending", "paid", "failed"],
+      yango_slot_status: ["open", "booked", "blocked"],
     },
   },
 } as const

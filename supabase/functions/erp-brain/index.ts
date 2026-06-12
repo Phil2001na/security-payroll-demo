@@ -5,23 +5,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODEL = "claude-opus-4-7";
+const MODEL = "claude-sonnet-4-6";
 
-const SYSTEM_PROMPT = `You are the executive intelligence assistant for Dog Force Security's ERP system.
+function buildSystemPrompt(companyName: string): string {
+  return `You are the executive intelligence assistant for ${companyName}'s ERP system — a security workforce, payroll and accounting platform.
 
-Your role: Help the CEO understand the current state of the business through clear, concise analysis of live payroll and operations data.
+Your role: Help the executive understand the current state of the business through clear, concise analysis of live payroll, operations, and financial data. You see headcount, scheduling/attendance anomalies, disciplinary matters, the full general ledger (revenue, expenses, cash, receivables, payables), and invoicing.
 
 STRICT CONSTRAINTS:
-- READ-ONLY. You cannot and must not suggest modifying any data.
-- FACTUAL. Only use data provided in this conversation. Never fabricate or estimate figures.
+- READ-ONLY. You cannot and must not modify data; you may recommend actions for a human to take.
+- FACTUAL. Only use data provided in this conversation. Never fabricate or estimate figures — if a number isn't in the snapshot, say it isn't available.
 - HONEST. If you lack data to answer a question, say so explicitly.
 
 RESPONSE STYLE:
 - Lead with the direct answer.
-- Keep responses concise and executive-focused. 2–4 paragraphs max unless a detailed breakdown is requested.
-- Format financial figures as NAD X,XXX.XX.
+- Be concise and executive-focused. 2–4 paragraphs max unless a detailed breakdown is requested.
+- Format money as NAD X,XXX.XX.
 - Use plain prose. Use **bold** only for key figures or critical flags.
-- Flag anomalies and risks when the data reveals them.
+- Proactively connect the dots across domains (e.g. payroll cost vs. revenue, overdue receivables vs. cash) and flag risks the data reveals.
 
 TOOLS:
 You have three document tools. Use them when the user explicitly asks for a report, chart, spreadsheet, or download.
@@ -30,6 +31,7 @@ You have three document tools. Use them when the user explicitly asks for a repo
 - generate_chart: Inline chart rendered in the conversation.
 
 When calling a tool, ALWAYS include a short text message first explaining what you are generating.`;
+}
 
 const TOOLS = [
   {
@@ -155,6 +157,11 @@ function buildContextBlock(
     openDisciplinary: Row[];
     shiftAnomalies: Row[];
     sites: Row[];
+    financials: {
+      revenue: number; expenses: number; profit: number; cash: number;
+      arOutstanding: number; arOverdue: number; apOutstanding: number;
+      draftAr: number; topClients: Array<{ name: string; amount: number }>;
+    } | null;
   },
   memories: Row[],
   today: string,
@@ -214,6 +221,26 @@ function buildContextBlock(
     }
   } else {
     lines.push("", "No shift anomalies in the last 14 days.");
+  }
+
+  const f = data.financials;
+  if (f) {
+    const n = (v: number) => `NAD ${v.toLocaleString("en-NA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    lines.push(
+      "",
+      "[FINANCIAL POSITION — from the live general ledger]",
+      `  Revenue (to date): ${n(f.revenue)}`,
+      `  Expenses (to date): ${n(f.expenses)}`,
+      `  Net profit/(loss): ${n(f.profit)}`,
+      `  Cash at bank: ${n(f.cash)}`,
+      `  Accounts receivable outstanding (issued, unpaid): ${n(f.arOutstanding)} — of which ${n(f.arOverdue)} is past due`,
+      `  Draft AR not yet issued: ${n(f.draftAr)}`,
+      `  Accounts payable outstanding (approved bills to pay): ${n(f.apOutstanding)}`,
+    );
+    if (f.topClients.length > 0) {
+      lines.push("  Largest outstanding receivables:");
+      for (const c of f.topClients) lines.push(`    - ${c.name}: ${n(c.amount)}`);
+    }
   }
 
   if (memories.length > 0) {
@@ -332,8 +359,10 @@ Deno.serve(async (req) => {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
-    const [employeesRes, payrollRunsRes, openPeriodRes, disciplinaryRes, shiftsRes, sitesRes] =
-      await Promise.all([
+    const [
+      employeesRes, payrollRunsRes, openPeriodRes, disciplinaryRes, shiftsRes, sitesRes,
+      tenantRes, ledgerRes, invoicesRes,
+    ] = await Promise.all([
         adminClient
           .from("employees")
           .select("id, status, position")
@@ -371,6 +400,20 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenantId)
           .eq("active", true)
           .order("name"),
+        adminClient
+          .from("tenants")
+          .select("name, legal_name")
+          .eq("id", tenantId)
+          .maybeSingle(),
+        adminClient
+          .from("ledger_lines")
+          .select("debit, credit, chart_of_accounts!inner(code, type)")
+          .eq("tenant_id", tenantId),
+        adminClient
+          .from("invoices")
+          .select("type, status, total, due_date, clients:client_id(name), vendors:vendor_id(name)")
+          .eq("tenant_id", tenantId)
+          .neq("status", "void"),
       ]);
 
     const retrievalErrors: string[] = [];
@@ -386,6 +429,41 @@ Deno.serve(async (req) => {
     checkRes("disciplinary_actions", disciplinaryRes.error);
     checkRes("shift_logs", shiftsRes.error);
     checkRes("sites", sitesRes.error);
+    checkRes("ledger_lines", ledgerRes.error);
+    checkRes("invoices", invoicesRes.error);
+
+    // ----- derive financial position from the ledger + invoices -----
+    let revenue = 0, expenses = 0, cash = 0;
+    for (const l of (ledgerRes.data ?? []) as Row[]) {
+      const acc = Array.isArray(l.chart_of_accounts) ? l.chart_of_accounts[0] : l.chart_of_accounts;
+      const d = Number(l.debit || 0), c = Number(l.credit || 0);
+      if (acc?.type === "income") revenue += c - d;
+      else if (acc?.type === "expense") expenses += d - c;
+      if (acc?.code === "1001") cash += d - c;
+    }
+    let arOutstanding = 0, arOverdue = 0, apOutstanding = 0, draftAr = 0;
+    const clientTotals: Record<string, number> = {};
+    const todayStr = new Date().toISOString().split("T")[0];
+    for (const inv of (invoicesRes.data ?? []) as Row[]) {
+      const amt = Number(inv.total || 0);
+      if (inv.type === "AR" && inv.status === "issued") {
+        arOutstanding += amt;
+        if (inv.due_date && inv.due_date < todayStr) arOverdue += amt;
+        const client = Array.isArray(inv.clients) ? inv.clients[0] : inv.clients;
+        const name = client?.name ?? "Unknown client";
+        clientTotals[name] = (clientTotals[name] ?? 0) + amt;
+      } else if (inv.type === "AR" && inv.status === "draft") {
+        draftAr += amt;
+      } else if (inv.type === "AP" && inv.status === "issued") {
+        apOutstanding += amt;
+      }
+    }
+    const topClients = Object.entries(clientTotals)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([name, amount]) => ({ name, amount }));
+
+    const tenantRow = (tenantRes.data ?? null) as Row | null;
+    const companyName = (tenantRow?.legal_name || tenantRow?.name || "the company") as string;
 
     const retrievalContext = {
       employees: employeesRes.data ?? [],
@@ -394,6 +472,10 @@ Deno.serve(async (req) => {
       openDisciplinary: disciplinaryRes.data ?? [],
       shiftAnomalies: shiftsRes.data ?? [],
       sites: sitesRes.data ?? [],
+      financials: {
+        revenue, expenses, profit: revenue - expenses, cash,
+        arOutstanding, arOverdue, apOutstanding, draftAr, topClients,
+      },
     };
     const dataSources = [
       "employees",
@@ -402,6 +484,8 @@ Deno.serve(async (req) => {
       "disciplinary_actions",
       "shift_logs",
       "sites",
+      "ledger_lines",
+      "invoices",
     ];
     const rowsExamined =
       retrievalContext.employees.length +
@@ -451,7 +535,7 @@ Deno.serve(async (req) => {
         system: [
           {
             type: "text",
-            text: SYSTEM_PROMPT,
+            text: buildSystemPrompt(companyName),
             cache_control: { type: "ephemeral" },
           },
         ],
@@ -461,6 +545,7 @@ Deno.serve(async (req) => {
 
     if (!anthropicResp.ok) {
       const errText = await anthropicResp.text();
+      console.error(`[erp-brain] Anthropic ${anthropicResp.status}: ${errText}`);
       await writeAuditEvent(adminClient, {
         tenantId,
         userId,

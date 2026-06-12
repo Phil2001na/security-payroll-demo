@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -62,6 +62,28 @@ function AuthPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed";
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDevBypass = async () => {
+    setSubmitting(true);
+    try {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: "demo@payroll.dev",
+        password: "Demo1234!",
+      });
+      if (!signInErr) return;
+      const { error: signUpErr } = await supabase.auth.signUp({
+        email: "demo@payroll.dev",
+        password: "Demo1234!",
+        options: { data: { full_name: "Demo User" } },
+      });
+      if (signUpErr) throw signUpErr;
+      await supabase.auth.signInWithPassword({ email: "demo@payroll.dev", password: "Demo1234!" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dev login failed");
     } finally {
       setSubmitting(false);
     }
@@ -222,6 +244,13 @@ function AuthPage() {
             </svg>
             Google
           </Button>
+
+          {import.meta.env.DEV && (
+            <Button type="button" variant="secondary" className="w-full" onClick={handleDevBypass} disabled={submitting}>
+              <Zap className="mr-2 h-4 w-4" />
+              Dev — enter as demo user
+            </Button>
+          )}
         </div>
       </div>
     </div>

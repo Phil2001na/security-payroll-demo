@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
   // Approved shift hours in range, scoped to the caller's tenant.
   let query = admin
     .from("shift_logs")
-    .select("site_id, hours_worked, date, sites!inner(id, name, billing_rate)")
+    .select("site_id, hours_worked, date, sites!inner(id, name, billing_rate, client_id, clients(name))")
     .eq("tenant_id", tenantId)
     .eq("status", "approved")
     .gte("date", startDate)
@@ -73,12 +73,35 @@ Deno.serve(async (req) => {
   const { data: rows, error: rowsErr } = await query;
   if (rowsErr) return json({ error: rowsErr.message }, 400);
 
-  const bySite = new Map<string, { siteName: string; totalHours: number; rate: number }>();
+  // Fetch tenant billing defaults
+  const { data: tenantRow } = await admin
+    .from("tenants")
+    .select("default_tax_rate, invoice_due_days")
+    .eq("id", tenantId)
+    .maybeSingle();
+  const defaultTaxRate = Number(tenantRow?.default_tax_rate ?? 0.15);
+  const dueDays = Number(tenantRow?.invoice_due_days ?? 7);
+
+  // Fetch pay period label for invoice description
+  let periodLabel = `${startDate} to ${endDate}`;
+  if (payPeriodId) {
+    const { data: pp } = await admin
+      .from("pay_periods").select("label").eq("id", payPeriodId).maybeSingle();
+    if (pp?.label) periodLabel = pp.label;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const dueDate = new Date(Date.now() + dueDays * 86400_000).toISOString().slice(0, 10);
+
+  const bySite = new Map<string, { siteName: string; clientId: string | null; clientName: string; totalHours: number; rate: number }>();
   for (const row of rows ?? []) {
     const site = Array.isArray((row as any).sites) ? (row as any).sites[0] : (row as any).sites;
+    const client = Array.isArray(site?.clients) ? site.clients[0] : site?.clients;
     const key = row.site_id as string;
     const current = bySite.get(key) ?? {
-      siteName: site?.name ?? "Unknown Site",
+      siteName: site?.name || "Unknown Site",
+      clientId: (site?.client_id as string | null) ?? null,
+      clientName: client?.name || site?.name || "Unknown Client",
       totalHours: 0,
       rate: Number(site?.billing_rate ?? 0),
     };
@@ -91,29 +114,46 @@ Deno.serve(async (req) => {
     const hours = Number(summary.totalHours.toFixed(2));
     if (hours <= 0 || summary.rate <= 0) continue;
 
+    // Idempotent: skip if a non-void invoice already exists for this site + period
+    if (payPeriodId) {
+      const { data: existing } = await admin
+        .from("invoices")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("site_id", resolvedSiteId)
+        .eq("pay_period_id", payPeriodId)
+        .neq("status", "void")
+        .maybeSingle();
+      if (existing) continue;
+    }
+
     // Create as draft, attach the line item (a trigger derives invoice.total),
-    // then issue — which posts the correct total to the ledger.
+    // then optionally issue — which posts the correct total to the ledger.
     const { data: invoice, error: invErr } = await admin
       .from("invoices")
       .insert({
         tenant_id: tenantId,
         type: "AR",
         status: "draft",
-        client_id: resolvedSiteId,
+        client_id: summary.clientId,
+        site_id: resolvedSiteId,
         pay_period_id: payPeriodId,
+        invoice_date: today,
+        due_date: dueDate,
         total: 0,
         tax: 0,
-        due_date: endDate,
       })
-      .select("id")
+      .select("id, invoice_number")
       .single();
     if (invErr || !invoice) return json({ error: invErr?.message ?? "Invoice insert failed" }, 400);
 
     const { error: itemErr } = await admin.from("invoice_items").insert({
       invoice_id: invoice.id,
-      description: `Guarding services (${startDate} to ${endDate}) - ${summary.siteName}`,
+      tenant_id: tenantId,
+      description: `Security services — ${summary.siteName} — ${periodLabel}`,
       quantity: hours,
       unit_price: summary.rate,
+      tax_rate: defaultTaxRate,
     });
     if (itemErr) {
       await admin.from("invoices").delete().eq("id", invoice.id);
@@ -130,8 +170,10 @@ Deno.serve(async (req) => {
 
     invoices.push({
       id: invoice.id,
+      invoice_number: invoice.invoice_number,
       siteId: resolvedSiteId,
       siteName: summary.siteName,
+      clientName: summary.clientName,
       hours,
       rate: summary.rate,
       total: Number((hours * summary.rate).toFixed(2)),

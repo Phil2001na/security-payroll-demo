@@ -67,6 +67,10 @@ export function generateContractPdf(opts: {
   kind: ContractKind;
   employee: ContractEmployee;
   tenant: ContractTenant;
+  /** PNG data URL of the captured employee signature. When provided it is drawn onto the signature line. */
+  signatureDataUrl?: string | null;
+  /** ISO date the signature was captured; rendered next to the signature. */
+  signedDate?: string | null;
 }): { blob: Blob; fileName: string; merged: string } {
   const merged = mergeTemplate(opts.template, opts.employee, opts.tenant);
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -124,11 +128,27 @@ export function generateContractPdf(opts: {
     y = margin;
   }
   y = Math.max(y + 30, pageH - margin - 80);
+
+  // Render the captured signature sitting on the employee signature line.
+  if (opts.signatureDataUrl) {
+    const sigW = 180;
+    const sigH = 54;
+    try {
+      // Place the image so its baseline rests just above the signature line.
+      doc.addImage(opts.signatureDataUrl, "PNG", margin, y - sigH, sigW, sigH);
+    } catch {
+      // If the data URL is malformed, fall back to the blank line.
+    }
+  }
+
   doc.setDrawColor(60);
   doc.line(margin, y, margin + 220, y);
   doc.line(pageW - margin - 220, y, pageW - margin, y);
   doc.setFontSize(9);
-  doc.text("Employee signature & date", margin, y + 14);
+  const signedLabel = opts.signedDate
+    ? `Employee signature — signed ${opts.signedDate}`
+    : "Employee signature & date";
+  doc.text(signedLabel, margin, y + 14);
   doc.text("For the Company", pageW - margin - 220, y + 14);
 
   const blob = doc.output("blob");

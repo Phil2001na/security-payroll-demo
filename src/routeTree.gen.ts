@@ -19,6 +19,7 @@ import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
 import { Route as AppInvoicesRouteImport } from './routes/_app.invoices'
 import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppClientsRouteImport } from './routes/_app.clients'
 import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
 import { Route as AppAiAssistantRouteImport } from './routes/_app.ai-assistant'
 import { Route as AppAccountingRouteImport } from './routes/_app.accounting'
@@ -79,6 +80,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppClientsRoute = AppClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAttendanceRoute = AppAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/accounting': typeof AppAccountingRoute
   '/ai-assistant': typeof AppAiAssistantRoute
   '/attendance': typeof AppAttendanceRoute
+  '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
   '/invoices': typeof AppInvoicesRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/accounting': typeof AppAccountingRoute
   '/ai-assistant': typeof AppAiAssistantRoute
   '/attendance': typeof AppAttendanceRoute
+  '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
   '/invoices': typeof AppInvoicesRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/_app/accounting': typeof AppAccountingRoute
   '/_app/ai-assistant': typeof AppAiAssistantRoute
   '/_app/attendance': typeof AppAttendanceRoute
+  '/_app/clients': typeof AppClientsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/disciplinary': typeof AppDisciplinaryRoute
   '/_app/invoices': typeof AppInvoicesRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/accounting'
     | '/ai-assistant'
     | '/attendance'
+    | '/clients'
     | '/dashboard'
     | '/disciplinary'
     | '/invoices'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/accounting'
     | '/ai-assistant'
     | '/attendance'
+    | '/clients'
     | '/dashboard'
     | '/disciplinary'
     | '/invoices'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/_app/accounting'
     | '/_app/ai-assistant'
     | '/_app/attendance'
+    | '/_app/clients'
     | '/_app/dashboard'
     | '/_app/disciplinary'
     | '/_app/invoices'
@@ -340,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/clients': {
+      id: '/_app/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AppClientsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/attendance': {
       id: '/_app/attendance'
       path: '/attendance'
@@ -417,6 +436,7 @@ interface AppRouteChildren {
   AppAccountingRoute: typeof AppAccountingRoute
   AppAiAssistantRoute: typeof AppAiAssistantRoute
   AppAttendanceRoute: typeof AppAttendanceRoute
+  AppClientsRoute: typeof AppClientsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDisciplinaryRoute: typeof AppDisciplinaryRoute
   AppInvoicesRoute: typeof AppInvoicesRoute
@@ -437,6 +457,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAccountingRoute: AppAccountingRoute,
   AppAiAssistantRoute: AppAiAssistantRoute,
   AppAttendanceRoute: AppAttendanceRoute,
+  AppClientsRoute: AppClientsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDisciplinaryRoute: AppDisciplinaryRoute,
   AppInvoicesRoute: AppInvoicesRoute,

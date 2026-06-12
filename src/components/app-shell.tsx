@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList,
-  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen, Receipt,
+  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen, Receipt, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -26,6 +26,7 @@ const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/wizard", label: "Getting Started", icon: Sparkles },
   { to: "/employees", label: "Employees", icon: Users },
+  { to: "/clients", label: "Clients", icon: Briefcase },
   { to: "/sites", label: "Sites", icon: MapPin },
   { to: "/schedule", label: "Schedule", icon: CalendarDays },
   { to: "/attendance", label: "Attendance", icon: ClipboardList },
