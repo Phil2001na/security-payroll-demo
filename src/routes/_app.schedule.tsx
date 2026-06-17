@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
   Loader2, Search, ShieldCheck, Eraser, Users, Wand2, Plus, X,
-  Clock, Sparkles, ListChecks, CalendarRange, DollarSign,
+  Clock, Sparkles, ListChecks, CalendarRange, DollarSign, Printer,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AccessDenied } from "@/components/access-denied";
 import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
+import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -111,6 +112,17 @@ function isoWeekKey(d: Date) {
 function sameDate(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
+function parseIsoDate(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function rangeDaysBetween(fromStr: string, toStr: string): Date[] {
+  const start = parseIsoDate(fromStr);
+  const end = parseIsoDate(toStr);
+  const out: Date[] = [];
+  for (let cur = start; cur <= end; cur = addDays(cur, 1)) out.push(cur);
+  return out;
+}
 
 function SchedulePage() {
   const { profile } = useAuth();
@@ -126,13 +138,25 @@ function SchedulePage() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState<{ empId: string; date: string } | null>(null);
+  const [genFrom, setGenFrom] = useState<string>("");
+  const [genTo, setGenTo] = useState<string>("");
+  const [generating, setGenerating] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const defaultedRangeRef = useRef(false);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const rangeStart = fmtIso(days[0]);
   const rangeEnd = fmtIso(days[6]);
-  // Wider window for weekly hour totals (cover the visible week + neighbouring days for sanity)
-  const fetchStart = fmtIso(addDays(weekStart, -7));
-  const fetchEnd = fmtIso(addDays(weekStart, 13));
+  // Wider window for weekly hour totals — covers the visible week + neighbouring days,
+  // widened further to also cover any custom generate/print range the user picks.
+  const fetchStart = (() => {
+    const base = fmtIso(addDays(weekStart, -7));
+    return genFrom && genFrom < base ? genFrom : base;
+  })();
+  const fetchEnd = (() => {
+    const base = fmtIso(addDays(weekStart, 13));
+    return genTo && genTo > base ? genTo : base;
+  })();
 
   const { data: sites } = useQuery<Site[]>({
     queryKey: ["sites", profile?.tenant_id],
@@ -148,6 +172,38 @@ function SchedulePage() {
   useEffect(() => {
     if (!activeSiteId && sites && sites.length) setActiveSiteId(sites[0].id);
   }, [sites, activeSiteId]);
+
+  const { data: tenant } = useQuery({
+    queryKey: ["tenant"],
+    queryFn: async () => {
+      const { data } = await supabase.from("tenants").select("*").limit(1).maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: openPeriod } = useQuery({
+    queryKey: ["open-pay-period", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pay_periods").select("start_date, end_date, label")
+        .eq("status", "open").order("start_date", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (defaultedRangeRef.current) return;
+    if (openPeriod) {
+      defaultedRangeRef.current = true;
+      setGenFrom(openPeriod.start_date);
+      setGenTo(openPeriod.end_date);
+    } else if (rangeStart && rangeEnd) {
+      setGenFrom((v) => v || rangeStart);
+      setGenTo((v) => v || rangeEnd);
+    }
+  }, [openPeriod, rangeStart, rangeEnd]);
 
   const { data: shiftTypes } = useQuery<ShiftType[]>({
     queryKey: ["shift-types", profile?.tenant_id],
@@ -193,7 +249,7 @@ function SchedulePage() {
   });
 
   // Cross-site assignments for weekly hour totals
-  const { data: weekAssignments } = useQuery<Assignment[]>({
+  const { data: weekAssignments, isFetching: weekAssignmentsFetching } = useQuery<Assignment[]>({
     queryKey: ["assignments-all", profile?.tenant_id, fetchStart, fetchEnd],
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
@@ -415,53 +471,55 @@ function SchedulePage() {
     unassignable: number;
   };
 
-  function computeFillPlan(): FillPlan {
+  // rangeDays may span multiple ISO weeks (e.g. a full generate range) — the 60h cap
+  // is tracked per (employee, ISO week) pair so multi-week ranges reset correctly each week.
+  function buildFillPlan(rangeDays: Date[]): FillPlan {
     const plan: FillPlan = { shortfalls: [], newAssignments: [], unassignable: 0 };
     if (!sites || !employees || !requirements || !weekAssignments) return plan;
     if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
 
-    const weekDates = days.map((d) => ({ date: fmtIso(d), dow: d.getDay() }));
-    const weekDateSet = new Set(weekDates.map((w) => w.date));
+    const planDates = rangeDays.map((d) => ({ date: fmtIso(d), dow: d.getDay() }));
+    const planDateSet = new Set(planDates.map((w) => w.date));
+    const weekKeyOf = (date: string) => isoWeekKey(new Date(date));
 
     // Process ordinary weekdays first, then Sunday, then public holidays so
     // guards who accumulate hours on weekdays are naturally excluded from premium
     // slots — rest days fall on the expensive days, cheapest remaining guards cover them.
-    const orderedDates = [...weekDates].sort((a, b) => {
+    const orderedDates = [...planDates].sort((a, b) => {
       const aPriority = publicHolidayDates.has(a.date) ? 2 : a.dow === 0 ? 1 : 0;
       const bPriority = publicHolidayDates.has(b.date) ? 2 : b.dow === 0 ? 1 : 0;
       return aPriority - bPriority || a.date.localeCompare(b.date);
     });
 
     const empDates = new Map<string, Set<string>>();
-    const empWeekHours = new Map<string, number>();
+    const empWeekHours = new Map<string, number>(); // key: `${empId}|${weekKey}`
     const empWeekOrdinaryHours = new Map<string, number>();
-    for (const emp of employees) {
-      empDates.set(emp.id, new Set());
-      empWeekHours.set(emp.id, 0);
-      empWeekOrdinaryHours.set(emp.id, 0);
-    }
+    for (const emp of employees) empDates.set(emp.id, new Set());
+
     const editedKeys = new Set(Object.keys(edits));
     for (const a of weekAssignments) {
-      if (!weekDateSet.has(a.date)) continue;
+      if (!planDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
       if (editedKeys.has(k)) continue;
       empDates.get(a.employee_id)?.add(a.date);
       const aHours = Number(a.planned_hours);
-      empWeekHours.set(a.employee_id, (empWeekHours.get(a.employee_id) ?? 0) + aHours);
+      const wk = `${a.employee_id}|${weekKeyOf(a.date)}`;
+      empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + aHours);
       const aSt = shiftTypeById.get(a.shift_type_id);
       if (aSt && aSt.pay_rule === "standard") {
-        empWeekOrdinaryHours.set(a.employee_id, (empWeekOrdinaryHours.get(a.employee_id) ?? 0) + aHours);
+        empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + aHours);
       }
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
-      if (!weekDateSet.has(date) || !sid) continue;
+      if (!planDateSet.has(date) || !sid) continue;
       const st = shiftTypeById.get(sid);
       if (!st) continue;
       empDates.get(empId)?.add(date);
-      empWeekHours.set(empId, (empWeekHours.get(empId) ?? 0) + st.default_hours);
+      const wk = `${empId}|${weekKeyOf(date)}`;
+      empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
       if (st.pay_rule === "standard") {
-        empWeekOrdinaryHours.set(empId, (empWeekOrdinaryHours.get(empId) ?? 0) + st.default_hours);
+        empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + st.default_hours);
       }
     }
 
@@ -474,7 +532,7 @@ function SchedulePage() {
       return null;
     };
     for (const a of weekAssignments) {
-      if (!weekDateSet.has(a.date)) continue;
+      if (!planDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
       const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
       if (!sid) continue;
@@ -484,7 +542,7 @@ function SchedulePage() {
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
-      if (!weekDateSet.has(date) || !sid) continue;
+      if (!planDateSet.has(date) || !sid) continue;
       const existing = (weekAssignments ?? []).find((a) => a.employee_id === empId && a.date === date);
       if (existing) continue;
       const kind = effectiveKind(sid);
@@ -510,11 +568,12 @@ function SchedulePage() {
           const needed = required - have;
           if (needed <= 0) continue;
           const shiftHours = stForKind.default_hours;
+          const wkKey = weekKeyOf(wd.date);
           const pool = employees.filter((emp) => {
             if (emp.status !== "active") return false;
             if (emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
             if (empDates.get(emp.id)?.has(wd.date)) return false;
-            const hrs = empWeekHours.get(emp.id) ?? 0;
+            const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
             if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
             return true;
           });
@@ -529,16 +588,16 @@ function SchedulePage() {
             if (aSpec !== bSpec) return bSpec - aSpec;
             // 3. Cheapest guard for this specific shift (cost optimisation)
             const aCost = estimateShiftCost(
-              a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(a.id) ?? 0,
+              a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${a.id}|${wkKey}`) ?? 0,
               shiftPayRule, kind === "night", SCHED_CONSTANTS,
             );
             const bCost = estimateShiftCost(
-              b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(b.id) ?? 0,
+              b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${b.id}|${wkKey}`) ?? 0,
               shiftPayRule, kind === "night", SCHED_CONSTANTS,
             );
             if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
             // 4. Load-balance tie-break
-            return (empWeekHours.get(a.id) ?? 0) - (empWeekHours.get(b.id) ?? 0);
+            return (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) - (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0);
           });
           let assigned = 0;
           for (const emp of pool) {
@@ -548,9 +607,10 @@ function SchedulePage() {
               shift_type_id: stForKind.id, planned_hours: shiftHours,
             });
             empDates.get(emp.id)?.add(wd.date);
-            empWeekHours.set(emp.id, (empWeekHours.get(emp.id) ?? 0) + shiftHours);
+            const wk = `${emp.id}|${wkKey}`;
+            empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + shiftHours);
             if (shiftPayRule === "standard") {
-              empWeekOrdinaryHours.set(emp.id, (empWeekOrdinaryHours.get(emp.id) ?? 0) + shiftHours);
+              empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + shiftHours);
             }
             coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
             have++;
@@ -569,7 +629,7 @@ function SchedulePage() {
   const [autoFilling, setAutoFilling] = useState(false);
   async function autoFillRoster() {
     if (!profile?.tenant_id) return;
-    const plan = computeFillPlan();
+    const plan = buildFillPlan(days);
     if (plan.newAssignments.length === 0 && plan.shortfalls.length === 0) {
       toast.info("Nothing to fill — requirements already met or none set.");
       return;
@@ -598,10 +658,102 @@ function SchedulePage() {
     }
   }
 
-  const shortfallPreview = useMemo(() => computeFillPlan().shortfalls,
+  const shortfallPreview = useMemo(() => buildFillPlan(days).shortfalls,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId, publicHolidayDates]
   );
+
+  // ── Generate schedule for a custom date range (all sites) ────────────────
+  async function generateSchedule() {
+    if (!profile?.tenant_id) return;
+    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
+    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    const rangeDays = rangeDaysBetween(genFrom, genTo);
+    if (rangeDays.length > 62) { toast.error("Range too large — generate at most ~2 months at a time"); return; }
+    setGenerating(true);
+    try {
+      const plan = buildFillPlan(rangeDays);
+      if (plan.newAssignments.length === 0) {
+        toast.info(plan.shortfalls.length > 0
+          ? "No eligible guards available to fill the gaps in this range."
+          : "Nothing to generate — requirements already met or none set for this range.");
+        return;
+      }
+      const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+        if (error) throw error;
+      }
+      const msg = `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}`
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "");
+      if (plan.unassignable > 0) toast.warning(msg);
+      else toast.success(msg);
+      setWeekStart(startOfWeek(rangeDays[0]));
+      await Promise.all([
+        refetchAssignments(),
+        qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generate failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ── Print one duty-roster PDF page per guard for the chosen range ────────
+  async function printSchedules() {
+    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
+    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    setPrinting(true);
+    try {
+      const { data, error } = await supabase
+        .from("schedule_assignments")
+        .select("employee_id, site_id, date, shift_type_id, planned_hours")
+        .gte("date", genFrom).lte("date", genTo);
+      if (error) throw error;
+      const rows = data ?? [];
+      if (rows.length === 0) { toast.info("No shifts scheduled in this range yet."); return; }
+
+      const siteById = new Map((sites ?? []).map((s) => [s.id, s]));
+      const empById = new Map((employees ?? []).map((e) => [e.id, e]));
+      const byEmp = new Map<string, { date: string; shiftLabel: string; shiftCode: string; hours: number; siteName: string }[]>();
+      for (const r of rows) {
+        const st = shiftTypeById.get(r.shift_type_id);
+        const site = siteById.get(r.site_id);
+        const list = byEmp.get(r.employee_id) ?? [];
+        list.push({
+          date: r.date,
+          shiftLabel: st?.label ?? "Shift",
+          shiftCode: st?.code ?? "",
+          hours: Number(r.planned_hours),
+          siteName: site?.name ?? "—",
+        });
+        byEmp.set(r.employee_id, list);
+      }
+
+      const employeesWithShifts = Array.from(byEmp.keys())
+        .map((id) => empById.get(id))
+        .filter((e): e is Employee => !!e)
+        .sort((a, b) => a.surname.localeCompare(b.surname));
+      if (employeesWithShifts.length === 0) { toast.info("No matching active employees found for these shifts."); return; }
+
+      const pdf = buildScheduleSheetsPDF({
+        employees: employeesWithShifts.map((e) => ({
+          id: e.id, employee_code: e.employee_code, surname: e.surname, first_names: e.first_names,
+        })),
+        assignmentsByEmployee: byEmp,
+        rangeStart: genFrom,
+        rangeEnd: genTo,
+        tenantName: tenant?.name ?? "Demo Payroll System",
+      });
+      pdf.save(`Guard_Schedules_${genFrom}_to_${genTo}.pdf`);
+      toast.success(`Printed ${employeesWithShifts.length} guard schedule${employeesWithShifts.length === 1 ? "" : "s"}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Print failed");
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const today = new Date();
@@ -680,6 +832,29 @@ function SchedulePage() {
           </Button>
         </div>
       </div>
+
+      {/* Custom date-range generate + print */}
+      <Card className="p-4 flex flex-wrap items-end gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">From</label>
+          <Input type="date" value={genFrom} onChange={(e) => setGenFrom(e.target.value)} className="h-9 w-40" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">To</label>
+          <Input type="date" value={genTo} onChange={(e) => setGenTo(e.target.value)} className="h-9 w-40" />
+        </div>
+        <Button variant="outline" onClick={generateSchedule} disabled={generating || weekAssignmentsFetching}>
+          {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+          Generate schedule for range
+        </Button>
+        <Button variant="outline" onClick={printSchedules} disabled={printing}>
+          {printing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
+          Print guard schedules
+        </Button>
+        <p className="text-xs text-muted-foreground basis-full">
+          Generate fills gaps against site requirements across all sites for the chosen period. Print produces one duty-roster page per guard to hand out.
+        </p>
+      </Card>
 
       {/* Site tabs */}
       {sites && sites.length > 0 && (
