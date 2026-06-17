@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, profile, loading, signOut } = useAuth();
+  const { session, profile, loading, refresh, signOut } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {

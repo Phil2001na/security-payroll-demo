@@ -6,6 +6,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -284,8 +285,11 @@ function ClientsPage() {
   const [search, setSearch] = useState("");
 
   const role = profile?.role;
-  const canView = role === "admin" || role === "operations" || role === "accountant";
+  const isCeo = profile?.is_ceo_executive === true;
+  const canView = role === "admin" || role === "operations" || isCeo;
   const canManage = role === "admin" || role === "operations";
+
+  if (profile && !canView) return <AccessDenied message="Client records are restricted to operations and executive staff." />;
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
     queryKey: ["clients", profile?.tenant_id],

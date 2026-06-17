@@ -6,6 +6,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,6 +149,10 @@ function EditSiteDialog({ site, canManage }: { site: Site; canManage: boolean })
 
 function SitesPage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+    return <AccessDenied message="Sites are restricted to payroll and operations staff." />;
+  }
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", code: "", client_id: "", address: "", billing_rate: "" });
@@ -192,7 +197,7 @@ function SitesPage() {
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
   });
 
-  const canManage = profile?.role === "admin" || profile?.role === "operations";
+  const canManage = role === "admin" || role === "operations" || role === "payroll";
   const visible = useMemo(() => sites ?? [], [sites]);
 
   return (

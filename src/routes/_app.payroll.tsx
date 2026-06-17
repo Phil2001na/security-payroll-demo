@@ -16,6 +16,7 @@ import {
 import { buildABSACsv, buildPayslipPDF } from "@/lib/payslip-pdf";
 import { formatNAD } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 
 export const Route = createFileRoute("/_app/payroll")({
   component: PayrollPage,
@@ -31,6 +32,10 @@ function downloadBlob(data: Blob | string, filename: string, mime = "text/csv") 
 
 function PayrollPage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "payroll") {
+    return <AccessDenied message="Payroll access is restricted to payroll and operations staff." />;
+  }
   const qc = useQueryClient();
   const [periodId, setPeriodId] = useState<string>("");
   const [calcs, setCalcs] = useState<PayslipCalc[]>([]);

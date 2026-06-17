@@ -37,7 +37,8 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Wallet; lab
 function AccountingPage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  const canView = role === "admin" || role === "accountant" || role === "operations";
+  const isCeo = profile?.is_ceo_executive === true;
+  const canView = role === "admin" || role === "accountant" || isCeo;
 
   const { data: lines = [], isLoading: linesLoading } = useQuery<LedgerLine[]>({
     queryKey: ["ledger-lines"],

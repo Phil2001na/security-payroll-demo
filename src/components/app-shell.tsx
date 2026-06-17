@@ -15,36 +15,48 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+type AppRole = "admin" | "accountant" | "operations" | "supervisor" | "viewer" | "payroll";
+
 type NavItem = {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: Array<"admin" | "accountant" | "operations" | "supervisor" | "viewer">;
+  roles?: AppRole[];
+  ceoVisible?: boolean;
 };
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/wizard", label: "Getting Started", icon: Sparkles },
-  { to: "/employees", label: "Employees", icon: Users },
-  { to: "/clients", label: "Clients", icon: Briefcase },
-  { to: "/sites", label: "Sites", icon: MapPin },
-  { to: "/schedule", label: "Schedule", icon: CalendarDays },
-  { to: "/attendance", label: "Attendance", icon: ClipboardList },
-  { to: "/payroll", label: "Payroll", icon: Calculator },
-  { to: "/disciplinary", label: "Disciplinary", icon: ShieldAlert },
+  { to: "/wizard", label: "Getting Started", icon: Sparkles, roles: ["admin", "operations"] },
+  { to: "/employees", label: "Employees", icon: Users, roles: ["admin", "operations", "supervisor", "payroll"] },
+  { to: "/clients", label: "Clients", icon: Briefcase, roles: ["admin", "operations"], ceoVisible: true },
+  { to: "/sites", label: "Sites", icon: MapPin, roles: ["admin", "operations", "supervisor", "payroll"] },
+  { to: "/schedule", label: "Schedule", icon: CalendarDays, roles: ["admin", "operations", "supervisor", "payroll"] },
+  { to: "/attendance", label: "Attendance", icon: ClipboardList, roles: ["admin", "operations", "supervisor", "payroll"] },
+  { to: "/payroll", label: "Payroll", icon: Calculator, roles: ["admin", "operations", "payroll"] },
+  { to: "/disciplinary", label: "Disciplinary", icon: ShieldAlert, roles: ["admin", "operations", "supervisor"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { to: "/admin/users", label: "System Users", icon: Users, roles: ["admin"] },
-  { to: "/admin/settings", label: "Admin Settings", icon: Settings, roles: ["admin"] },
+  { to: "/admin/users", label: "System Users", icon: Users },
+  { to: "/admin/settings", label: "Admin Settings", icon: Settings },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
-  const isFinance = profile?.role === "admin" || profile?.role === "accountant";
+  const role = profile?.role as AppRole | undefined;
   const isCeo = profile?.is_ceo_executive === true;
+  const isAdmin = role === "admin" && !isCeo;
+
+  const canSeeAccounting = role === "admin" || role === "accountant" || isCeo;
+  const canSeeInvoices = role === "admin" || role === "accountant";
+
+  const visibleNav = NAV.filter((item) => {
+    if (!item.roles) return true;
+    if (isCeo) return item.ceoVisible === true;
+    return role ? item.roles.includes(role) : false;
+  });
 
   const renderItem = (item: NavItem) => {
     const Icon = item.icon;
@@ -72,7 +84,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-2 pt-3 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
         Operations
       </div>
-      {NAV.map(renderItem)}
+      {visibleNav.map(renderItem)}
       {isCeo && (
         <>
           <div className="px-2 pt-5 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
@@ -81,13 +93,13 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           {renderItem({ to: "/ai-assistant", label: "AI Assistant", icon: BrainCircuit })}
         </>
       )}
-      {isFinance && (
+      {(canSeeAccounting || canSeeInvoices) && (
         <>
           <div className="px-2 pt-5 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
             Finance
           </div>
-          {renderItem({ to: "/accounting", label: "Accounting", icon: BookOpen })}
-          {renderItem({ to: "/invoices", label: "Invoices", icon: Receipt })}
+          {canSeeAccounting && renderItem({ to: "/accounting", label: "Accounting", icon: BookOpen })}
+          {canSeeInvoices && renderItem({ to: "/invoices", label: "Invoices", icon: Receipt })}
         </>
       )}
       {isAdmin && (

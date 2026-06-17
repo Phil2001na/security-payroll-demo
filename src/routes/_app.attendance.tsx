@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,10 @@ function isoWeekStart(d: Date) {
 
 function AttendancePage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+    return <AccessDenied message="Attendance access is restricted to payroll and operations staff." />;
+  }
   const qc = useQueryClient();
   const [date, setDate] = useState(() => fmtIso(new Date()));
   const [siteFilter, setSiteFilter] = useState<string>("all");

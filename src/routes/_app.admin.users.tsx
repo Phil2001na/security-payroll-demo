@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, ShieldCheck, Loader2 } from "lucide-react";
+import { Users, Loader2 } from "lucide-react";
+import { AccessDenied } from "@/components/access-denied";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -29,7 +30,7 @@ type UserProfile = {
   id: string;
   full_name: string;
   email: string | null;
-  role: "admin" | "operations" | "supervisor" | "viewer";
+  role: "admin" | "accountant" | "payroll" | "operations" | "supervisor" | "viewer";
   assigned_site_ids: string[];
   is_active: boolean;
 };
@@ -39,18 +40,7 @@ function SystemUsersPage() {
   const queryClient = useQueryClient();
 
   if (profile?.role !== "admin") {
-    return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="p-12 text-center">
-            <ShieldCheck className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="font-medium">Admin access required</p>
-            <p className="text-sm text-muted-foreground mt-1">Only tenant admins can manage system users.</p>
-            <Button asChild className="mt-4"><Link to="/dashboard">Back to dashboard</Link></Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <AccessDenied message="Only tenant admins can manage system users." />;
   }
 
   const { data: users, isLoading } = useQuery({
@@ -116,7 +106,7 @@ function SystemUsersPage() {
           <CardTitle className="text-base">Inviting new users</CardTitle>
           <CardDescription>
             New users sign up themselves at the login screen and start as <Badge variant="outline" className="ml-1">viewer</Badge>.
-            Promote them here to <strong>operations</strong> (full org access) or <strong>supervisor</strong> (scoped to assigned sites).
+            Promote them to <strong>accountant</strong> (finance/invoicing), <strong>payroll</strong> (scheduling/attendance/payroll), <strong>operations</strong> (full org access), or <strong>supervisor</strong> (scoped to assigned sites).
           </CardDescription>
         </CardHeader>
       </Card>
@@ -192,6 +182,8 @@ function UserRow({
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="accountant">Accountant</SelectItem>
+            <SelectItem value="payroll">Payroll</SelectItem>
             <SelectItem value="operations">Operations</SelectItem>
             <SelectItem value="supervisor">Supervisor</SelectItem>
             <SelectItem value="viewer">Viewer</SelectItem>

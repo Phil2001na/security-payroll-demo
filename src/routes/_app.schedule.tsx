@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -113,6 +114,10 @@ function sameDate(a: Date, b: Date) {
 
 function SchedulePage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+    return <AccessDenied message="Schedule access is restricted to payroll and operations staff." />;
+  }
   const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [search, setSearch] = useState("");

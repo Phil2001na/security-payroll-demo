@@ -2785,7 +2785,7 @@ export type Database = {
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
-      app_role: "admin" | "accountant" | "operations" | "supervisor" | "viewer"
+      app_role: "admin" | "accountant" | "payroll" | "operations" | "supervisor" | "viewer"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
       deduction_category:
         | "statutory"
@@ -2977,7 +2977,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "income", "expense"],
-      app_role: ["admin", "accountant", "operations", "supervisor", "viewer"],
+      app_role: ["admin", "accountant", "payroll", "operations", "supervisor", "viewer"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",

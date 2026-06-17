@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, Upload, Download, Users as UsersIcon, Shield, Briefcase, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,6 +52,10 @@ type GroupTab = "officers" | "management";
 
 function EmployeesPage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+    return <AccessDenied message="Employee records are restricted to payroll and operations staff." />;
+  }
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [contractFilter, setContractFilter] = useState<"all" | "signed" | "pending">("all");

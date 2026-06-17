@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Plus, ShieldAlert, AlertTriangle } from "lucide-react";
 import { formatNAD, formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
+import { AccessDenied } from "@/components/access-denied";
 
 export const Route = createFileRoute("/_app/disciplinary")({
   component: DisciplinaryPage,
@@ -34,6 +35,10 @@ const OFFENCES = [
 
 function DisciplinaryPage() {
   const { profile } = useAuth();
+  const role = profile?.role;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor") {
+    return <AccessDenied message="Disciplinary records are restricted to operations staff." />;
+  }
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
