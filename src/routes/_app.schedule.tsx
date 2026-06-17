@@ -65,6 +65,7 @@ type SiteRequirement = {
 };
 
 const WEEKLY_HOUR_CAP = 60;
+const MAX_WORKING_DAYS_PER_WEEK = 6; // guarantees at least 1 full rest day per ISO week
 const SCHED_CONSTANTS = {
   weekly_ordinary_cap: 60,
   overtime_multiplier: 1.5,
@@ -123,6 +124,9 @@ function rangeDaysBetween(fromStr: string, toStr: string): Date[] {
   for (let cur = start; cur <= end; cur = addDays(cur, 1)) out.push(cur);
   return out;
 }
+function isoDateAdd(dateStr: string, n: number): string {
+  return fmtIso(addDays(parseIsoDate(dateStr), n));
+}
 
 function SchedulePage() {
   const { profile } = useAuth();
@@ -147,15 +151,19 @@ function SchedulePage() {
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const rangeStart = fmtIso(days[0]);
   const rangeEnd = fmtIso(days[6]);
-  // Wider window for weekly hour totals — covers the visible week + neighbouring days,
-  // widened further to also cover any custom generate/print range the user picks.
+  // Wider window for weekly hour/rest-day totals — covers the visible week + neighbouring
+  // days, widened further to also cover any custom generate/print range the user picks.
+  // Snapped to full ISO weeks (+1 day buffer either side) so the weekly-rest-day count and
+  // the rest-between-shifts check always see the days immediately bordering the range.
   const fetchStart = (() => {
-    const base = fmtIso(addDays(weekStart, -7));
-    return genFrom && genFrom < base ? genFrom : base;
+    const base = addDays(weekStart, -7);
+    const earliest = genFrom && parseIsoDate(genFrom) < base ? parseIsoDate(genFrom) : base;
+    return fmtIso(addDays(startOfWeek(earliest), -1));
   })();
   const fetchEnd = (() => {
-    const base = fmtIso(addDays(weekStart, 13));
-    return genTo && genTo > base ? genTo : base;
+    const base = addDays(weekStart, 13);
+    const latest = genTo && parseIsoDate(genTo) > base ? parseIsoDate(genTo) : base;
+    return fmtIso(addDays(startOfWeek(latest), 7));
   })();
 
   const { data: sites } = useQuery<Site[]>({
@@ -491,16 +499,43 @@ function SchedulePage() {
       return aPriority - bPriority || a.date.localeCompare(b.date);
     });
 
+    const effectiveKind = (shiftId: string): "day" | "night" | null => {
+      const st = shiftTypeById.get(shiftId);
+      if (!st) return null;
+      if (st.period === "night") return "night";
+      if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
+      return null;
+    };
+
     const empDates = new Map<string, Set<string>>();
     const empWeekHours = new Map<string, number>(); // key: `${empId}|${weekKey}`
     const empWeekOrdinaryHours = new Map<string, number>();
+    // Tracks every worked date per (employee, ISO week) — including days outside this
+    // plan's range — so the 1-rest-day-per-week rule sees the whole week, not just the slice
+    // being generated.
+    const empWeekDays = new Map<string, Set<string>>();
+    // Tracks the shift kind worked on each date — including the day immediately before/after
+    // this plan's range — so we can refuse to schedule a Day shift right after a Night ends
+    // (or a Night right before a Day starts), which would leave zero rest between them.
+    const empKindByDate = new Map<string, "day" | "night">();
     for (const emp of employees) empDates.set(emp.id, new Set());
+
+    function markWorkedDay(empId: string, date: string) {
+      const wk = `${empId}|${weekKeyOf(date)}`;
+      if (!empWeekDays.has(wk)) empWeekDays.set(wk, new Set());
+      empWeekDays.get(wk)!.add(date);
+    }
 
     const editedKeys = new Set(Object.keys(edits));
     for (const a of weekAssignments) {
-      if (!planDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
-      if (editedKeys.has(k)) continue;
+      const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
+      if (sid) {
+        const kind = effectiveKind(sid);
+        if (kind) empKindByDate.set(k, kind);
+        markWorkedDay(a.employee_id, a.date);
+      }
+      if (!planDateSet.has(a.date) || editedKeys.has(k)) continue;
       empDates.get(a.employee_id)?.add(a.date);
       const aHours = Number(a.planned_hours);
       const wk = `${a.employee_id}|${weekKeyOf(a.date)}`;
@@ -512,7 +547,11 @@ function SchedulePage() {
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
-      if (!planDateSet.has(date) || !sid) continue;
+      if (!sid) continue;
+      const kind = effectiveKind(sid);
+      if (kind) empKindByDate.set(k, kind);
+      markWorkedDay(empId, date);
+      if (!planDateSet.has(date)) continue;
       const st = shiftTypeById.get(sid);
       if (!st) continue;
       empDates.get(empId)?.add(date);
@@ -524,13 +563,6 @@ function SchedulePage() {
     }
 
     const coverage = new Map<string, number>();
-    const effectiveKind = (shiftId: string): "day" | "night" | null => {
-      const st = shiftTypeById.get(shiftId);
-      if (!st) return null;
-      if (st.period === "night") return "night";
-      if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
-      return null;
-    };
     for (const a of weekAssignments) {
       if (!planDateSet.has(a.date)) continue;
       const k = `${a.employee_id}|${a.date}`;
@@ -575,6 +607,14 @@ function SchedulePage() {
             if (empDates.get(emp.id)?.has(wd.date)) return false;
             const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
             if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
+            // Weekly rest: keep at least 1 day off in every ISO week.
+            const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
+            if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
+            // Rest between shifts: a Night ending the morning of the next date leaves
+            // zero rest if that guard is then put on Day the same morning — block both
+            // directions of that crossover (only "both"-preference guards can hit this).
+            if (kind === "day" && empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, -1)}`) === "night") return false;
+            if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, 1)}`) === "day") return false;
             return true;
           });
           pool.sort((a, b) => {
@@ -607,6 +647,8 @@ function SchedulePage() {
               shift_type_id: stForKind.id, planned_hours: shiftHours,
             });
             empDates.get(emp.id)?.add(wd.date);
+            markWorkedDay(emp.id, wd.date);
+            empKindByDate.set(`${emp.id}|${wd.date}`, kind);
             const wk = `${emp.id}|${wkKey}`;
             empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + shiftHours);
             if (shiftPayRule === "standard") {
