@@ -918,12 +918,15 @@ function SchedulePage() {
           {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
           Generate schedule for range
         </Button>
-        {undoableIds && undoableIds.length > 0 && (
-          <Button variant="outline" onClick={undoLastGenerate} disabled={undoing}>
-            {undoing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
-            Undo generated ({undoableIds.length})
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          onClick={undoLastGenerate}
+          disabled={undoing || !undoableIds || undoableIds.length === 0}
+          title={!undoableIds || undoableIds.length === 0 ? "Run Generate first — nothing to undo yet" : undefined}
+        >
+          {undoing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
+          {undoableIds && undoableIds.length > 0 ? `Undo generated (${undoableIds.length})` : "Undo generated"}
+        </Button>
         <Button variant="outline" onClick={printSchedules} disabled={printing}>
           {printing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
           Print guard schedules
