@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
   Loader2, Search, ShieldCheck, Eraser, Users, Wand2, Plus, X,
-  Clock, Sparkles, ListChecks, CalendarRange, DollarSign, Printer,
+  Clock, Sparkles, ListChecks, CalendarRange, DollarSign, Printer, Undo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -146,6 +146,8 @@ function SchedulePage() {
   const [genTo, setGenTo] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [undoableIds, setUndoableIds] = useState<string[] | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const defaultedRangeRef = useRef(false);
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -722,14 +724,18 @@ function SchedulePage() {
         return;
       }
       const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
+      const insertedIds: string[] = [];
       for (let i = 0; i < rows.length; i += 200) {
-        const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+        const { data, error } = await supabase.from("schedule_assignments")
+          .insert(rows.slice(i, i + 200)).select("id");
         if (error) throw error;
+        insertedIds.push(...(data ?? []).map((r) => r.id));
       }
       const msg = `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}`
         + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "");
       if (plan.unassignable > 0) toast.warning(msg);
       else toast.success(msg);
+      setUndoableIds(insertedIds);
       setWeekStart(startOfWeek(rangeDays[0]));
       await Promise.all([
         refetchAssignments(),
@@ -739,6 +745,29 @@ function SchedulePage() {
       toast.error(err instanceof Error ? err.message : "Generate failed");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // ── Undo the shifts inserted by the most recent "Generate" run ───────────
+  async function undoLastGenerate() {
+    if (!undoableIds || undoableIds.length === 0) return;
+    setUndoing(true);
+    try {
+      for (let i = 0; i < undoableIds.length; i += 200) {
+        const { error } = await supabase.from("schedule_assignments")
+          .delete().in("id", undoableIds.slice(i, i + 200));
+        if (error) throw error;
+      }
+      toast.success(`Undone: removed ${undoableIds.length} generated shift${undoableIds.length === 1 ? "" : "s"}`);
+      setUndoableIds(null);
+      await Promise.all([
+        refetchAssignments(),
+        qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Undo failed");
+    } finally {
+      setUndoing(false);
     }
   }
 
@@ -889,6 +918,12 @@ function SchedulePage() {
           {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
           Generate schedule for range
         </Button>
+        {undoableIds && undoableIds.length > 0 && (
+          <Button variant="outline" onClick={undoLastGenerate} disabled={undoing}>
+            {undoing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
+            Undo generated ({undoableIds.length})
+          </Button>
+        )}
         <Button variant="outline" onClick={printSchedules} disabled={printing}>
           {printing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
           Print guard schedules
