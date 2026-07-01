@@ -139,7 +139,7 @@ function EmployeesPage() {
     toast.success(`Exported ${filtered.length} employees`);
   };
 
-  const canManage = profile?.role === "admin" || profile?.role === "operations";
+  const canManage = profile?.role === "admin" || profile?.role === "operations" || profile?.role === "payroll";
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">

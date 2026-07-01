@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -26,11 +25,8 @@ function AuthPage() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = useSearch({ from: "/auth" });
   const { session, loading } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -43,23 +39,9 @@ function AuthPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (mode === "signup") {
-        const redirectUrl = `${window.location.origin}/dashboard`;
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-            data: { full_name: fullName, company_name: companyName },
-          },
-        });
-        if (error) throw error;
-        toast.success("Account created. Check your email to confirm.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        toast.success("Welcome back");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      toast.success("Welcome back");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication failed";
       toast.error(msg);
@@ -167,70 +149,33 @@ function AuthPage() {
 
           <div>
             <h2 className="font-display text-2xl font-bold tracking-tight">
-              {mode === "signin" ? "Sign in to your account" : "Create your account"}
+              Sign in to your account
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              {mode === "signin"
-                ? "Welcome back. Enter your credentials to continue."
-                : "First user signing up becomes the admin for the tenant."}
+              Welcome back. Enter your credentials to continue.
             </p>
           </div>
 
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "signin" | "signup")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Sign up</TabsTrigger>
-            </TabsList>
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email-in">Email</Label>
+              <Input id="email-in" type="email" autoComplete="email" required
+                value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password-in">Password</Label>
+              <Input id="password-in" type="password" autoComplete="current-password" required
+                value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sign in
+            </Button>
+          </form>
 
-            <TabsContent value="signin" className="mt-6">
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email-in">Email</Label>
-                  <Input id="email-in" type="email" autoComplete="email" required
-                    value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-in">Password</Label>
-                  <Input id="password-in" type="password" autoComplete="current-password" required
-                    value={password} onChange={(e) => setPassword(e.target.value)} />
-                </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign in
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="signup" className="mt-6">
-              <form onSubmit={handleEmailAuth} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company-up">Company name</Label>
-                  <Input id="company-up" type="text" required placeholder="e.g. Apex Shield Security"
-                    value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name-up">Your full name</Label>
-                  <Input id="name-up" type="text" required
-                    value={fullName} onChange={(e) => setFullName(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email-up">Email</Label>
-                  <Input id="email-up" type="email" autoComplete="email" required
-                    value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-up">Password</Label>
-                  <Input id="password-up" type="password" autoComplete="new-password" required minLength={8}
-                    value={password} onChange={(e) => setPassword(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Minimum 8 characters.</p>
-                </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create account
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <p className="text-center text-xs text-muted-foreground">
+            No account? Ask your administrator to create one for you.
+          </p>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

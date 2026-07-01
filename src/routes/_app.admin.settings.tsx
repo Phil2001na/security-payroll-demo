@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/admin/settings")({
@@ -24,7 +25,7 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const [edits, setEdits] = useState<Record<string, number>>({});
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.is_ceo_executive !== true) {
     return (
       <div className="p-8 max-w-2xl mx-auto">
         <Card>
@@ -151,6 +152,7 @@ type BillingProfile = {
   invoice_due_days: number;
   invoice_penalty_note: string | null;
   invoice_footer_note: string | null;
+  night_premium_enabled: boolean;
 };
 
 const BLANK_BILLING: Omit<BillingProfile, "id"> = {
@@ -158,7 +160,7 @@ const BLANK_BILLING: Omit<BillingProfile, "id"> = {
   company_email: "", company_website: "", logo_url: "", bank_name: "",
   bank_account_name: "", bank_account_number: "", bank_branch_name: "",
   bank_branch_code: "", default_tax_rate: 0.15, invoice_due_days: 7,
-  invoice_penalty_note: "", invoice_footer_note: "",
+  invoice_penalty_note: "", invoice_footer_note: "", night_premium_enabled: true,
 };
 
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -185,7 +187,7 @@ function CompanyBillingCard() {
         .select(`id, legal_name, registered_address, vat_number, company_phone, company_email,
                  company_website, logo_url, bank_name, bank_account_name, bank_account_number,
                  bank_branch_name, bank_branch_code, default_tax_rate, invoice_due_days,
-                 invoice_penalty_note, invoice_footer_note`)
+                 invoice_penalty_note, invoice_footer_note, night_premium_enabled`)
         .limit(1).maybeSingle();
       if (error) throw error;
       return data as BillingProfile | null;
@@ -226,6 +228,7 @@ function CompanyBillingCard() {
         invoice_footer_note: draft.invoice_footer_note?.trim() || null,
         default_tax_rate: Number(draft.default_tax_rate) || 0,
         invoice_due_days: Math.max(0, Math.round(Number(draft.invoice_due_days) || 0)),
+        night_premium_enabled: Boolean(draft.night_premium_enabled),
       };
       const { error } = await supabase.from("tenants").update(payload).eq("id", id);
       if (error) throw error;
@@ -301,6 +304,23 @@ function CompanyBillingCard() {
                 <Field label="Footer note" hint="Shown centered at the bottom of the page.">
                   <Textarea value={draft.invoice_footer_note ?? ""} onChange={(e) => set({ invoice_footer_note: e.target.value })} rows={2} />
                 </Field>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-3">Payroll policy</p>
+              <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">Pay night-shift premium (+6%)</div>
+                  <p className="text-xs text-muted-foreground">
+                    When on, hours worked between 20h00 and 07h00 earn an extra 6% (Labour Act s.19).
+                    Turn off to stop paying the night premium — night hours are still recorded on payslips, just not paid.
+                  </p>
+                </div>
+                <Switch
+                  checked={draft.night_premium_enabled}
+                  onCheckedChange={(v) => set({ night_premium_enabled: v })}
+                />
               </div>
             </div>
           </>

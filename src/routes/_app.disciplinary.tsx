@@ -36,8 +36,8 @@ const OFFENCES = [
 function DisciplinaryPage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  if (role && role !== "admin" && role !== "operations" && role !== "supervisor") {
-    return <AccessDenied message="Disciplinary records are restricted to operations staff." />;
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+    return <AccessDenied message="Disciplinary records are restricted to operations and payroll staff." />;
   }
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);

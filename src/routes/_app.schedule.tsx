@@ -15,6 +15,7 @@ import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -41,12 +42,15 @@ type ShiftType = {
   active: boolean;
   is_leave: boolean;
 };
-type Site = { id: string; name: string; code: string | null };
+type LiteracyGrade = "A+" | "A" | "B" | "C" | "D";
+type Site = { id: string; name: string; code: string | null; required_guard_grade: LiteracyGrade | null };
 type Employee = {
   id: string; employee_code: string; surname: string; first_names: string;
   home_site_id: string | null; status: string;
   preferred_shift: "day" | "night" | "both";
   hourly_rate: number;
+  literacy_grade: LiteracyGrade | null;
+  ordinarily_works_sundays: boolean;
 };
 type Assignment = {
   id: string;
@@ -62,14 +66,31 @@ type SiteRequirement = {
   day_of_week: number;
   shift_kind: "day" | "night";
   quantity_required: number;
+  shift_type_id: string | null;
 };
 
 const WEEKLY_HOUR_CAP = 60;
 const MAX_WORKING_DAYS_PER_WEEK = 6; // guarantees at least 1 full rest day per ISO week
+
+// Best→worst literacy grade. Ungraded employees (null) rank as worst (D-equivalent)
+// so they stay assignable — never excluded, just least-preferred on grade fit.
+const GRADE_RANK: Record<LiteracyGrade, number> = { "A+": 0, "A": 1, "B": 2, "C": 3, "D": 4 };
+function gradeRank(grade: LiteracyGrade | null): number {
+  return grade ? GRADE_RANK[grade] : GRADE_RANK["D"];
+}
+// 0 = meets-or-exceeds the site's requirement (best); >0 = how many grade steps
+// below requirement (worse). A null requirement always yields 0, so grade has
+// zero influence on sort order for sites with no requirement set.
+function gradeFitScore(employeeGrade: LiteracyGrade | null, requiredGrade: LiteracyGrade | null): number {
+  if (!requiredGrade) return 0;
+  return Math.max(0, gradeRank(employeeGrade) - GRADE_RANK[requiredGrade]);
+}
+
 const SCHED_CONSTANTS = {
   weekly_ordinary_cap: 60,
   overtime_multiplier: 1.5,
   sunday_multiplier: 2.0,
+  sunday_agreed_multiplier: 1.5,
   public_holiday_multiplier: 2.0,
   night_premium_rate: 0.06,
 } as const;
@@ -127,6 +148,24 @@ function rangeDaysBetween(fromStr: string, toStr: string): Date[] {
 function isoDateAdd(dateStr: string, n: number): string {
   return fmtIso(addDays(parseIsoDate(dateStr), n));
 }
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function addMonths(d: Date, n: number) {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1);
+}
+// Mon-start calendar grid for the given month, padded to full weeks before/after.
+function monthCalendarWeeks(monthAnchor: Date): Date[][] {
+  const first = startOfMonth(monthAnchor);
+  const last = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+  const gridStart = startOfWeek(first);
+  const gridEnd = addDays(startOfWeek(last), 6);
+  const weeks: Date[][] = [];
+  for (let wkStart = gridStart; wkStart <= gridEnd; wkStart = addDays(wkStart, 7)) {
+    weeks.push(Array.from({ length: 7 }, (_, i) => addDays(wkStart, i)));
+  }
+  return weeks;
+}
 
 function SchedulePage() {
   const { profile } = useAuth();
@@ -142,11 +181,15 @@ function SchedulePage() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState<{ empId: string; date: string } | null>(null);
+  const [guardMonthEmpId, setGuardMonthEmpId] = useState<string | null>(null);
+  const [guardMonthCursor, setGuardMonthCursor] = useState<Date>(() => new Date());
+  const [customRequestDate, setCustomRequestDate] = useState<string | null>(null);
+  const [customRequest, setCustomRequest] = useState({ siteId: "", startTime: "23:00", endTime: "05:00", guardsNeeded: "1" });
+  const [customRequestRunning, setCustomRequestRunning] = useState(false);
   const [genFrom, setGenFrom] = useState<string>("");
   const [genTo, setGenTo] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [printing, setPrinting] = useState(false);
-  const [undoableIds, setUndoableIds] = useState<string[] | null>(null);
   const [undoing, setUndoing] = useState(false);
   const defaultedRangeRef = useRef(false);
 
@@ -173,7 +216,7 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("sites").select("id, name, code").eq("active", true).order("name");
+        .from("sites").select("id, name, code, required_guard_grade").eq("active", true).order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -233,7 +276,7 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category, hourly_rate")
+        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category, hourly_rate, literacy_grade, ordinarily_works_sundays")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
@@ -272,6 +315,29 @@ function SchedulePage() {
     },
   });
 
+  // One guard's full month, across every site — for the "view guard month" modal
+  const guardMonthWeeks = useMemo(() => monthCalendarWeeks(guardMonthCursor), [guardMonthCursor]);
+  const guardMonthFrom = fmtIso(guardMonthWeeks[0][0]);
+  const guardMonthTo = fmtIso(guardMonthWeeks[guardMonthWeeks.length - 1][6]);
+  const { data: guardMonthAssignments, isFetching: guardMonthFetching } = useQuery<Assignment[]>({
+    queryKey: ["guard-month", guardMonthEmpId, guardMonthFrom, guardMonthTo],
+    enabled: !!guardMonthEmpId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("schedule_assignments")
+        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
+        .eq("employee_id", guardMonthEmpId!)
+        .gte("date", guardMonthFrom).lte("date", guardMonthTo);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const guardMonthByDate = useMemo(() => {
+    const m = new Map<string, Assignment>();
+    (guardMonthAssignments ?? []).forEach((a) => m.set(a.date, a));
+    return m;
+  }, [guardMonthAssignments]);
+
   const { data: exemptions } = useQuery<PSExemption[]>({
     queryKey: ["ps-exemptions", profile?.tenant_id, rangeStart, rangeEnd],
     enabled: !!profile?.tenant_id,
@@ -291,7 +357,7 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("site_requirements")
-        .select("site_id, day_of_week, shift_kind, quantity_required");
+        .select("site_id, day_of_week, shift_kind, quantity_required, shift_type_id");
       if (error) throw error;
       return (data ?? []) as SiteRequirement[];
     },
@@ -478,13 +544,15 @@ function SchedulePage() {
   type FillPlan = {
     shortfalls: { siteId: string; date: string; kind: "day" | "night"; required: number; have: number; short: number }[];
     newAssignments: { employee_id: string; site_id: string; date: string; shift_type_id: string; planned_hours: number }[];
+    qualityWarnings: { siteId: string; date: string; kind: "day" | "night"; employeeId: string; employeeName: string; requiredGrade: LiteracyGrade; assignedGrade: string }[];
     unassignable: number;
+    preferenceOverrides: number;
   };
 
   // rangeDays may span multiple ISO weeks (e.g. a full generate range) — the 60h cap
   // is tracked per (employee, ISO week) pair so multi-week ranges reset correctly each week.
   function buildFillPlan(rangeDays: Date[]): FillPlan {
-    const plan: FillPlan = { shortfalls: [], newAssignments: [], unassignable: 0 };
+    const plan: FillPlan = { shortfalls: [], newAssignments: [], qualityWarnings: [], unassignable: 0, preferenceOverrides: 0 };
     if (!sites || !employees || !requirements || !weekAssignments) return plan;
     if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
 
@@ -531,21 +599,29 @@ function SchedulePage() {
     const editedKeys = new Set(Object.keys(edits));
     for (const a of weekAssignments) {
       const k = `${a.employee_id}|${a.date}`;
-      const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
+      const isEdited = editedKeys.has(k);
+      const sid = isEdited ? edits[k] : a.shift_type_id;
       if (sid) {
         const kind = effectiveKind(sid);
         if (kind) empKindByDate.set(k, kind);
         markWorkedDay(a.employee_id, a.date);
       }
-      if (!planDateSet.has(a.date) || editedKeys.has(k)) continue;
-      empDates.get(a.employee_id)?.add(a.date);
-      const aHours = Number(a.planned_hours);
-      const wk = `${a.employee_id}|${weekKeyOf(a.date)}`;
-      empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + aHours);
-      const aSt = shiftTypeById.get(a.shift_type_id);
-      if (aSt && aSt.pay_rule === "standard") {
-        empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + aHours);
+      // Count hours toward the weekly cap even when this date falls outside the plan's
+      // range — a boundary week that started before the generated range still needs its
+      // pre-existing hours counted, or the cap check below sees a false-empty week and
+      // over-assigns. Pending edits are excluded here; the edits loop below counts them
+      // instead (using the edited shift, not the original one).
+      if (!isEdited) {
+        const aHours = Number(a.planned_hours);
+        const wk = `${a.employee_id}|${weekKeyOf(a.date)}`;
+        empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + aHours);
+        const aSt = shiftTypeById.get(a.shift_type_id);
+        if (aSt && aSt.pay_rule === "standard") {
+          empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + aHours);
+        }
       }
+      if (!planDateSet.has(a.date) || isEdited) continue;
+      empDates.get(a.employee_id)?.add(a.date);
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
@@ -553,15 +629,16 @@ function SchedulePage() {
       const kind = effectiveKind(sid);
       if (kind) empKindByDate.set(k, kind);
       markWorkedDay(empId, date);
-      if (!planDateSet.has(date)) continue;
       const st = shiftTypeById.get(sid);
-      if (!st) continue;
-      empDates.get(empId)?.add(date);
-      const wk = `${empId}|${weekKeyOf(date)}`;
-      empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
-      if (st.pay_rule === "standard") {
-        empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + st.default_hours);
+      if (st) {
+        const wk = `${empId}|${weekKeyOf(date)}`;
+        empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
+        if (st.pay_rule === "standard") {
+          empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + st.default_hours);
+        }
       }
+      if (!st || !planDateSet.has(date)) continue;
+      empDates.get(empId)?.add(date);
     }
 
     const coverage = new Map<string, number>();
@@ -592,7 +669,10 @@ function SchedulePage() {
           );
           const required = req?.quantity_required ?? 0;
           if (required === 0) continue;
-          const stForKind = kind === "day" ? autoShiftTypes.day : autoShiftTypes.night;
+          // A site/day/kind can pin its own shift template (e.g. a 6h half shift)
+          // instead of the tenant's standard 12h Day/Night shift.
+          const stForKind = (req?.shift_type_id ? shiftTypeById.get(req.shift_type_id) : null)
+            ?? (kind === "day" ? autoShiftTypes.day : autoShiftTypes.night);
           if (!stForKind) continue;
           const isSunday = wd.dow === 0;
           const isPH = publicHolidayDates.has(wd.date);
@@ -603,9 +683,13 @@ function SchedulePage() {
           if (needed <= 0) continue;
           const shiftHours = stForKind.default_hours;
           const wkKey = weekKeyOf(wd.date);
-          const pool = employees.filter((emp) => {
+          // Preference is a soft signal, not a hard requirement: fill from
+          // preference-matching guards first, and only reach into off-preference
+          // guards (day-preferred for a night slot, or vice versa) if that leaves
+          // the slot genuinely short — so a shortage always beats an empty shift.
+          const buildPool = (requirePreference: boolean) => employees.filter((emp) => {
             if (emp.status !== "active") return false;
-            if (emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
+            if (requirePreference && emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
             if (empDates.get(emp.id)?.has(wd.date)) return false;
             const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
             if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
@@ -619,47 +703,66 @@ function SchedulePage() {
             if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, 1)}`) === "day") return false;
             return true;
           });
-          pool.sort((a, b) => {
-            // 1. Home site preference (logistics/familiarity)
+          const sortPool = (arr: typeof employees) => arr.sort((a, b) => {
+            // 1. Grade fit vs the site's requirement — quality-of-fit outranks cost
+            //    and logistics. 0 covers every candidate when the site has no
+            //    requirement, so this is a no-op tie for sites that don't opt in.
+            const aFit = gradeFitScore(a.literacy_grade, site.required_guard_grade);
+            const bFit = gradeFitScore(b.literacy_grade, site.required_guard_grade);
+            if (aFit !== bFit) return aFit - bFit;
+            // 2. Home site preference (logistics/familiarity)
             const aHome = a.home_site_id === site.id ? 0 : 1;
             const bHome = b.home_site_id === site.id ? 0 : 1;
             if (aHome !== bHome) return aHome - bHome;
-            // 2. Shift preference specificity (avoids no-shows)
+            // 3. Shift preference specificity (avoids no-shows)
             const aSpec = a.preferred_shift === kind ? 1 : 0;
             const bSpec = b.preferred_shift === kind ? 1 : 0;
             if (aSpec !== bSpec) return bSpec - aSpec;
-            // 3. Cheapest guard for this specific shift (cost optimisation)
+            // 4. Cheapest guard for this specific shift (cost optimisation)
             const aCost = estimateShiftCost(
               a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${a.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS, a.ordinarily_works_sundays,
             );
             const bCost = estimateShiftCost(
               b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${b.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS, b.ordinarily_works_sundays,
             );
             if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
-            // 4. Load-balance tie-break
+            // 5. Load-balance tie-break
             return (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) - (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0);
           });
           let assigned = 0;
-          for (const emp of pool) {
-            if (assigned >= needed) break;
-            plan.newAssignments.push({
-              employee_id: emp.id, site_id: site.id, date: wd.date,
-              shift_type_id: stForKind.id, planned_hours: shiftHours,
-            });
-            empDates.get(emp.id)?.add(wd.date);
-            markWorkedDay(emp.id, wd.date);
-            empKindByDate.set(`${emp.id}|${wd.date}`, kind);
-            const wk = `${emp.id}|${wkKey}`;
-            empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + shiftHours);
-            if (shiftPayRule === "standard") {
-              empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + shiftHours);
+          const assignFrom = (pool: typeof employees, offPreference: boolean) => {
+            for (const emp of pool) {
+              if (assigned >= needed) break;
+              plan.newAssignments.push({
+                employee_id: emp.id, site_id: site.id, date: wd.date,
+                shift_type_id: stForKind.id, planned_hours: shiftHours,
+              });
+              if (offPreference) plan.preferenceOverrides++;
+              if (site.required_guard_grade && gradeRank(emp.literacy_grade) > GRADE_RANK[site.required_guard_grade]) {
+                plan.qualityWarnings.push({
+                  siteId: site.id, date: wd.date, kind,
+                  employeeId: emp.id, employeeName: `${emp.surname}, ${emp.first_names}`,
+                  requiredGrade: site.required_guard_grade,
+                  assignedGrade: emp.literacy_grade ?? "Ungraded",
+                });
+              }
+              empDates.get(emp.id)?.add(wd.date);
+              markWorkedDay(emp.id, wd.date);
+              empKindByDate.set(`${emp.id}|${wd.date}`, kind);
+              const wk = `${emp.id}|${wkKey}`;
+              empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + shiftHours);
+              if (shiftPayRule === "standard") {
+                empWeekOrdinaryHours.set(wk, (empWeekOrdinaryHours.get(wk) ?? 0) + shiftHours);
+              }
+              coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
+              have++;
+              assigned++;
             }
-            coverage.set(ck, (coverage.get(ck) ?? 0) + 1);
-            have++;
-            assigned++;
-          }
+          };
+          assignFrom(sortPool(buildPool(true)), false);
+          if (assigned < needed) assignFrom(sortPool(buildPool(false)), true);
           if (assigned < needed) {
             plan.shortfalls.push({ siteId: site.id, date: wd.date, kind, required, have, short: needed - assigned });
             plan.unassignable += needed - assigned;
@@ -688,8 +791,10 @@ function SchedulePage() {
         }
       }
       const msg = `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned`
-        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "");
-      if (plan.unassignable > 0) toast.warning(msg);
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "")
+        + (plan.preferenceOverrides > 0 ? ` · ${plan.preferenceOverrides} against shift preference` : "")
+        + (plan.qualityWarnings.length > 0 ? ` · ${plan.qualityWarnings.length} below-grade` : "");
+      if (plan.unassignable > 0 || plan.preferenceOverrides > 0 || plan.qualityWarnings.length > 0) toast.warning(msg);
       else toast.success(msg);
       await Promise.all([
         refetchAssignments(),
@@ -702,10 +807,12 @@ function SchedulePage() {
     }
   }
 
-  const shortfallPreview = useMemo(() => buildFillPlan(days).shortfalls,
+  const fillPlanPreview = useMemo(() => buildFillPlan(days),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId, publicHolidayDates]
   );
+  const shortfallPreview = fillPlanPreview.shortfalls;
+  const qualityWarningPreview = fillPlanPreview.qualityWarnings;
 
   // ── Generate schedule for a custom date range (all sites) ────────────────
   async function generateSchedule() {
@@ -724,18 +831,15 @@ function SchedulePage() {
         return;
       }
       const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
-      const insertedIds: string[] = [];
       for (let i = 0; i < rows.length; i += 200) {
-        const { data, error } = await supabase.from("schedule_assignments")
-          .insert(rows.slice(i, i + 200)).select("id");
+        const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
         if (error) throw error;
-        insertedIds.push(...(data ?? []).map((r) => r.id));
       }
       const msg = `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}`
-        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "");
-      if (plan.unassignable > 0) toast.warning(msg);
+        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "")
+        + (plan.preferenceOverrides > 0 ? ` · ${plan.preferenceOverrides} against shift preference` : "");
+      if (plan.unassignable > 0 || plan.preferenceOverrides > 0) toast.warning(msg);
       else toast.success(msg);
-      setUndoableIds(insertedIds);
       setWeekStart(startOfWeek(rangeDays[0]));
       await Promise.all([
         refetchAssignments(),
@@ -748,26 +852,204 @@ function SchedulePage() {
     }
   }
 
-  // ── Undo the shifts inserted by the most recent "Generate" run ───────────
-  async function undoLastGenerate() {
-    if (!undoableIds || undoableIds.length === 0) return;
+  // ── Remove every shift in the selected date range (all sites) ────────────
+  async function undoRange() {
+    if (!profile?.tenant_id) return;
+    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
+    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    const ok = window.confirm(
+      `Remove ALL shifts from ${genFrom} to ${genTo} across every site?\n\nThis deletes every assignment in that range, including manually added or edited ones, and cannot be undone.`
+    );
+    if (!ok) return;
     setUndoing(true);
     try {
-      for (let i = 0; i < undoableIds.length; i += 200) {
-        const { error } = await supabase.from("schedule_assignments")
-          .delete().in("id", undoableIds.slice(i, i + 200));
-        if (error) throw error;
+      // Assignments with attendance already logged can't be deleted (FK blocks it) —
+      // check first so we can name the actual count instead of a generic failure.
+      const { count: loggedCount, error: checkError } = await supabase
+        .from("schedule_assignments")
+        .select("id, shift_logs!inner(id)", { count: "exact", head: true })
+        .eq("tenant_id", profile.tenant_id)
+        .gte("date", genFrom)
+        .lte("date", genTo);
+      if (checkError) throw checkError;
+      if (loggedCount && loggedCount > 0) {
+        toast.error(
+          `${loggedCount} shift${loggedCount === 1 ? "" : "s"} in this range already ${loggedCount === 1 ? "has" : "have"} attendance logged and can't be removed. Clear attendance for this period first, or narrow the date range.`
+        );
+        return;
       }
-      toast.success(`Undone: removed ${undoableIds.length} generated shift${undoableIds.length === 1 ? "" : "s"}`);
-      setUndoableIds(null);
+      const { data, error } = await supabase.from("schedule_assignments")
+        .delete()
+        .eq("tenant_id", profile.tenant_id)
+        .gte("date", genFrom)
+        .lte("date", genTo)
+        .select("id");
+      if (error) throw error;
+      const removed = data?.length ?? 0;
+      if (removed === 0) toast.info("Nothing to remove in that range.");
+      else toast.success(`Removed ${removed} shift${removed === 1 ? "" : "s"} from ${genFrom} to ${genTo}`);
       await Promise.all([
         refetchAssignments(),
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Undo failed");
+      const message = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : undefined;
+      toast.error(message || "Remove failed");
     } finally {
       setUndoing(false);
+    }
+  }
+
+  // ── One-off custom guard request for a single date (e.g. an event, 11pm–5am) ─
+  function customRequestHours(startTime: string, endTime: string): number {
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins <= 0) mins += 24 * 60; // window wraps past midnight
+    return round2(mins / 60);
+  }
+  function customRequestKind(startTime: string): "day" | "night" {
+    const h = Number(startTime.split(":")[0]);
+    return h >= 18 || h < 6 ? "night" : "day";
+  }
+
+  async function submitCustomRequest() {
+    if (!profile?.tenant_id || !customRequestDate) return;
+    const { siteId, startTime, endTime, guardsNeeded } = customRequest;
+    if (!siteId) { toast.error("Pick a site"); return; }
+    const needed = Math.max(1, Math.floor(Number(guardsNeeded) || 0));
+    const hours = customRequestHours(startTime, endTime);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 12) {
+      toast.error("Custom shifts must be 12h or under — split a longer window into two requests.");
+      return;
+    }
+    const kind = customRequestKind(startTime);
+    const date = customRequestDate;
+    setCustomRequestRunning(true);
+    try {
+      // Reuse a matching ad-hoc shift type if this exact window has been requested
+      // before; otherwise create one on the fly so hours/payroll still add up.
+      const code = `CUSTOM-${startTime.replace(":", "")}-${endTime.replace(":", "")}`;
+      let shiftTypeId = (shiftTypes ?? []).find((s) => s.code === code)?.id;
+      if (!shiftTypeId) {
+        const { data, error } = await supabase.from("shift_types").insert({
+          tenant_id: profile.tenant_id,
+          code,
+          label: `Custom ${startTime}–${endTime}`,
+          period: kind,
+          default_hours: hours,
+          pay_rule: "standard",
+          active: true,
+          is_leave: false,
+        }).select("id").single();
+        if (error) throw error;
+        shiftTypeId = data.id;
+        await qc.invalidateQueries({ queryKey: ["shift-types"] });
+      }
+
+      const wkKey = isoWeekKey(parseIsoDate(date));
+      const editedKeys = new Set(Object.keys(edits));
+      const empWeekHours = new Map<string, number>();
+      const empWeekDays = new Map<string, Set<string>>();
+      const empKindByDate = new Map<string, "day" | "night">();
+      const busyToday = new Set<string>();
+      const kindOfShift = (sid: string): "day" | "night" | null => {
+        const st = shiftTypeById.get(sid);
+        if (!st) return null;
+        if (st.period === "night") return "night";
+        if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
+        return null;
+      };
+      const markWorked = (empId: string, d: string) => {
+        const wk = `${empId}|${isoWeekKey(parseIsoDate(d))}`;
+        if (!empWeekDays.has(wk)) empWeekDays.set(wk, new Set());
+        empWeekDays.get(wk)!.add(d);
+      };
+      (weekAssignments ?? []).forEach((a) => {
+        const k = `${a.employee_id}|${a.date}`;
+        const sid = editedKeys.has(k) ? edits[k] : a.shift_type_id;
+        if (!sid) return;
+        const kindOf = kindOfShift(sid);
+        if (kindOf) empKindByDate.set(k, kindOf);
+        markWorked(a.employee_id, a.date);
+        if (a.date === date) busyToday.add(a.employee_id);
+        const wk = `${a.employee_id}|${isoWeekKey(parseIsoDate(a.date))}`;
+        empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + Number(a.planned_hours));
+      });
+      Object.entries(edits).forEach(([k, sid]) => {
+        const [empId, d] = k.split("|");
+        if (!sid) return;
+        const st = shiftTypeById.get(sid);
+        if (!st) return;
+        const kindOf = kindOfShift(sid);
+        if (kindOf) empKindByDate.set(k, kindOf);
+        markWorked(empId, d);
+        if (d === date) busyToday.add(empId);
+        const wk = `${empId}|${isoWeekKey(parseIsoDate(d))}`;
+        empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
+      });
+
+      const buildPool = (requirePreference: boolean) => (employees ?? []).filter((emp) => {
+        if (emp.status !== "active") return false;
+        if (requirePreference && emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
+        if (busyToday.has(emp.id)) return false;
+        const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
+        if (hrs + hours > WEEKLY_HOUR_CAP) return false;
+        const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
+        if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
+        if (kind === "day" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, -1)}`) === "night") return false;
+        if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, 1)}`) === "day") return false;
+        return true;
+      });
+
+      const requiredGrade = sites?.find((s) => s.id === siteId)?.required_guard_grade ?? null;
+      const sortPool = (arr: NonNullable<typeof employees>) => arr.sort((a, b) => {
+        const aFit = gradeFitScore(a.literacy_grade, requiredGrade);
+        const bFit = gradeFitScore(b.literacy_grade, requiredGrade);
+        if (aFit !== bFit) return aFit - bFit;
+        const aHome = a.home_site_id === siteId ? 0 : 1;
+        const bHome = b.home_site_id === siteId ? 0 : 1;
+        if (aHome !== bHome) return aHome - bHome;
+        const aCost = estimateShiftCost(a.hourly_rate, hours, 0, "standard", kind === "night", SCHED_CONSTANTS);
+        const bCost = estimateShiftCost(b.hourly_rate, hours, 0, "standard", kind === "night", SCHED_CONSTANTS);
+        return aCost - bCost;
+      });
+
+      // Preference-matching guards first; only reach into off-preference guards
+      // if that still leaves the request short (shortage overrides preference).
+      const chosen = sortPool(buildPool(true)).slice(0, needed);
+      let offPreferenceCount = 0;
+      if (chosen.length < needed) {
+        const chosenIds = new Set(chosen.map((e) => e.id));
+        const extra = sortPool(buildPool(false)).filter((e) => !chosenIds.has(e.id)).slice(0, needed - chosen.length);
+        offPreferenceCount = extra.length;
+        chosen.push(...extra);
+      }
+      if (chosen.length === 0) {
+        toast.warning("No eligible guards available for this window — check weekly hours and rest days.");
+        return;
+      }
+      const rows = chosen.map((emp) => ({
+        tenant_id: profile.tenant_id, employee_id: emp.id, site_id: siteId,
+        date, shift_type_id: shiftTypeId!, planned_hours: hours,
+      }));
+      const { error } = await supabase.from("schedule_assignments").insert(rows);
+      if (error) throw error;
+
+      const msg = `Custom request: assigned ${chosen.length}/${needed} guard${needed === 1 ? "" : "s"} for ${date} ${startTime}–${endTime}`
+        + (offPreferenceCount > 0 ? ` · ${offPreferenceCount} against shift preference` : "");
+      if (chosen.length < needed || offPreferenceCount > 0) toast.warning(`${msg}${chosen.length < needed ? " — not enough eligible guards for the rest" : ""}`);
+      else toast.success(msg);
+
+      setCustomRequestDate(null);
+      await Promise.all([
+        refetchAssignments(),
+        qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Custom request failed");
+    } finally {
+      setCustomRequestRunning(false);
     }
   }
 
@@ -850,6 +1132,7 @@ function SchedulePage() {
         const ordHrs = empOrdHrs.get(emp.id) ?? 0;
         const shiftCost = estimateShiftCost(
           emp.hourly_rate, st.default_hours, ordHrs, payRule, st.period === "night", SCHED_CONSTANTS,
+          emp.ordinarily_works_sundays,
         );
         estimatedWeeklyCost = round2(estimatedWeeklyCost + shiftCost);
         if (payRule === "standard") empOrdHrs.set(emp.id, ordHrs + st.default_hours);
@@ -866,6 +1149,12 @@ function SchedulePage() {
   const modalEmp = modal && employees ? employees.find((e) => e.id === modal.empId) ?? null : null;
   const modalDate = modal ? new Date(modal.date) : null;
   const modalCurrentShiftId = modal ? effectiveShiftId(modal.empId, modal.date) : null;
+
+  const guardMonthEmp = guardMonthEmpId && employees
+    ? employees.find((e) => e.id === guardMonthEmpId) ?? null
+    : null;
+  const guardMonthLabel = guardMonthCursor.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const guardMonthHours = (guardMonthAssignments ?? []).reduce((sum, a) => sum + Number(a.planned_hours), 0);
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -920,19 +1209,19 @@ function SchedulePage() {
         </Button>
         <Button
           variant="outline"
-          onClick={undoLastGenerate}
-          disabled={undoing || !undoableIds || undoableIds.length === 0}
-          title={!undoableIds || undoableIds.length === 0 ? "Run Generate first — nothing to undo yet" : undefined}
+          onClick={undoRange}
+          disabled={undoing || !genFrom || !genTo}
+          title={!genFrom || !genTo ? "Pick a date range first" : "Remove all shifts in the selected range"}
         >
           {undoing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
-          {undoableIds && undoableIds.length > 0 ? `Undo generated (${undoableIds.length})` : "Undo generated"}
+          Remove shifts in range
         </Button>
         <Button variant="outline" onClick={printSchedules} disabled={printing}>
           {printing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
           Print guard schedules
         </Button>
         <p className="text-xs text-muted-foreground basis-full">
-          Generate fills gaps against site requirements across all sites for the chosen period. Print produces one duty-roster page per guard to hand out.
+          Generate fills gaps against site requirements across all sites for the chosen period. Remove deletes every shift in that same range, including manual edits. Print produces one duty-roster page per guard to hand out.
         </p>
       </Card>
 
@@ -1041,6 +1330,36 @@ function SchedulePage() {
         </Card>
       )}
 
+      {qualityWarningPreview.length > 0 && (
+        <Card className="border-warning/40 bg-warning/5">
+          <div className="p-3 flex items-center gap-2 border-b border-warning/20">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <div className="text-sm font-semibold text-warning">
+              {qualityWarningPreview.length} shift{qualityWarningPreview.length === 1 ? "" : "s"} filled below required grade
+            </div>
+          </div>
+          <div className="p-3 space-y-1 max-h-40 overflow-y-auto text-xs font-mono">
+            {qualityWarningPreview.map((w, i) => {
+              const site = sites?.find((x) => x.id === w.siteId);
+              const d = new Date(w.date);
+              return (
+                <div key={i} className="flex items-center justify-between">
+                  <span>
+                    <span className="font-semibold">{site?.name ?? w.siteId}</span>
+                    {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
+                    {" · "}<span className="uppercase">{w.kind}</span>
+                    {" · "}{w.employeeName}
+                  </span>
+                  <span className="text-warning font-bold">
+                    needs {w.requiredGrade}, got {w.assignedGrade}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {blocking.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -1079,12 +1398,16 @@ function SchedulePage() {
                         {d.toLocaleDateString("en-GB", { weekday: "short" })}
                       </div>
                       <div className="mt-1 flex items-center justify-center">
-                        <span className={cn(
-                          "text-xl font-bold leading-none",
-                          isToday && "inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-foreground text-base"
-                        )}>
+                        <button
+                          onClick={() => setCustomRequestDate(fmtIso(d))}
+                          title="Add a custom one-off guard request for this date"
+                          className={cn(
+                            "text-xl font-bold leading-none hover:text-accent transition-colors",
+                            isToday && "inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-foreground text-base hover:text-accent-foreground"
+                          )}
+                        >
                           {d.getDate()}
-                        </span>
+                        </button>
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-1">
                         {d.toLocaleDateString("en-GB", { month: "short" })}
@@ -1111,7 +1434,13 @@ function SchedulePage() {
                 return (
                   <tr key={emp.id} className="group hover:bg-muted/20">
                     <td className="px-4 py-2 sticky left-0 bg-card group-hover:bg-muted/20 border-t border-border/50 z-10">
-                      <div className="font-semibold text-sm leading-tight">{emp.surname}, {emp.first_names}</div>
+                      <button
+                        onClick={() => { setGuardMonthCursor(startOfMonth(weekStart)); setGuardMonthEmpId(emp.id); }}
+                        className="font-semibold text-sm leading-tight hover:underline hover:text-accent text-left"
+                        title="View this guard's full month"
+                      >
+                        {emp.surname}, {emp.first_names}
+                      </button>
                       <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
                         {emp.employee_code}
                         {emp.preferred_shift !== "both" && (
@@ -1308,6 +1637,146 @@ function SchedulePage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setModal(null)}>Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Guard month view */}
+      <Dialog open={!!guardMonthEmpId} onOpenChange={(o) => !o && setGuardMonthEmpId(null)}>
+        <DialogContent className="max-w-3xl">
+          {guardMonthEmp && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <DialogTitle>{guardMonthEmp.surname}, {guardMonthEmp.first_names}</DialogTitle>
+                    <DialogDescription>
+                      <span className="font-mono">{guardMonthEmp.employee_code}</span>
+                      {" · "}{guardMonthFetching ? "loading…" : `${guardMonthHours}h posted this month`}
+                    </DialogDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" onClick={() => setGuardMonthCursor((c) => addMonths(c, -1))}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="font-mono text-sm font-semibold min-w-[140px] text-center">{guardMonthLabel}</div>
+                    <Button variant="outline" size="icon" onClick={() => setGuardMonthCursor((c) => addMonths(c, 1))}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </DialogHeader>
+              <div className="grid grid-cols-7 gap-1.5">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                  <div key={d} className="text-center text-[10px] uppercase font-semibold text-muted-foreground tracking-wider py-1">
+                    {d}
+                  </div>
+                ))}
+                {guardMonthWeeks.flat().map((d) => {
+                  const date = fmtIso(d);
+                  const inMonth = d.getMonth() === guardMonthCursor.getMonth();
+                  const a = guardMonthByDate.get(date);
+                  const st = a ? shiftTypeById.get(a.shift_type_id) : null;
+                  const kind = shiftKindOf(st);
+                  const styles = KIND_STYLES[kind];
+                  const site = a ? sites?.find((s) => s.id === a.site_id) : null;
+                  const isToday = sameDate(d, new Date());
+                  return (
+                    <div
+                      key={date}
+                      className={cn(
+                        "min-h-[68px] rounded-lg border p-1.5 flex flex-col gap-0.5",
+                        inMonth ? "border-border" : "border-transparent opacity-35",
+                        isToday && "ring-2 ring-accent ring-offset-1",
+                        st && inMonth && styles.block
+                      )}
+                    >
+                      <span className="text-[10px] font-semibold text-muted-foreground">{d.getDate()}</span>
+                      {st && inMonth && (
+                        <>
+                          <span className={cn("text-[10px] font-bold uppercase truncate", styles.label)}>
+                            {site?.code ?? site?.name ?? "—"}
+                          </span>
+                          <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded self-start", styles.pill)}>
+                            {st.code} · {st.default_hours}h
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setGuardMonthEmpId(null)}>Close</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom one-off request for a single date — e.g. an event needing 11pm–5am coverage */}
+      <Dialog open={!!customRequestDate} onOpenChange={(o) => !o && setCustomRequestDate(null)}>
+        <DialogContent className="max-w-md">
+          {customRequestDate && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Custom request</DialogTitle>
+                <DialogDescription>
+                  {new Date(customRequestDate).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                  {" · "}one-off coverage outside the normal Day/Night pattern — e.g. an event.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Site *</Label>
+                  <Select
+                    value={customRequest.siteId}
+                    onValueChange={(v) => setCustomRequest((p) => ({ ...p, siteId: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select a site…" /></SelectTrigger>
+                    <SelectContent>
+                      {(sites ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Start time *</Label>
+                    <Input
+                      type="time"
+                      value={customRequest.startTime}
+                      onChange={(e) => setCustomRequest((p) => ({ ...p, startTime: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>End time *</Label>
+                    <Input
+                      type="time"
+                      value={customRequest.endTime}
+                      onChange={(e) => setCustomRequest((p) => ({ ...p, endTime: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Guards needed *</Label>
+                  <Input
+                    type="number" min={1} step={1}
+                    value={customRequest.guardsNeeded}
+                    onChange={(e) => setCustomRequest((p) => ({ ...p, guardsNeeded: e.target.value }))}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {customRequestHours(customRequest.startTime, customRequest.endTime)}h shift · cheapest eligible guards are assigned automatically, respecting the 60h weekly cap and rest-day rules.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setCustomRequestDate(null)}>Cancel</Button>
+                <Button onClick={submitCustomRequest} disabled={customRequestRunning || !customRequest.siteId}>
+                  {customRequestRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                  Generate
+                </Button>
               </DialogFooter>
             </>
           )}

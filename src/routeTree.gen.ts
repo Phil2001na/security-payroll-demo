@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppWizardRouteImport } from './routes/_app.wizard'
+import { Route as AppSupervisorsRouteImport } from './routes/_app.supervisors'
 import { Route as AppSitesRouteImport } from './routes/_app.sites'
 import { Route as AppScheduleRouteImport } from './routes/_app.schedule'
 import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
@@ -21,6 +22,7 @@ import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppClientsRouteImport } from './routes/_app.clients'
 import { Route as AppAttendanceRouteImport } from './routes/_app.attendance'
+import { Route as AppApprovalsRouteImport } from './routes/_app.approvals'
 import { Route as AppAiAssistantRouteImport } from './routes/_app.ai-assistant'
 import { Route as AppAccountingRouteImport } from './routes/_app.accounting'
 import { Route as AppEmployeesIndexRouteImport } from './routes/_app.employees.index'
@@ -48,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppWizardRoute = AppWizardRouteImport.update({
   id: '/wizard',
   path: '/wizard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSupervisorsRoute = AppSupervisorsRouteImport.update({
+  id: '/supervisors',
+  path: '/supervisors',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSitesRoute = AppSitesRouteImport.update({
@@ -88,6 +95,11 @@ const AppClientsRoute = AppClientsRouteImport.update({
 const AppAttendanceRoute = AppAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApprovalsRoute = AppApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAiAssistantRoute = AppAiAssistantRouteImport.update({
@@ -141,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/accounting': typeof AppAccountingRoute
   '/ai-assistant': typeof AppAiAssistantRoute
+  '/approvals': typeof AppApprovalsRoute
   '/attendance': typeof AppAttendanceRoute
   '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
@@ -149,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
   '/sites': typeof AppSitesRoute
+  '/supervisors': typeof AppSupervisorsRoute
   '/wizard': typeof AppWizardRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRoute
@@ -163,6 +177,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/accounting': typeof AppAccountingRoute
   '/ai-assistant': typeof AppAiAssistantRoute
+  '/approvals': typeof AppApprovalsRoute
   '/attendance': typeof AppAttendanceRoute
   '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
@@ -171,6 +186,7 @@ export interface FileRoutesByTo {
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
   '/sites': typeof AppSitesRoute
+  '/supervisors': typeof AppSupervisorsRoute
   '/wizard': typeof AppWizardRoute
   '/admin/settings': typeof AppAdminSettingsRoute
   '/admin/users': typeof AppAdminUsersRoute
@@ -187,6 +203,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_app/accounting': typeof AppAccountingRoute
   '/_app/ai-assistant': typeof AppAiAssistantRoute
+  '/_app/approvals': typeof AppApprovalsRoute
   '/_app/attendance': typeof AppAttendanceRoute
   '/_app/clients': typeof AppClientsRoute
   '/_app/dashboard': typeof AppDashboardRoute
@@ -195,6 +212,7 @@ export interface FileRoutesById {
   '/_app/payroll': typeof AppPayrollRoute
   '/_app/schedule': typeof AppScheduleRoute
   '/_app/sites': typeof AppSitesRoute
+  '/_app/supervisors': typeof AppSupervisorsRoute
   '/_app/wizard': typeof AppWizardRoute
   '/_app/admin/settings': typeof AppAdminSettingsRoute
   '/_app/admin/users': typeof AppAdminUsersRoute
@@ -211,6 +229,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/accounting'
     | '/ai-assistant'
+    | '/approvals'
     | '/attendance'
     | '/clients'
     | '/dashboard'
@@ -219,6 +238,7 @@ export interface FileRouteTypes {
     | '/payroll'
     | '/schedule'
     | '/sites'
+    | '/supervisors'
     | '/wizard'
     | '/admin/settings'
     | '/admin/users'
@@ -233,6 +253,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/accounting'
     | '/ai-assistant'
+    | '/approvals'
     | '/attendance'
     | '/clients'
     | '/dashboard'
@@ -241,6 +262,7 @@ export interface FileRouteTypes {
     | '/payroll'
     | '/schedule'
     | '/sites'
+    | '/supervisors'
     | '/wizard'
     | '/admin/settings'
     | '/admin/users'
@@ -256,6 +278,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_app/accounting'
     | '/_app/ai-assistant'
+    | '/_app/approvals'
     | '/_app/attendance'
     | '/_app/clients'
     | '/_app/dashboard'
@@ -264,6 +287,7 @@ export interface FileRouteTypes {
     | '/_app/payroll'
     | '/_app/schedule'
     | '/_app/sites'
+    | '/_app/supervisors'
     | '/_app/wizard'
     | '/_app/admin/settings'
     | '/_app/admin/users'
@@ -308,6 +332,13 @@ declare module '@tanstack/react-router' {
       path: '/wizard'
       fullPath: '/wizard'
       preLoaderRoute: typeof AppWizardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/supervisors': {
+      id: '/_app/supervisors'
+      path: '/supervisors'
+      fullPath: '/supervisors'
+      preLoaderRoute: typeof AppSupervisorsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/sites': {
@@ -364,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AppAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/approvals': {
+      id: '/_app/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof AppApprovalsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/ai-assistant': {
@@ -435,6 +473,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountingRoute: typeof AppAccountingRoute
   AppAiAssistantRoute: typeof AppAiAssistantRoute
+  AppApprovalsRoute: typeof AppApprovalsRoute
   AppAttendanceRoute: typeof AppAttendanceRoute
   AppClientsRoute: typeof AppClientsRoute
   AppDashboardRoute: typeof AppDashboardRoute
@@ -443,6 +482,7 @@ interface AppRouteChildren {
   AppPayrollRoute: typeof AppPayrollRoute
   AppScheduleRoute: typeof AppScheduleRoute
   AppSitesRoute: typeof AppSitesRoute
+  AppSupervisorsRoute: typeof AppSupervisorsRoute
   AppWizardRoute: typeof AppWizardRoute
   AppAdminSettingsRoute: typeof AppAdminSettingsRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
@@ -456,6 +496,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountingRoute: AppAccountingRoute,
   AppAiAssistantRoute: AppAiAssistantRoute,
+  AppApprovalsRoute: AppApprovalsRoute,
   AppAttendanceRoute: AppAttendanceRoute,
   AppClientsRoute: AppClientsRoute,
   AppDashboardRoute: AppDashboardRoute,
@@ -464,6 +505,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPayrollRoute: AppPayrollRoute,
   AppScheduleRoute: AppScheduleRoute,
   AppSitesRoute: AppSitesRoute,
+  AppSupervisorsRoute: AppSupervisorsRoute,
   AppWizardRoute: AppWizardRoute,
   AppAdminSettingsRoute: AppAdminSettingsRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,

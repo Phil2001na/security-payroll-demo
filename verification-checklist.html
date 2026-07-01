@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Security Payroll — UAT Verification Checklist</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #181b22;
+    --card-2: #1f2330;
+    --line: #2a2f3c;
+    --text: #e7ebf0;
+    --muted: #9aa4b2;
+    --green: #2ecc71;
+    --green-dim: #18402a;
+    --red: #e74c3c;
+    --red-dim: #3a1c19;
+    --amber: #f1c40f;
+    --accent: #5b8def;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 0 0 80px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(15,17,21,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 24px 14px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .bar-wrap {
+    margin-top: 12px;
+    height: 10px;
+    background: var(--card-2);
+    border-radius: 99px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    display: flex;
+  }
+  .bar-pass { height: 100%; width: 0%; background: var(--green); transition: width .25s ease; }
+  .bar-fail { height: 100%; width: 0%; background: var(--red); transition: width .25s ease; }
+  .bar-meta { display:flex; justify-content:space-between; margin-top:6px; font-size:12px; color:var(--muted); gap:10px; }
+  .bar-meta .pills { display:flex; gap:8px; }
+  .pill { padding:1px 9px; border-radius:99px; border:1px solid var(--line); }
+  .pill.p { color: var(--green); border-color: var(--green); }
+  .pill.f { color: var(--red); border-color: var(--red); }
+  .toolbar { margin-top: 10px; display:flex; gap:8px; flex-wrap:wrap; }
+  .toolbar button {
+    background: var(--card-2); color: var(--text); border:1px solid var(--line);
+    padding:5px 12px; border-radius:7px; font-size:12px; cursor:pointer;
+  }
+  .toolbar button:hover { border-color: var(--accent); }
+  .toolbar button.primary { background: var(--accent); border-color: var(--accent); color:#0a1326; font-weight:700; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px; }
+  .date-group { margin-bottom: 34px; }
+  .date-group > h2 {
+    font-size: 14px; letter-spacing:.5px; text-transform: uppercase;
+    color: var(--muted); border-bottom:1px solid var(--line);
+    padding-bottom:8px; margin: 0 0 16px;
+  }
+  .item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+    transition: border-color .15s, background .15s;
+  }
+  .item.pass { border-left-color: var(--green); background: linear-gradient(180deg, var(--green-dim), var(--card)); }
+  .item.fail { border-left-color: var(--red); background: linear-gradient(180deg, var(--red-dim), var(--card)); }
+  .item .tag {
+    display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.4px;
+    text-transform:uppercase; padding:2px 8px; border-radius:99px;
+    background: var(--card-2); color: var(--muted); border:1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .item h3 { margin: 0 0 8px; font-size: 15.5px; }
+  .item .what { color: var(--text); font-size: 13.5px; margin: 0 0 10px; }
+  .green {
+    background: var(--card-2); border-left: 3px solid var(--green);
+    border-radius: 6px; padding: 9px 12px; font-size: 13px; color: var(--text);
+  }
+  .green b { color: var(--green); }
+  .meta { margin-top:9px; font-size:12px; color:var(--muted); }
+  .meta code { background: var(--card-2); padding:1px 6px; border-radius:5px; border:1px solid var(--line); }
+  .controls { display:flex; gap:8px; margin-top:12px; align-items:center; }
+  .btn-status {
+    border:1px solid var(--line); background: var(--card-2); color: var(--muted);
+    padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+    transition: all .12s;
+  }
+  .btn-status:hover { border-color: var(--accent); }
+  .btn-pass.active { background: var(--green); border-color: var(--green); color:#06210f; }
+  .btn-fail.active { background: var(--red); border-color: var(--red); color:#2a0d0a; }
+  .status-label { margin-left:auto; font-size:12px; color:var(--muted); }
+  .note-wrap { margin-top:10px; display:none; }
+  .item.fail .note-wrap { display:block; }
+  .note-wrap label { display:block; font-size:11.5px; color:var(--red); margin-bottom:5px; font-weight:600; letter-spacing:.3px; }
+  textarea.note {
+    width:100%; min-height:64px; resize:vertical; background: var(--bg);
+    color: var(--text); border:1px solid var(--red); border-radius:8px;
+    padding:9px 11px; font-size:13px; font-family:inherit; line-height:1.45;
+  }
+  textarea.note:focus { outline:none; border-color: var(--amber); }
+  footer { text-align:center; color:var(--muted); font-size:12px; padding: 10px; }
+  .toast {
+    position: fixed; bottom: 20px; left:50%; transform: translateX(-50%);
+    background: var(--accent); color:#0a1326; padding:10px 18px; border-radius:10px;
+    font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition: opacity .2s;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ Security Payroll — UAT Verification Checklist</h1>
+  <p>Test each feature live, then mark it <b>Pass</b> or <b>Fail</b>. On a fail, type exactly what went wrong. When done, hit <b>Export</b> to save a report I can read.</p>
+  <div class="bar-wrap"><div class="bar-pass" id="barPass"></div><div class="bar-fail" id="barFail"></div></div>
+  <div class="bar-meta">
+    <span id="count">0 / 0 tested</span>
+    <span class="pills">
+      <span class="pill p" id="pPass">✓ 0 pass</span>
+      <span class="pill f" id="pFail">✗ 0 fail</span>
+      <span class="pill" id="pTodo">0 untested</span>
+    </span>
+  </div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportReport()">⬇ Export results (uat-results.md)</button>
+    <button onclick="copyReport()">📋 Copy report</button>
+    <button onclick="resetAll()">Reset all</button>
+  </div>
+</header>
+
+<main id="list"></main>
+
+<footer>Source: <code>UPDATES.md</code> · Live tenant <code>nakvdkkezgdqxytygtqp</code> · Notes are saved in this browser — Export to share them.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = [
+  {
+    date: "2026-06-25",
+    items: [
+      {
+        id: "sun-ph-editable",
+        tag: "Payroll constants",
+        title: "Sunday & Public Holiday multipliers are editable",
+        what: "Admin → Settings → Payroll constants now exposes <b>sunday_default_multiplier</b> and <b>public_holiday_multiplier</b> rows (seeded at 2×). Previously the rows didn't exist and the engine silently used a hardcoded 2× fallback.",
+        green: "Both rows appear in Settings, show 2× by default, are editable, and saving a new value (e.g. 2.5×) changes the Sunday/PH amount on a recomputed payslip.",
+        meta: "Migration <code>20260625120000_seed_sunday_ph_multipliers.sql</code>"
+      },
+      {
+        id: "sun-agreed-mult",
+        tag: "Sunday rate",
+        title: "Reduced Sunday rate for \"ordinarily works Sundays\" officers",
+        what: "Officers with <b>ordinarily_works_sundays = true</b> get an editable <b>sunday_agreed_multiplier</b> (default 1.5×, Labour Act s.21); everyone else keeps 2×. Affects 5 officers on the live tenant.",
+        green: "An officer flagged as ordinarily-works-Sundays is paid Sunday hours at 1.5×, while a normal officer on the same Sunday is paid 2×. The 1.5× value is editable in Settings.",
+        meta: "Migration <code>20260625130000_seed_sunday_agreed_multiplier.sql</code>"
+      },
+      {
+        id: "payslip-derived-rates",
+        tag: "Payslip PDF",
+        title: "Payslip rows derive multipliers (no hardcoded labels)",
+        what: "Payslip earnings rows now <b>derive</b> the OT / Sunday / PH multiplier and night-premium % from the computed amounts instead of hardcoding 1.5× / 2× / 6%. Also fixes the night row that showed 6% while the tenant runs 10%.",
+        green: "On a payslip PDF the Sunday/PH/OT/night rows show the actually-configured rate (e.g. night shows 10%, not 6%), and labels stay correct after you change a multiplier in Settings.",
+        meta: "<code>payslip-pdf.ts</code>"
+      },
+      {
+        id: "scheduler-agreement-rate",
+        tag: "Scheduler",
+        title: "Cheapest-guard ranking honours the 1.5× agreement rate",
+        what: "<b>estimateShiftCost</b> now takes an <b>ordinarilyWorksSundays</b> flag and costs those guards' Sunday shifts at 1.5×, keeping auto-assignment consistent with actual pay.",
+        green: "When auto-assigning a Sunday shift, an ordinarily-works-Sundays guard is correctly ranked cheaper for that Sunday, and the chosen assignment matches what they'd actually be paid.",
+        meta: "<code>SCHED_CONSTANTS</code> + Employee type carry the flag/rate"
+      }
+    ]
+  },
+  {
+    date: "2026-06-24",
+    items: [
+      {
+        id: "date-clock-aware-engine",
+        tag: "Payroll engine",
+        title: "Engine is date- & clock-aware (splits hours by calendar day)",
+        what: "<b>bucketiseLogs</b> splits every paid hour by the real calendar day it falls on, using shift-type clock windows (Day 07:00–19:00 / Night 19:00–07:00). A night shift crossing into a Sunday/PH earns 2× only for the hours that actually land there; the +6% night premium is isolated to 20h00–07h00.",
+        green: "A night shift that crosses into Sunday pays the premium ONLY for the post-midnight Sunday hours (not the whole shift), and previously-missed auto-generated Sunday shifts now correctly pay the Sunday rate. Some totals legitimately increase.",
+        meta: "<code>payroll-engine.ts</code>; engine receives public_holidays + tenant toggle"
+      },
+      {
+        id: "night-premium-toggle",
+        tag: "CEO toggle",
+        title: "Night-premium on/off switch",
+        what: "New <b>tenants.night_premium_enabled</b> (default true) + switch in Admin → Settings (\"Pay night-shift premium\"). When off, night hours still show on payslips but the +6% is not paid.",
+        green: "Toggling the switch OFF and recomputing a payslip removes the night premium amount (but night hours still appear); toggling ON restores it.",
+        meta: "Admin → Settings"
+      },
+      {
+        id: "leave-accrual",
+        tag: "Leave accrual",
+        title: "Monthly leave accrual by working-days-per-week",
+        what: "New <b>employees.days_per_week</b> (default 6) + <b>leave_accruals</b> ledger. <b>finalize_payroll_period</b> accrues days_per_week × 4 ÷ 12 per active officer each finalized period (6 days/wk → +2.0/mo), idempotent per period.",
+        green: "Finalizing a period adds the correct accrual (6 days/wk officer gains +2.0 days; a 5 days/wk officer gains ~1.67). Re-finalizing the SAME period does NOT double-add. Employee detail shows balance + monthly rate.",
+        meta: "Migration <code>20260624120000_leave_accrual_and_shift_windows.sql</code>"
+      },
+      {
+        id: "payroll-onboarding",
+        tag: "Roles / Onboarding",
+        title: "Payroll role can run employee onboarding",
+        what: "The contract sign/upload page <b>/onboarding/$employeeId</b> now lets the payroll role manage contracts alongside admin/operations/supervisor.",
+        green: "Logged in as a payroll user, you can open an employee's onboarding page and sign/upload a contract without being blocked or redirected.",
+        meta: "UAT item: \"payroll does employee onboarding\""
+      }
+    ]
+  },
+  {
+    date: "2026-06-22",
+    items: [
+      {
+        id: "supervisor-role",
+        tag: "New role",
+        title: "security_supervisor role — attendance only",
+        what: "New <b>security_supervisor</b> role. Sidebar/routes are locked to the Attendance module; the dashboard redirects them straight to /attendance.",
+        green: "A security_supervisor user sees only the Attendance module, cannot reach other modules by URL, and lands on /attendance on login.",
+        meta: "Migration <code>20260622120000_security_supervisor_role.sql</code>"
+      },
+      {
+        id: "supervisor-scoped",
+        tag: "Attendance",
+        title: "Supervisors site-scoped, submit-not-approve",
+        what: "Security supervisors are scoped to <b>assigned_site_ids</b>, <b>cannot replace guards</b>, and their \"present\" marks save as <b>submitted</b> (badge \"Awaiting approval\") rather than approved.",
+        green: "A supervisor only sees their assigned sites, has no replace-guard control, and marking present produces an \"Awaiting approval\" status (not approved).",
+        meta: "shift_log_status = submitted"
+      },
+      {
+        id: "approvals-page",
+        tag: "Approvals",
+        title: "/approvals page — payroll approves attendance before it pays",
+        what: "New <b>/approvals</b> page (admin/operations/payroll). Payroll approves submitted attendance (→ approved) or rejects as absent. The payroll engine now pays <b>only approved</b> logs.",
+        green: "Submitted marks appear in /approvals; approving moves them to approved and they then count toward pay; a submitted-but-unapproved log is NOT paid.",
+        meta: "Engine pays only approved logs"
+      },
+      {
+        id: "supervisors-page",
+        tag: "Admin",
+        title: "/supervisors page — assign sites to supervisors",
+        what: "New <b>/supervisors</b> page (admin/operations/payroll) to assign sites to security supervisors, reusing the shared <b>site-assign-popover.tsx</b> (also used in System Users).",
+        green: "On /supervisors you can assign/unassign sites to a supervisor and that supervisor's attendance view immediately reflects the new site scope.",
+        meta: "Shared <code>site-assign-popover.tsx</code>"
+      },
+      {
+        id: "rls-rpcs",
+        tag: "DB / Security",
+        title: "Role/site write RPCs + profile SELECT policy",
+        what: "Added enum values; SECURITY DEFINER RPCs <b>set_user_role</b> (admin) and <b>set_user_sites</b> (admin/ops/payroll); and <b>profiles_select_tenant</b> SELECT policy (fixes cross-user reads previously RLS-blocked). admin.users routes writes through these RPCs.",
+        green: "Admin can change a user's role and sites from System Users without RLS errors, and the user list correctly shows other tenant users (no blocked/empty reads).",
+        meta: "Migration <code>20260622120000_security_supervisor_role.sql</code>"
+      }
+    ]
+  }
+];
+
+const KEY = "secpay-uat-v2";
+function loadState(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+function saveState(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+let state = loadState(); // { id: { status: "pass"|"fail"|null, note: "" } }
+
+function get(id){ return state[id] || (state[id] = { status:null, note:"" }); }
+
+const list = document.getElementById("list");
+let total = 0;
+const titleById = {};
+DATA.forEach(group => {
+  total += group.items.length;
+  const g = document.createElement("section");
+  g.className = "date-group";
+  g.innerHTML = `<h2>${group.date}</h2>`;
+  group.items.forEach(it => {
+    titleById[it.id] = it.title;
+    const st = get(it.id);
+    const wrap = document.createElement("div");
+    wrap.className = "item" + (st.status ? " " + st.status : "");
+    wrap.id = "row-" + it.id;
+    wrap.innerHTML = `
+      <span class="tag">${it.tag}</span>
+      <h3>${it.title}</h3>
+      <p class="what">${it.what}</p>
+      <div class="green"><b>✅ Green light:</b> ${it.green}</div>
+      <div class="meta">${it.meta}</div>
+      <div class="controls">
+        <button class="btn-status btn-pass ${st.status==='pass'?'active':''}" data-id="${it.id}" data-act="pass">✓ Pass</button>
+        <button class="btn-status btn-fail ${st.status==='fail'?'active':''}" data-id="${it.id}" data-act="fail">✗ Fail</button>
+        <span class="status-label" id="lbl-${it.id}"></span>
+      </div>
+      <div class="note-wrap">
+        <label>What went wrong / actual behavior:</label>
+        <textarea class="note" data-id="${it.id}" placeholder="Describe the failure exactly — what you did, what you expected, what actually happened…">${(st.note||"").replace(/</g,"&lt;")}</textarea>
+      </div>`;
+    g.appendChild(wrap);
+  });
+  list.appendChild(g);
+});
+
+function setStatus(id, act){
+  const st = get(id);
+  st.status = (st.status === act) ? null : act; // toggle off if same
+  saveState();
+  const row = document.getElementById("row-"+id);
+  row.classList.remove("pass","fail");
+  if(st.status) row.classList.add(st.status);
+  row.querySelector(".btn-pass").classList.toggle("active", st.status==="pass");
+  row.querySelector(".btn-fail").classList.toggle("active", st.status==="fail");
+  if(st.status === "fail") setTimeout(()=>row.querySelector(".note").focus(), 50);
+  refresh();
+}
+
+list.addEventListener("click", e => {
+  const btn = e.target.closest(".btn-status");
+  if(btn) setStatus(btn.dataset.id, btn.dataset.act);
+});
+list.addEventListener("input", e => {
+  if(e.target.classList.contains("note")){
+    get(e.target.dataset.id).note = e.target.value;
+    saveState();
+  }
+});
+
+function refresh(){
+  let pass=0, fail=0;
+  Object.values(state).forEach(s => { if(s.status==="pass")pass++; else if(s.status==="fail")fail++; });
+  const todo = total - pass - fail;
+  document.getElementById("barPass").style.width = (pass/total*100)+"%";
+  document.getElementById("barFail").style.width = (fail/total*100)+"%";
+  document.getElementById("count").textContent = `${pass+fail} / ${total} tested`;
+  document.getElementById("pPass").textContent = `✓ ${pass} pass`;
+  document.getElementById("pFail").textContent = `✗ ${fail} fail`;
+  document.getElementById("pTodo").textContent = `${todo} untested`;
+}
+
+function buildReport(){
+  const now = new Date().toISOString().slice(0,16).replace("T"," ");
+  let pass=[], fail=[], todo=[];
+  DATA.forEach(g => g.items.forEach(it => {
+    const s = get(it.id);
+    if(s.status==="pass") pass.push(it);
+    else if(s.status==="fail") fail.push({it, note:s.note});
+    else todo.push(it);
+  }));
+  let md = `# Security Payroll — UAT Results\n_Exported ${now}_\n\n`;
+  md += `**${pass.length} passed · ${fail.length} failed · ${todo.length} untested** (of ${total})\n\n`;
+  md += `## ❌ Failures (need work)\n`;
+  if(fail.length===0) md += `_None._\n`;
+  fail.forEach(({it,note}) => {
+    md += `\n### ${it.title}\n- **Area:** ${it.tag}\n- **Reported:** ${note ? note.trim() : "(no note written)"}\n`;
+  });
+  md += `\n## ✅ Passed\n`;
+  pass.forEach(it => md += `- ${it.title}\n`);
+  if(pass.length===0) md += `_None._\n`;
+  md += `\n## ⬜ Untested\n`;
+  todo.forEach(it => md += `- ${it.title}\n`);
+  if(todo.length===0) md += `_None._\n`;
+  return md;
+}
+
+function exportReport(){
+  const blob = new Blob([buildReport()], {type:"text/markdown"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "uat-results.md";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("Saved uat-results.md — drop it in the project folder");
+}
+
+async function copyReport(){
+  try { await navigator.clipboard.writeText(buildReport()); toast("Report copied to clipboard"); }
+  catch(e){ toast("Copy failed — use Export instead"); }
+}
+
+function resetAll(){
+  if(!confirm("Clear all pass/fail marks and notes?")) return;
+  state = {}; saveState();
+  document.querySelectorAll(".item").forEach(r => r.classList.remove("pass","fail"));
+  document.querySelectorAll(".btn-status").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".note").forEach(t => t.value="");
+  refresh();
+}
+
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+refresh();
+</script>
+</body>
+</html>

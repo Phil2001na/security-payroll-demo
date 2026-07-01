@@ -36,6 +36,9 @@ function PayrollPage() {
   if (role && role !== "admin" && role !== "operations" && role !== "payroll") {
     return <AccessDenied message="Payroll access is restricted to payroll and operations staff." />;
   }
+  // Running/finalizing a payroll run is restricted to the payroll role only (separation of
+  // duties) — admin/operations can view this page but can't trigger either action.
+  const canRunPayroll = role === "payroll";
   const qc = useQueryClient();
   const [periodId, setPeriodId] = useState<string>("");
   const [calcs, setCalcs] = useState<PayslipCalc[]>([]);
@@ -73,11 +76,11 @@ function PayrollPage() {
       const { constants, brackets } = await fetchPayrollConstants();
       setConstants(constants);
 
-      const [empRes, logRes, discRes, dedRes, exRes] = await Promise.all([
+      const [empRes, logRes, discRes, dedRes, exRes, holRes, tenantRes] = await Promise.all([
         supabase.from("employees").select("*").eq("status", "active"),
         supabase
           .from("shift_logs")
-          .select("id,employee_id,date,hours_worked,night_hours,status,shift_types(pay_rule,rate_multiplier)")
+          .select("id,employee_id,date,hours_worked,night_hours,status,shift_types(pay_rule,rate_multiplier,start_min,end_min,period)")
           .eq("pay_period_id", period.id),
         supabase
           .from("disciplinary_actions")
@@ -93,18 +96,26 @@ function PayrollPage() {
           .select("employee_id,effective_from,effective_to")
           .lte("effective_from", period.end_date)
           .gte("effective_to", period.start_date),
+        // All public holidays for the tenant (RLS-scoped) — fetched unfiltered so a
+        // night shift on the last day of the period that crosses into a holiday the
+        // morning after is still classified correctly.
+        supabase.from("public_holidays").select("date"),
+        supabase.from("tenants").select("night_premium_enabled").limit(1).maybeSingle(),
       ]);
       if (empRes.error) throw empRes.error;
       if (logRes.error) throw logRes.error;
       if (discRes.error) throw discRes.error;
       if (dedRes.error) throw dedRes.error;
       if (exRes.error) throw exRes.error;
+      if (holRes.error) throw holRes.error;
 
       const employees = (empRes.data ?? []) as EmployeeRow[];
       const logs = (logRes.data ?? []) as any[];
       const disc = (discRes.data ?? []) as any[];
       const deds = (dedRes.data ?? []) as any[];
       const exemptions = (exRes.data ?? []) as any[];
+      const publicHolidayDates = new Set<string>((holRes.data ?? []).map((h: any) => String(h.date).slice(0, 10)));
+      const nightPremiumEnabled = tenantRes.data?.night_premium_enabled ?? true;
 
       // Map each employee to the ISO-week keys covered by a PS exemption, so the
       // engine can suppress the >cap compliance warning for those weeks.
@@ -158,6 +169,8 @@ function PayrollPage() {
           adhocDeductions: adhocByEmp.get(emp.id) ?? [],
           suspensionDates: suspensionByEmp.get(emp.id),
           psExemptWeekKeys: exemptWeeksByEmp.get(emp.id),
+          publicHolidayDates,
+          nightPremiumEnabled,
           constants,
           brackets,
         });
@@ -298,7 +311,11 @@ function PayrollPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={runPayroll} disabled={running || !period || isLocked}>
+          <Button
+            onClick={runPayroll}
+            disabled={running || !period || isLocked || !canRunPayroll}
+            title={!canRunPayroll ? "Only the payroll role can run payroll" : undefined}
+          >
             <Play className="h-4 w-4 mr-2" />
             {running ? "Running…" : "Run Payroll"}
           </Button>
@@ -349,7 +366,8 @@ function PayrollPage() {
             <Button
               size="sm"
               onClick={() => finalizeMut.mutate()}
-              disabled={!calcs.length || finalizeMut.isPending || isLocked}
+              disabled={!calcs.length || finalizeMut.isPending || isLocked || !canRunPayroll}
+              title={!canRunPayroll ? "Only the payroll role can finalize payroll" : undefined}
             >
               <Lock className="h-4 w-4 mr-2" />Finalize &amp; Lock
             </Button>

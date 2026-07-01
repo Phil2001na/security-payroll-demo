@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Plus, Loader2, Pencil, Briefcase } from "lucide-react";
+import { MapPin, Plus, Loader2, Pencil, Briefcase, Users } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SiteRequirementsDialog } from "@/components/site-requirements-dialog";
 import { SiteContractDialog } from "@/components/site-contract-dialog";
-import { formatNAD } from "@/lib/format";
+import { SiteSupervisorsPopover } from "@/components/site-supervisors-popover";
 
 export const Route = createFileRoute("/_app/sites")({
   component: SitesPage,
@@ -33,14 +33,22 @@ type Site = {
   name: string;
   code: string | null;
   client_id: string | null;
-  billing_rate: number | null;
   address: string | null;
   active: boolean;
   created_at: string;
+  required_guard_grade: "A+" | "A" | "B" | "C" | "D" | null;
   clients: { id: string; name: string } | null;
 };
 
 type ClientOption = { id: string; name: string };
+
+const GRADE_OPTIONS = [
+  { value: "A+", label: "A+ — Fluent, multilingual" },
+  { value: "A", label: "A — Fluent reading/writing" },
+  { value: "B", label: "B — Okay" },
+  { value: "C", label: "C — Limited" },
+  { value: "D", label: "D — Minimal (vehicle-standby only)" },
+] as const;
 
 const siteSchema = z.object({
   name: z.string().trim().min(1, "Required").max(120),
@@ -86,22 +94,20 @@ function EditSiteDialog({ site, canManage }: { site: Site; canManage: boolean })
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [clientId, setClientId] = useState(site.client_id ?? "");
-  const [billingRate, setBillingRate] = useState(String(site.billing_rate ?? 0));
+  const [grade, setGrade] = useState<"A+" | "A" | "B" | "C" | "D" | "none">(site.required_guard_grade ?? "none");
   const { data: clients = [] } = useClientOptions(open);
 
   const save = useMutation({
     mutationFn: async () => {
-      const rate = Number(billingRate);
-      if (!Number.isFinite(rate) || rate < 0) throw new Error("Billing rate must be ≥ 0");
       if (!clientId) throw new Error("Select a client");
       const { error } = await supabase
         .from("sites")
-        .update({ client_id: clientId, billing_rate: rate })
+        .update({ client_id: clientId, required_guard_grade: grade === "none" ? null : grade })
         .eq("id", site.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Site billing saved");
+      toast.success("Site settings updated");
       setOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["sites"] });
     },
@@ -114,24 +120,29 @@ function EditSiteDialog({ site, canManage }: { site: Site; canManage: boolean })
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" className="w-full">
-          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit billing
+          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit site
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Billing — {site.name}</DialogTitle>
+          <DialogTitle>Edit site — {site.name}</DialogTitle>
           <DialogDescription>
-            The client and hourly rate used when invoicing this site. Contact details live on the client record.
+            Client and guard-grade requirement. Billing and invoicing are handled in Accounting.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <ClientSelect value={clientId} onChange={setClientId} clients={clients} />
           <div className="space-y-1.5">
-            <Label>Billing rate (NAD/hr) *</Label>
-            <Input type="number" min={0} step={0.01} value={billingRate}
-              onChange={(e) => setBillingRate(e.target.value)} placeholder="0.00" />
+            <Label>Required guard grade</Label>
+            <Select value={grade} onValueChange={(v) => setGrade(v as typeof grade)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No requirement</SelectItem>
+                {GRADE_OPTIONS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Hourly rate charged when generating invoices from shift logs.
+              The schedule generator prefers guards at this grade or better, falling back a grade at a time if not enough are available.
             </p>
           </div>
         </div>
@@ -155,7 +166,7 @@ function SitesPage() {
   }
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", code: "", client_id: "", address: "", billing_rate: "" });
+  const [form, setForm] = useState({ name: "", code: "", client_id: "", address: "", required_guard_grade: "none" });
   const { data: clients = [] } = useClientOptions(open);
 
   const { data: sites, isLoading } = useQuery({
@@ -164,7 +175,7 @@ function SitesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sites")
-        .select("id, name, code, client_id, billing_rate, address, active, created_at, clients:client_id(id, name)")
+        .select("id, name, code, client_id, address, active, created_at, required_guard_grade, clients:client_id(id, name)")
         .order("name");
       if (error) throw error;
       return data as unknown as Site[];
@@ -176,21 +187,19 @@ function SitesPage() {
       if (!profile?.tenant_id) throw new Error("No tenant");
       if (!form.client_id) throw new Error("Select a client — register them on the Clients page first.");
       const parsed = siteSchema.parse(form);
-      const rate = form.billing_rate ? Number(form.billing_rate) : 0;
-      if (!Number.isFinite(rate) || rate < 0) throw new Error("Billing rate must be ≥ 0");
       const { error } = await supabase.from("sites").insert({
         tenant_id: profile.tenant_id,
         name: parsed.name,
         code: parsed.code || null,
         client_id: form.client_id,
         address: parsed.address || null,
-        billing_rate: rate,
+        required_guard_grade: form.required_guard_grade === "none" ? null : form.required_guard_grade as "A+" | "A" | "B" | "C" | "D",
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Site created");
-      setForm({ name: "", code: "", client_id: "", address: "", billing_rate: "" });
+      setForm({ name: "", code: "", client_id: "", address: "", required_guard_grade: "none" });
       setOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["sites"] });
     },
@@ -198,6 +207,34 @@ function SitesPage() {
   });
 
   const canManage = role === "admin" || role === "operations" || role === "payroll";
+
+  // Supervisors (attendance-marking role) for the per-site assignment picker.
+  const { data: supervisors = [] } = useQuery({
+    queryKey: ["site-supervisors", profile?.tenant_id],
+    enabled: !!profile?.tenant_id && canManage,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, assigned_site_ids")
+        .eq("role", "security_supervisor")
+        .order("full_name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; full_name: string; assigned_site_ids: string[] }[];
+    },
+  });
+
+  const setSiteSupervisors = useMutation({
+    mutationFn: async ({ siteId, userIds }: { siteId: string; userIds: string[] }) => {
+      const { error } = await supabase.rpc("set_site_supervisors", { p_site: siteId, p_user_ids: userIds });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Site supervisors updated");
+      void queryClient.invalidateQueries({ queryKey: ["site-supervisors"] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+  });
+
   const visible = useMemo(() => sites ?? [], [sites]);
 
   return (
@@ -232,24 +269,13 @@ function SitesPage() {
                     placeholder="e.g. Maerua Mall"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Code</Label>
-                    <Input
-                      value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value })}
-                      placeholder="MAERUA"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Billing rate (NAD/hr)</Label>
-                    <Input
-                      type="number" min={0} step={0.01}
-                      value={form.billing_rate}
-                      onChange={(e) => setForm({ ...form, billing_rate: e.target.value })}
-                      placeholder="0.00"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>Code</Label>
+                  <Input
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    placeholder="MAERUA"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Address</Label>
@@ -257,6 +283,19 @@ function SitesPage() {
                     value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Required guard grade</Label>
+                  <Select
+                    value={form.required_guard_grade}
+                    onValueChange={(v) => setForm({ ...form, required_guard_grade: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No requirement</SelectItem>
+                      {GRADE_OPTIONS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
@@ -308,21 +347,33 @@ function SitesPage() {
                     <span className="font-mono">{s.code}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Billing rate</span>
-                  <span className="font-mono">
-                    {s.billing_rate && s.billing_rate > 0 ? `${formatNAD(s.billing_rate)}/hr` : "—"}
-                  </span>
-                </div>
+                {s.required_guard_grade && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Min. guard grade</span>
+                    <Badge variant="outline">{s.required_guard_grade}</Badge>
+                  </div>
+                )}
                 {s.address && <div className="text-muted-foreground text-xs">{s.address}</div>}
                 {profile?.tenant_id && (
-                  <div className="pt-2 space-y-2">
+                  <div className="pt-2 grid grid-cols-2 gap-2">
                     <EditSiteDialog site={s} canManage={canManage} />
+                    {canManage && (
+                      <SiteSupervisorsPopover
+                        siteId={s.id}
+                        supervisors={supervisors}
+                        onSave={(userIds) => setSiteSupervisors.mutate({ siteId: s.id, userIds })}
+                      />
+                    )}
                     <SiteRequirementsDialog
                       siteId={s.id}
                       siteName={s.name}
                       tenantId={profile.tenant_id}
                       canManage={canManage}
+                      trigger={
+                        <Button variant="outline" size="sm" className="w-full">
+                          <Users className="h-3.5 w-3.5 mr-1.5" /> Manpower
+                        </Button>
+                      }
                     />
                     <SiteContractDialog
                       siteId={s.id}

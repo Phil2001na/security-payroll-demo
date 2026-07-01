@@ -926,6 +926,7 @@ export type Database = {
           contract_signed_pdf_url: string | null
           contract_template_kind: string | null
           created_at: string
+          days_per_week: number
           display_name: string | null
           email: string | null
           employee_code: string
@@ -933,6 +934,7 @@ export type Database = {
           home_site_id: string | null
           hourly_rate: number
           id: string
+          literacy_grade: Database["public"]["Enums"]["literacy_grade"] | null
           monthly_salary: number
           national_id: string | null
           ordinarily_works_sundays: boolean
@@ -958,6 +960,7 @@ export type Database = {
           contract_signed_pdf_url?: string | null
           contract_template_kind?: string | null
           created_at?: string
+          days_per_week?: number
           display_name?: string | null
           email?: string | null
           employee_code: string
@@ -965,6 +968,7 @@ export type Database = {
           home_site_id?: string | null
           hourly_rate?: number
           id?: string
+          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null
           monthly_salary?: number
           national_id?: string | null
           ordinarily_works_sundays?: boolean
@@ -990,6 +994,7 @@ export type Database = {
           contract_signed_pdf_url?: string | null
           contract_template_kind?: string | null
           created_at?: string
+          days_per_week?: number
           display_name?: string | null
           email?: string | null
           employee_code?: string
@@ -997,6 +1002,7 @@ export type Database = {
           home_site_id?: string | null
           hourly_rate?: number
           id?: string
+          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null
           monthly_salary?: number
           national_id?: string | null
           ordinarily_works_sundays?: boolean
@@ -1251,6 +1257,55 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_accruals: {
+        Row: {
+          created_at: string
+          days_accrued: number
+          employee_id: string
+          id: string
+          pay_period_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          days_accrued?: number
+          employee_id: string
+          id?: string
+          pay_period_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          days_accrued?: number
+          employee_id?: string
+          id?: string
+          pay_period_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_accruals_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_accruals_pay_period_id_fkey"
+            columns: ["pay_period_id"]
+            isOneToOne: false
+            referencedRelation: "pay_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_accruals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -2339,6 +2394,7 @@ export type Database = {
           created_at: string
           day_of_week: Database["public"]["Enums"]["day_of_week"]
           default_hours: number
+          end_min: number | null
           id: string
           is_leave: boolean
           is_premium: boolean
@@ -2346,6 +2402,7 @@ export type Database = {
           pay_rule: Database["public"]["Enums"]["pay_rule"]
           period: Database["public"]["Enums"]["shift_period"]
           rate_multiplier: number
+          start_min: number | null
           tenant_id: string
           updated_at: string
         }
@@ -2355,6 +2412,7 @@ export type Database = {
           created_at?: string
           day_of_week?: Database["public"]["Enums"]["day_of_week"]
           default_hours?: number
+          end_min?: number | null
           id?: string
           is_leave?: boolean
           is_premium?: boolean
@@ -2362,6 +2420,7 @@ export type Database = {
           pay_rule?: Database["public"]["Enums"]["pay_rule"]
           period?: Database["public"]["Enums"]["shift_period"]
           rate_multiplier?: number
+          start_min?: number | null
           tenant_id: string
           updated_at?: string
         }
@@ -2371,6 +2430,7 @@ export type Database = {
           created_at?: string
           day_of_week?: Database["public"]["Enums"]["day_of_week"]
           default_hours?: number
+          end_min?: number | null
           id?: string
           is_leave?: boolean
           is_premium?: boolean
@@ -2378,6 +2438,7 @@ export type Database = {
           pay_rule?: Database["public"]["Enums"]["pay_rule"]
           period?: Database["public"]["Enums"]["shift_period"]
           rate_multiplier?: number
+          start_min?: number | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2465,6 +2526,7 @@ export type Database = {
           id: string
           quantity_required: number
           shift_kind: Database["public"]["Enums"]["shift_kind"]
+          shift_type_id: string | null
           site_id: string
           tenant_id: string
           updated_at: string
@@ -2475,6 +2537,7 @@ export type Database = {
           id?: string
           quantity_required?: number
           shift_kind: Database["public"]["Enums"]["shift_kind"]
+          shift_type_id?: string | null
           site_id: string
           tenant_id: string
           updated_at?: string
@@ -2485,11 +2548,19 @@ export type Database = {
           id?: string
           quantity_required?: number
           shift_kind?: Database["public"]["Enums"]["shift_kind"]
+          shift_type_id?: string | null
           site_id?: string
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "site_requirements_shift_type_id_fkey"
+            columns: ["shift_type_id"]
+            isOneToOne: false
+            referencedRelation: "shift_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "site_requirements_site_id_fkey"
             columns: ["site_id"]
@@ -2522,6 +2593,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          required_guard_grade: Database["public"]["Enums"]["literacy_grade"] | null
           tenant_id: string
           updated_at: string
         }
@@ -2540,6 +2612,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null
           tenant_id: string
           updated_at?: string
         }
@@ -2558,6 +2631,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2603,6 +2677,7 @@ export type Database = {
           legal_name: string | null
           logo_url: string | null
           name: string
+          night_premium_enabled: boolean
           pay_date_day: number
           pay_period_start_day: number
           registered_address: string | null
@@ -2636,6 +2711,7 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           name: string
+          night_premium_enabled?: boolean
           pay_date_day?: number
           pay_period_start_day?: number
           registered_address?: string | null
@@ -2669,6 +2745,7 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           name?: string
+          night_premium_enabled?: boolean
           pay_date_day?: number
           pay_period_start_day?: number
           registered_address?: string | null
@@ -2775,6 +2852,18 @@ export type Database = {
         Args: { p_period: string; p_rows: Json }
         Returns: undefined
       }
+      set_user_role: {
+        Args: { p_role: Database["public"]["Enums"]["app_role"]; p_user: string }
+        Returns: undefined
+      }
+      set_site_supervisors: {
+        Args: { p_site: string; p_user_ids: string[] }
+        Returns: undefined
+      }
+      set_user_sites: {
+        Args: { p_site_ids: string[]; p_user: string }
+        Returns: undefined
+      }
       yango_has_role: {
         Args: {
           _role: Database["public"]["Enums"]["yango_app_role"]
@@ -2785,7 +2874,7 @@ export type Database = {
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
-      app_role: "admin" | "accountant" | "payroll" | "operations" | "supervisor" | "viewer"
+      app_role: "admin" | "accountant" | "payroll" | "operations" | "supervisor" | "security_supervisor" | "viewer"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
       deduction_category:
         | "statutory"
@@ -2814,6 +2903,7 @@ export type Database = {
       installment_status: "active" | "paid_off" | "paused" | "written_off"
       invoice_status: "draft" | "issued" | "paid" | "void"
       invoice_type: "AR" | "AP"
+      literacy_grade: "A+" | "A" | "B" | "C" | "D"
       normal_balance_type: "debit" | "credit"
       pay_period_status: "open" | "locked" | "paid"
       pay_rule:
@@ -2828,6 +2918,7 @@ export type Database = {
       shift_kind: "day" | "night"
       shift_log_status:
         | "pending"
+        | "submitted"
         | "approved"
         | "no_show"
         | "replaced_by_other"
@@ -2977,7 +3068,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "income", "expense"],
-      app_role: ["admin", "accountant", "payroll", "operations", "supervisor", "viewer"],
+      app_role: ["admin", "accountant", "payroll", "operations", "supervisor", "security_supervisor", "viewer"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",
@@ -3009,6 +3100,7 @@ export const Constants = {
       installment_status: ["active", "paid_off", "paused", "written_off"],
       invoice_status: ["draft", "issued", "paid", "void"],
       invoice_type: ["AR", "AP"],
+      literacy_grade: ["A+", "A", "B", "C", "D"],
       normal_balance_type: ["debit", "credit"],
       pay_period_status: ["open", "locked", "paid"],
       pay_rule: [
@@ -3024,6 +3116,7 @@ export const Constants = {
       shift_kind: ["day", "night"],
       shift_log_status: [
         "pending",
+        "submitted",
         "approved",
         "no_show",
         "replaced_by_other",

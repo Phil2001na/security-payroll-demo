@@ -40,12 +40,13 @@ type Employee = {
 type Assignment = {
   id: string; employee_id: string; site_id: string; date: string;
   shift_type_id: string; planned_hours: number;
+  is_replacement: boolean; replaced_assignment_id: string | null;
 };
 type ShiftLog = {
   id: string; employee_id: string; site_id: string; date: string;
   shift_type_id: string; pay_period_id: string; assignment_id: string | null;
   hours_worked: number; night_hours: number;
-  status: "pending" | "approved" | "no_show" | "replaced_by_other" | "suspended_unpaid";
+  status: "pending" | "submitted" | "approved" | "no_show" | "replaced_by_other" | "suspended_unpaid";
   notes: string | null;
 };
 type PayPeriod = { id: string; start_date: string; end_date: string; label: string };
@@ -64,9 +65,14 @@ function isoWeekStart(d: Date) {
 function AttendancePage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll" && role !== "security_supervisor") {
     return <AccessDenied message="Attendance access is restricted to payroll and operations staff." />;
   }
+  // Security supervisors mark attendance but cannot replace guards, are scoped to
+  // their assigned sites, and their marks are submitted for payroll approval.
+  const isSecuritySupervisor = role === "security_supervisor";
+  const canReplace = !isSecuritySupervisor;
+  const allowedSiteIds = profile?.assigned_site_ids ?? [];
   const qc = useQueryClient();
   const [date, setDate] = useState(() => fmtIso(new Date()));
   const [siteFilter, setSiteFilter] = useState<string>("all");
@@ -143,7 +149,7 @@ function AttendancePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedule_assignments")
-        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
+        .select("id, employee_id, site_id, date, shift_type_id, planned_hours, is_replacement, replaced_assignment_id")
         .eq("date", date);
       if (error) throw error;
       return data ?? [];
@@ -178,7 +184,7 @@ function AttendancePage() {
   });
 
   // Week assignments to compute weekly hours for replacement candidates
-  const { data: weekAssignments } = useQuery<Assignment[]>({
+  const { data: weekAssignments } = useQuery<Pick<Assignment, "id" | "employee_id" | "site_id" | "date" | "shift_type_id" | "planned_hours">[]>({
     queryKey: ["assignments-week", profile?.tenant_id, weekStart, weekEnd],
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
@@ -215,9 +221,47 @@ function AttendancePage() {
     return m;
   }, [dayLogs]);
 
+  const assignmentById = useMemo(() => {
+    const m = new Map<string, Assignment>();
+    (assignments ?? []).forEach((a) => m.set(a.id, a));
+    return m;
+  }, [assignments]);
+
+  // Reverse lookup: original assignment id -> the relief assignment covering it.
+  const reliefByOriginal = useMemo(() => {
+    const m = new Map<string, Assignment>();
+    (assignments ?? []).forEach((a) => {
+      if (a.is_replacement && a.replaced_assignment_id) m.set(a.replaced_assignment_id, a);
+    });
+    return m;
+  }, [assignments]);
+
+  // "Relief for X" on the reliever's row, "Replaced by Y" on the absent guard's row.
+  function replacementNote(a: Assignment): string | null {
+    if (a.is_replacement && a.replaced_assignment_id) {
+      const orig = assignmentById.get(a.replaced_assignment_id);
+      const origEmp = orig ? empById.get(orig.employee_id) : null;
+      return origEmp ? `Relief for ${origEmp.surname}, ${origEmp.first_names}` : "Relief guard";
+    }
+    const relief = reliefByOriginal.get(a.id);
+    if (relief) {
+      const reliefEmp = empById.get(relief.employee_id);
+      return reliefEmp ? `Replaced by ${reliefEmp.surname}, ${reliefEmp.first_names}` : "Replaced";
+    }
+    return null;
+  }
+
+  // Sites visible in the filter dropdown — security supervisors only see theirs.
+  const scopedSites = useMemo(() => {
+    if (!isSecuritySupervisor) return sites ?? [];
+    return (sites ?? []).filter((s) => allowedSiteIds.includes(s.id));
+  }, [sites, isSecuritySupervisor, allowedSiteIds]);
+
   // Filter assignments by site + search
   const visibleAssignments = useMemo(() => {
     let list = (assignments ?? []).slice();
+    // Security supervisors are scoped to their assigned sites (DB RLS is tenant-wide).
+    if (isSecuritySupervisor) list = list.filter((a) => allowedSiteIds.includes(a.site_id));
     if (siteFilter !== "all") list = list.filter((a) => a.site_id === siteFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -239,7 +283,7 @@ function AttendancePage() {
       return (ea?.surname ?? "").localeCompare(eb?.surname ?? "");
     });
     return list;
-  }, [assignments, siteFilter, search, empById, siteById]);
+  }, [assignments, siteFilter, search, empById, siteById, isSecuritySupervisor, allowedSiteIds]);
 
   // Weekly hours per employee (planned, from assignments)
   const weekHoursByEmp = useMemo(() => {
@@ -288,7 +332,7 @@ function AttendancePage() {
     let present = 0, absent = 0, replaced = 0, pendingC = 0;
     visibleAssignments.forEach((a) => {
       const s = effectiveStatus(a);
-      if (s === "approved") present++;
+      if (s === "approved" || s === "submitted") present++;
       else if (s === "no_show") absent++;
       else if (s === "replaced_by_other") replaced++;
       else pendingC++;
@@ -316,9 +360,13 @@ function AttendancePage() {
         const hours = change.status === "approved" ? Number(a.planned_hours) : 0;
         // crude night detection: shift code ending in /NS or "Night"
         const nightHours = st && /night|N\/?S$/i.test(st.code + " " + st.label) && change.status === "approved" ? Number(a.planned_hours) : 0;
+        // Security supervisors don't finalize — a "present" mark is submitted for
+        // payroll to approve before it counts toward pay.
+        const persistStatus: ShiftLog["status"] =
+          isSecuritySupervisor && change.status === "approved" ? "submitted" : change.status;
         const existing = logByAssignment.get(a.id);
         if (existing) {
-          updates.push({ id: existing.id, status: change.status, hours_worked: hours, notes: change.notes ?? existing.notes });
+          updates.push({ id: existing.id, status: persistStatus, hours_worked: hours, notes: change.notes ?? existing.notes });
         } else {
           inserts.push({
             employee_id: a.employee_id,
@@ -329,7 +377,7 @@ function AttendancePage() {
             assignment_id: a.id,
             hours_worked: hours,
             night_hours: nightHours,
-            status: change.status,
+            status: persistStatus,
             notes: change.notes ?? null,
           });
         }
@@ -382,6 +430,7 @@ function AttendancePage() {
   }, [replaceFor, employees, assignments, weekHoursByEmp]);
 
   async function applyReplacement(reliefEmpId: string, overCap: boolean) {
+    if (!canReplace) return; // security supervisors cannot replace guards
     if (!replaceFor || !profile?.tenant_id || !payPeriod) return;
     if (overCap) {
       const ok = window.confirm(
@@ -392,14 +441,14 @@ function AttendancePage() {
     setSaving(true);
     try {
       const a = replaceFor;
-      const st = shiftById.get(a.shift_type_id);
-      const nightHours = st && /night|N\/?S$/i.test(st.code + " " + st.label) ? Number(a.planned_hours) : 0;
+      const reliefName = empById.get(reliefEmpId)?.surname ?? "relief guard";
 
-      // 1. Mark the original assignment as "no_show" -> upsert log for absent guard with 0 hours
+      // 1. Mark the original assignment as replaced (distinct from a plain no_show,
+      //    so it's visible who covered the shift) -> upsert log with 0 hours.
       const existingOriginalLog = logByAssignment.get(a.id);
       if (existingOriginalLog) {
         const { error } = await supabase.from("shift_logs")
-          .update({ status: "no_show", hours_worked: 0, night_hours: 0 })
+          .update({ status: "replaced_by_other", hours_worked: 0, night_hours: 0, notes: `Replaced by ${reliefName}` })
           .eq("id", existingOriginalLog.id);
         if (error) throw error;
       } else {
@@ -408,7 +457,7 @@ function AttendancePage() {
           employee_id: a.employee_id, site_id: a.site_id, date: a.date,
           shift_type_id: a.shift_type_id, pay_period_id: payPeriod.id,
           assignment_id: a.id, hours_worked: 0, night_hours: 0,
-          status: "no_show", notes: "Absent — relief used",
+          status: "replaced_by_other", notes: `Replaced by ${reliefName}`,
         });
         if (error) throw error;
       }
@@ -429,7 +478,9 @@ function AttendancePage() {
         .select("id").single();
       if (aErr) throw aErr;
 
-      // 3. Insert a shift_log for the relief guard, paid the hours
+      // 3. Insert a shift_log for the relief guard as "pending" — finding a relief
+      //    doesn't mark them present. The supervisor still marks present/absent for
+      //    them on the muster like any other guard.
       const { error: lErr } = await supabase.from("shift_logs").insert({
         tenant_id: profile.tenant_id,
         employee_id: reliefEmpId,
@@ -437,14 +488,14 @@ function AttendancePage() {
         shift_type_id: a.shift_type_id,
         pay_period_id: payPeriod.id,
         assignment_id: reliefAssignment.id,
-        hours_worked: a.planned_hours,
-        night_hours: nightHours,
-        status: "approved",
+        hours_worked: 0,
+        night_hours: 0,
+        status: "pending",
         notes: `Relief — covering for ${empById.get(a.employee_id)?.surname ?? "absent guard"}`,
       });
       if (lErr) throw lErr;
 
-      toast.success(`Relief assigned: ${empById.get(reliefEmpId)?.surname}`);
+      toast.success(`${reliefName} assigned as relief — mark them present/absent once confirmed`);
       setReplaceFor(null);
       await Promise.all([
         refetchLogs(),
@@ -582,7 +633,7 @@ function AttendancePage() {
             <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All sites</SelectItem>
-              {(sites ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              {scopedSites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -635,6 +686,8 @@ function AttendancePage() {
                   pending={pending}
                   setStatus={setStatus}
                   setReplaceFor={setReplaceFor}
+                  canReplace={canReplace}
+                  replacementNote={replacementNote}
                 />
               ))}
             </tbody>
@@ -748,9 +801,11 @@ type SiteGroupProps = {
   pending: Record<string, { status: ShiftLog["status"]; notes?: string }>;
   setStatus: (a: Assignment, status: ShiftLog["status"]) => void;
   setReplaceFor: (a: Assignment) => void;
+  canReplace: boolean;
+  replacementNote: (a: Assignment) => string | null;
 };
 
-function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, effectiveStatus, pending, setStatus, setReplaceFor }: SiteGroupProps) {
+function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, effectiveStatus, pending, setStatus, setReplaceFor, canReplace, replacementNote }: SiteGroupProps) {
   return (
     <>
       <tr className="bg-primary/5">
@@ -764,11 +819,17 @@ function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, 
         const status = effectiveStatus(a);
         const wkHours = weekHoursByEmp.get(a.employee_id) ?? 0;
         const isDirty = a.id in pending;
+        const note = replacementNote(a);
         return (
           <tr key={a.id} className={cn("border-t hover:bg-muted/20", isDirty && "bg-warning/5")}>
             <td className="px-3 py-2">
               <div className="font-medium leading-tight">{e?.surname}, {e?.first_names}</div>
               <div className="font-mono text-[10px] text-muted-foreground">{e?.employee_code}</div>
+              {note && (
+                <div className="text-[11px] text-warning flex items-center gap-1 mt-0.5">
+                  <UserPlus className="h-3 w-3" /> {note}
+                </div>
+              )}
             </td>
             <td className="px-3 py-2">
               <div className="font-mono text-xs font-medium">{st?.code}</div>
@@ -786,8 +847,8 @@ function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, 
             <td className="px-3 py-2">
               <div className="flex items-center justify-end gap-1">
                 <Button
-                  size="sm" variant={status === "approved" ? "default" : "outline"}
-                  className={cn("h-7 px-2", status === "approved" && "bg-success hover:bg-success/90 text-success-foreground")}
+                  size="sm" variant={status === "approved" || status === "submitted" ? "default" : "outline"}
+                  className={cn("h-7 px-2", (status === "approved" || status === "submitted") && "bg-success hover:bg-success/90 text-success-foreground")}
                   onClick={() => setStatus(a, "approved")}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -799,14 +860,16 @@ function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, 
                 >
                   <XCircle className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  size="sm" variant="outline" className="h-7 px-2"
-                  onClick={() => setReplaceFor(a)}
-                  disabled={status === "approved"}
-                  title="Find replacement"
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                </Button>
+                {canReplace && (
+                  <Button
+                    size="sm" variant="outline" className="h-7 px-2"
+                    onClick={() => setReplaceFor(a)}
+                    disabled={status === "approved" || status === "replaced_by_other"}
+                    title="Find replacement"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </td>
           </tr>
@@ -819,6 +882,7 @@ function SiteGroup({ siteName, count, list, empById, shiftById, weekHoursByEmp, 
 function StatusBadge({ status, dirty }: { status: ShiftLog["status"]; dirty: boolean }) {
   const map: Record<ShiftLog["status"], { label: string; className: string }> = {
     pending: { label: "Pending", className: "bg-muted text-muted-foreground" },
+    submitted: { label: "Awaiting approval", className: "bg-primary/15 text-primary border-primary/30" },
     approved: { label: "Present", className: "bg-success/15 text-success border-success/30" },
     no_show: { label: "Absent", className: "bg-destructive/15 text-destructive border-destructive/30" },
     replaced_by_other: { label: "Replaced", className: "bg-warning/15 text-warning border-warning/30" },

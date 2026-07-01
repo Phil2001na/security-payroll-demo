@@ -37,7 +37,7 @@ function OnboardingPortal() {
   const [mode, setMode] = useState<"upload" | "sign">("upload");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const canSupervise = profile?.role === "admin" || profile?.role === "operations" || profile?.role === "supervisor";
+  const canSupervise = profile?.role === "admin" || profile?.role === "operations" || profile?.role === "supervisor" || profile?.role === "payroll";
 
   const { data, isLoading } = useQuery({
     queryKey: ["onboarding", employeeId],
@@ -298,7 +298,7 @@ function OnboardingPortal() {
   if (!canSupervise) {
     return (
       <div className="p-8 max-w-2xl mx-auto text-center">
-        <p className="text-muted-foreground">Only admins, operations or supervisors can manage contracts.</p>
+        <p className="text-muted-foreground">Only admins, operations, supervisors or payroll can manage contracts.</p>
       </div>
     );
   }

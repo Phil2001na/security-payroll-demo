@@ -1,8 +1,8 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList,
-  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen, Receipt, Briefcase,
+  LayoutDashboard, Users, MapPin, CalendarDays, ClipboardList, ClipboardCheck,
+  Calculator, ShieldAlert, Settings, LogOut, Menu, Shield, ChevronDown, Sparkles, BrainCircuit, BookOpen, Receipt, Briefcase, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -15,7 +15,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type AppRole = "admin" | "accountant" | "operations" | "supervisor" | "viewer" | "payroll";
+type AppRole = "admin" | "accountant" | "operations" | "supervisor" | "viewer" | "payroll" | "security_supervisor";
 
 type NavItem = {
   to: string;
@@ -32,9 +32,11 @@ const NAV: NavItem[] = [
   { to: "/clients", label: "Clients", icon: Briefcase, roles: ["admin", "operations"], ceoVisible: true },
   { to: "/sites", label: "Sites", icon: MapPin, roles: ["admin", "operations", "supervisor", "payroll"] },
   { to: "/schedule", label: "Schedule", icon: CalendarDays, roles: ["admin", "operations", "supervisor", "payroll"] },
-  { to: "/attendance", label: "Attendance", icon: ClipboardList, roles: ["admin", "operations", "supervisor", "payroll"] },
+  { to: "/attendance", label: "Attendance", icon: ClipboardList, roles: ["admin", "operations", "supervisor", "payroll", "security_supervisor"] },
+  { to: "/approvals", label: "Approvals", icon: ClipboardCheck, roles: ["admin", "operations", "payroll"] },
   { to: "/payroll", label: "Payroll", icon: Calculator, roles: ["admin", "operations", "payroll"] },
-  { to: "/disciplinary", label: "Disciplinary", icon: ShieldAlert, roles: ["admin", "operations", "supervisor"] },
+  { to: "/supervisors", label: "Supervisors", icon: UserCog, roles: ["admin", "operations", "payroll"] },
+  { to: "/disciplinary", label: "Disciplinary", icon: ShieldAlert, roles: ["admin", "operations", "supervisor", "payroll"] },
 ];
 
 const ADMIN_NAV: NavItem[] = [
@@ -49,10 +51,13 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const isCeo = profile?.is_ceo_executive === true;
   const isAdmin = role === "admin" && !isCeo;
 
-  const canSeeAccounting = role === "admin" || role === "accountant" || isCeo;
-  const canSeeInvoices = role === "admin" || role === "accountant";
+  // Security supervisors are an attendance-only role — they see nothing else.
+  const attendanceOnly = role === "security_supervisor";
+  const canSeeAccounting = !attendanceOnly && (role === "admin" || role === "accountant" || isCeo);
+  const canSeeInvoices = !attendanceOnly && (role === "admin" || role === "accountant");
 
   const visibleNav = NAV.filter((item) => {
+    if (attendanceOnly) return item.to === "/attendance";
     if (!item.roles) return true;
     if (isCeo) return item.ceoVisible === true;
     return role ? item.roles.includes(role) : false;
@@ -102,12 +107,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           {canSeeInvoices && renderItem({ to: "/invoices", label: "Invoices", icon: Receipt })}
         </>
       )}
-      {isAdmin && (
+      {(isAdmin || isCeo) && (
         <>
           <div className="px-2 pt-5 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
             Administration
           </div>
-          {ADMIN_NAV.map(renderItem)}
+          {/* Full admins get the whole admin nav; CEOs get Settings only (System
+              Users management stays an admin-only task). */}
+          {ADMIN_NAV.filter((item) => isAdmin || item.to === "/admin/settings").map(renderItem)}
         </>
       )}
     </nav>

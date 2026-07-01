@@ -5,7 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODEL = "claude-sonnet-4-6";
+const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+const MODEL_PROVIDER = "gemini";
 
 function buildSystemPrompt(companyName: string): string {
   return `You are the executive intelligence assistant for ${companyName}'s ERP system — a security workforce, payroll and accounting platform.
@@ -133,6 +134,12 @@ const TOOLS = [
     },
   },
 ];
+
+const GEMINI_TOOLS = TOOLS.map((tool) => ({
+  name: tool.name,
+  description: tool.description,
+  parameters: tool.input_schema,
+}));
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -262,9 +269,9 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
 
-    if (!supabaseUrl || !serviceRoleKey || !anonKey || !anthropicApiKey) {
+    if (!supabaseUrl || !serviceRoleKey || !anonKey || !geminiApiKey) {
       return jsonResponse({ error: "Missing required environment variables." }, 500);
     }
 
@@ -318,7 +325,7 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           owner_user_id: userId,
           title: userMessage.slice(0, 80),
-          model_provider: "anthropic",
+          model_provider: MODEL_PROVIDER,
           model_name: MODEL,
         })
         .select("id")
@@ -503,49 +510,49 @@ Deno.serve(async (req) => {
     }
 
     const history = historyRes.data ?? [];
-    const anthropicMessages: Array<{ role: string; content: string }> = [];
+    const geminiContents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
     for (const msg of history) {
       if (msg.role === "user" || msg.role === "assistant") {
-        // Strip embedded tool JSON from history so Claude isn't confused by it
+        // Strip embedded tool JSON from history so the model isn't confused by it.
         const cleanContent = msg.content.includes(TOOL_MARKER)
           ? msg.content.split(TOOL_MARKER)[0].trim() + "\n[Document generated and delivered to user.]"
           : msg.content;
-        anthropicMessages.push({ role: msg.role, content: cleanContent });
+        geminiContents.push({
+          role: msg.role === "assistant" ? "model" : "user",
+          parts: [{ text: cleanContent }],
+        });
       }
     }
 
-    anthropicMessages.push({
+    geminiContents.push({
       role: "user",
-      content: `${contextBlock}\n\n---\n\n${userMessage}`,
+      parts: [{ text: `${contextBlock}\n\n---\n\n${userMessage}` }],
     });
 
-    const anthropicResp = await fetch("https://api.anthropic.com/v1/messages", {
+    const geminiResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${geminiApiKey}`,
+      {
       method: "POST",
       headers: {
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "prompt-caching-2024-07-31",
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 4096,
-        tools: TOOLS,
-        system: [
-          {
-            type: "text",
-            text: buildSystemPrompt(companyName),
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: anthropicMessages,
+        system_instruction: {
+          parts: [{ text: buildSystemPrompt(companyName) }],
+        },
+        contents: geminiContents,
+        tools: [{ function_declarations: GEMINI_TOOLS }],
+        generationConfig: {
+          maxOutputTokens: 4096,
+          temperature: 0.2,
+        },
       }),
     });
 
-    if (!anthropicResp.ok) {
-      const errText = await anthropicResp.text();
-      console.error(`[erp-brain] Anthropic ${anthropicResp.status}: ${errText}`);
+    if (!geminiResp.ok) {
+      const errText = await geminiResp.text();
+      console.error(`[erp-brain] Gemini ${geminiResp.status}: ${errText}`);
       await writeAuditEvent(adminClient, {
         tenantId,
         userId,
@@ -553,46 +560,40 @@ Deno.serve(async (req) => {
         messageId: null,
         eventType: "error",
         promptHash: await sha256hex(userMessage),
-        modelProvider: "anthropic",
+        modelProvider: MODEL_PROVIDER,
         modelName: MODEL,
         dataSources,
         rowsExamined,
         readOnly: true,
         requestMetadata: { error: errText.slice(0, 500) },
       });
-      return jsonResponse({ error: "Claude request failed.", details: errText }, 502);
+      return jsonResponse({ error: "Gemini request failed.", details: errText }, 502);
     }
 
-    const anthropicJson = await anthropicResp.json();
-    const stopReason: string = anthropicJson?.stop_reason ?? "end_turn";
+    const geminiJson = await geminiResp.json();
     const tokenUsage = {
-      input_tokens: anthropicJson?.usage?.input_tokens ?? 0,
-      output_tokens: anthropicJson?.usage?.output_tokens ?? 0,
-      cache_read_input_tokens: anthropicJson?.usage?.cache_read_input_tokens ?? 0,
-      cache_creation_input_tokens: anthropicJson?.usage?.cache_creation_input_tokens ?? 0,
+      input_tokens: geminiJson?.usageMetadata?.promptTokenCount ?? 0,
+      output_tokens: geminiJson?.usageMetadata?.candidatesTokenCount ?? 0,
+      total_tokens: geminiJson?.usageMetadata?.totalTokenCount ?? 0,
+      tool_use_prompt_tokens: geminiJson?.usageMetadata?.toolUsePromptTokenCount ?? 0,
     };
 
     let answer: string;
     // deno-lint-ignore no-explicit-any
     let toolCall: { name: string; input: unknown } | null = null;
+    const parts: any[] = geminiJson?.candidates?.[0]?.content?.parts ?? [];
+    const textPart = parts
+      .map((part) => typeof part.text === "string" ? part.text : "")
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+    const functionPart = parts.find((part) => part.functionCall)?.functionCall;
 
-    if (stopReason === "tool_use") {
-      // deno-lint-ignore no-explicit-any
-      const contentBlocks: any[] = anthropicJson?.content ?? [];
-      const textBlock = contentBlocks.find((b) => b.type === "text");
-      const toolBlock = contentBlocks.find((b) => b.type === "tool_use");
-
-      const textPart = textBlock?.text?.trim() ?? "I've prepared your document.";
-
-      if (toolBlock) {
-        toolCall = { name: toolBlock.name, input: toolBlock.input };
-        // Embed tool call into message content for persistence + history replay
-        answer = `${textPart}\n${TOOL_MARKER}${JSON.stringify(toolCall)}`;
-      } else {
-        answer = textPart;
-      }
+    if (functionPart) {
+      toolCall = { name: functionPart.name, input: functionPart.args ?? {} };
+      answer = `${textPart || "I've prepared your document."}\n${TOOL_MARKER}${JSON.stringify(toolCall)}`;
     } else {
-      answer = anthropicJson?.content?.[0]?.text ?? "";
+      answer = textPart || "I couldn't generate a response from the available data.";
     }
 
     const promptHash = await sha256hex(userMessage);
@@ -642,7 +643,7 @@ Deno.serve(async (req) => {
         eventType: "assistant_request",
         promptHash,
         promptPreview: userMessage.slice(0, 200),
-        modelProvider: "anthropic",
+        modelProvider: MODEL_PROVIDER,
         modelName: MODEL,
         dataSources,
         rowsExamined,
@@ -657,7 +658,7 @@ Deno.serve(async (req) => {
         eventType: "assistant_response",
         promptHash,
         responseHash,
-        modelProvider: "anthropic",
+        modelProvider: MODEL_PROVIDER,
         modelName: MODEL,
         dataSources,
         rowsExamined,

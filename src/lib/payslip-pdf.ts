@@ -39,15 +39,27 @@ export function buildPayslipPDF(opts: {
 
   y += 50;
 
+  // Derive each premium's effective multiplier from the computed amounts so the labels
+  // and unit rates stay consistent with whatever the tenant has configured (e.g. a 1.5×
+  // Sunday rate for agreement employees, or an edited night premium).
+  const effMult = (amount: number, hours: number, fallback: number) =>
+    hours > 0 && calc.rate > 0 ? amount / (hours * calc.rate) : fallback;
+  const fmtMult = (m: number) => `${Math.round(m * 100) / 100}×`;
+  const otMult = effMult(calc.overtime_amount, calc.overtime_hours, 1.5);
+  const sundayMult = effMult(calc.sunday_amount, calc.sunday_hours, 2);
+  const phMult = effMult(calc.public_holiday_amount, calc.public_holiday_hours, 2);
+  const nightPct = effMult(calc.night_premium_amount, calc.night_hours, 0);
+  const nightLabel = calc.night_hours > 0 ? `Night premium (${Math.round(nightPct * 1000) / 10}%)` : "Night premium";
+
   autoTable(doc, {
     startY: y,
     head: [["Earnings", "Hours", "Rate", "Amount"]],
     body: [
       ["Ordinary (≤60h/wk)", calc.normal_hours.toFixed(2), formatNAD(calc.rate), formatNAD(calc.normal_amount)],
-      ["Overtime (1.5×)", calc.overtime_hours.toFixed(2), formatNAD(calc.rate * 1.5), formatNAD(calc.overtime_amount)],
-      ["Sunday (2×)", calc.sunday_hours.toFixed(2), formatNAD(calc.rate * 2), formatNAD(calc.sunday_amount)],
-      ["Public Holiday (2×)", calc.public_holiday_hours.toFixed(2), formatNAD(calc.rate * 2), formatNAD(calc.public_holiday_amount)],
-      ["Night premium (6%)", calc.night_hours.toFixed(2), "", formatNAD(calc.night_premium_amount)],
+      [`Overtime (${fmtMult(otMult)})`, calc.overtime_hours.toFixed(2), formatNAD(calc.rate * otMult), formatNAD(calc.overtime_amount)],
+      [`Sunday (${fmtMult(sundayMult)})`, calc.sunday_hours.toFixed(2), formatNAD(calc.rate * sundayMult), formatNAD(calc.sunday_amount)],
+      [`Public Holiday (${fmtMult(phMult)})`, calc.public_holiday_hours.toFixed(2), formatNAD(calc.rate * phMult), formatNAD(calc.public_holiday_amount)],
+      [nightLabel, calc.night_hours.toFixed(2), "", formatNAD(calc.night_premium_amount)],
       ["Transport allowance", "", "", formatNAD(calc.transport_allowance)],
       [{ content: "Gross salary", styles: { fontStyle: "bold" } }, "", "", { content: formatNAD(calc.gross_salary), styles: { fontStyle: "bold" } }],
     ],

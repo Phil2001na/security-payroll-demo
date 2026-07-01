@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Users, MapPin, Calculator, ShieldAlert, AlertTriangle, Sparkles, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,11 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 function DashboardPage() {
   const { profile } = useAuth();
+
+  // Security supervisors are an attendance-only role — send them straight there.
+  if (profile?.role === "security_supervisor") {
+    return <Navigate to="/attendance" />;
+  }
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", profile?.tenant_id],

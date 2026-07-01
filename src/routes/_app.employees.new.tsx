@@ -46,6 +46,8 @@ const employeeSchema = z.object({
   union_member: z.boolean(),
   ordinarily_works_sundays: z.boolean(),
   preferred_shift: z.enum(["day", "night", "both"]),
+  days_per_week: z.coerce.number().min(1).max(6),
+  literacy_grade: z.enum(["A+", "A", "B", "C", "D"]).optional().or(z.literal("")),
 });
 
 function NewEmployeePage() {
@@ -61,6 +63,8 @@ function NewEmployeePage() {
     bank_name: "", bank_account_number: "",
     union_member: false, ordinarily_works_sundays: false,
     preferred_shift: "both" as "day" | "night" | "both",
+    days_per_week: 6,
+    literacy_grade: "" as "" | "A+" | "A" | "B" | "C" | "D",
   });
 
   const positionMeta = positions.find((p) => p.value === form.position)!;
@@ -121,6 +125,8 @@ function NewEmployeePage() {
         union_member: v.union_member,
         ordinarily_works_sundays: v.ordinarily_works_sundays,
         preferred_shift: v.preferred_shift,
+        days_per_week: v.days_per_week,
+        literacy_grade: category === "officer" ? (v.literacy_grade || null) : null,
       }).select("id").single();
       if (error) throw error;
       toast.success("Employee created");
@@ -218,6 +224,43 @@ function NewEmployeePage() {
                   <SelectItem value="both">Day or Night</SelectItem>
                   <SelectItem value="day">Day only</SelectItem>
                   <SelectItem value="night">Night only</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Typical days / week">
+              <Select
+                value={String(form.days_per_week)}
+                onValueChange={(v) => setForm({ ...form, days_per_week: Number(v) })}
+                disabled={isManagement}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6].map((d) => (
+                    <SelectItem key={d} value={String(d)}>
+                      {d} {d === 1 ? "day" : "days"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Scheduling guide only. Leave is earned from days actually worked
+                (1 day per 12 worked), not from this setting.
+              </p>
+            </Field>
+            <Field label="Literacy grade">
+              <Select
+                value={form.literacy_grade || "none"}
+                onValueChange={(v) => setForm({ ...form, literacy_grade: v === "none" ? "" : v as "A+" | "A" | "B" | "C" | "D" })}
+                disabled={isManagement}
+              >
+                <SelectTrigger><SelectValue placeholder={isManagement ? "N/A for management" : "Ungraded"} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ungraded</SelectItem>
+                  <SelectItem value="A+">A+ — Fluent, multilingual</SelectItem>
+                  <SelectItem value="A">A — Fluent reading/writing</SelectItem>
+                  <SelectItem value="B">B — Okay</SelectItem>
+                  <SelectItem value="C">C — Limited</SelectItem>
+                  <SelectItem value="D">D — Minimal (vehicle-standby only)</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
