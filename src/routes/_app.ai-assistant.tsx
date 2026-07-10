@@ -596,11 +596,11 @@ function SessionList({
 // ─── Starter prompts ──────────────────────────────────────────────────────────
 
 const STARTERS = [
-  "How many employees are active right now?",
+  "How is the business doing this month?",
+  "Chart revenue vs expenses by month",
   "Give me a payroll summary as a PDF",
-  "Show me a chart of disciplinary actions by type",
+  "Who has open disciplinary actions?",
   "Any shift anomalies this week?",
-  "Export attendance data to Excel",
 ];
 
 // ─── Chat area ────────────────────────────────────────────────────────────────
@@ -792,10 +792,11 @@ function AiAssistantPage() {
   const { profile } = useAuth();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const canUseAi = profile?.is_ceo_executive === true || profile?.role === "admin";
 
   const { data: sessions = [], isLoading: loadingSessions } = useQuery<Session[]>({
     queryKey: ["ai-sessions"],
-    enabled: !!profile?.is_ceo_executive,
+    enabled: canUseAi,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_conversation_sessions")
@@ -807,7 +808,7 @@ function AiAssistantPage() {
     },
   });
 
-  if (!profile?.is_ceo_executive) return <AccessDenied />;
+  if (!canUseAi) return <AccessDenied />;
 
   return (
     <div className="flex h-[calc(100vh-var(--header-height,0px))] overflow-hidden bg-muted/20">

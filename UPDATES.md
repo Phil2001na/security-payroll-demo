@@ -1,5 +1,41 @@
 # Updates
 
+## 2026-07-11
+
+### 15:40
+- Deployed the admin-AI-access fix that had been written on 2026-07-09 but never shipped: the live `erp-brain` Edge Function (through v11) and deployed frontend were still CEO-only, so admins saw no AI Assistant nav item and got 403s. Deployed the function (now v13) and committed the frontend gate change.
+- Fixed a bug in `20260709202900_admin_ai_access.sql`: it referenced `public.current_tenant_id()`, which doesn't exist (the real helper is `get_my_tenant_id()`); the migration would have failed on any real apply. Corrected and applied to the live project.
+
+## 2026-07-09
+
+### 20:29
+- Enabled AI Assistant access for active tenant admins in the frontend, Edge Function authorization, and the RLS entitlement helper.
+- Added a migration so admin-owned AI conversations remain readable through the existing owner-scoped policies.
+
+## 2026-07-08
+
+### (AI assistant per-employee lookups)
+- **`erp-brain` second-round query tool** (deployed live): added `query_employee_detail`, letting the model look up a named employee's payslip, attendance history, leave balance, disciplinary history, or profile beyond the company-wide snapshot. The function now loops with Gemini (up to 4 rounds) — it executes a whitelisted, tenant-scoped Supabase query per call and feeds the result back as a function response so the model can chain lookups (e.g. one per employee) before answering or generating a document. Bounded so a stalled lookup chain can't leak an unhandled tool call to the frontend.
+
+### (AI assistant usefulness pass)
+- **`erp-brain` context made materially richer** (deployed live): monthly revenue/expense breakdown from the ledger (trend questions + trend charts now work — previously the model only saw year-to-date totals and refused), employee names on disciplinary actions and shift anomalies (was raw site UUIDs / no names), payroll aggregated per pay period with labels (was 5 random per-employee payslip rows presented as company runs), and total leave liability.
+- **Fixed conversation-history bug**: the function loaded the *oldest* 16 messages (`ascending`+`limit`), so conversations longer than 16 messages lost recent context; now loads the last 16.
+- Verified end-to-end against the live function with a minted CEO-executive session (`ceo@apexshield.demo`): health-check answer, monthly revenue-vs-expenses chart tool call, and named disciplinary/per-period payroll answers all correct. Refreshed the AI Assistant starter prompts to match the new capabilities.
+
+## 2026-07-05
+
+### 13:10
+- DB-level RBAC hardening (live + repo migrations): added `get_my_role()` helper and restrictive per-command RLS policies on 27 tables so writes now require an appropriate role, not just tenant membership (previously any tenant user — viewer/CEO — could write payroll/HR/accounting tables directly via PostgREST).
+- Closed privilege self-escalation: `profiles_update_own` allowed anyone to set their own `role='admin'`; a trigger now blocks self-changes to role/is_ceo_executive/is_active/tenant_id after onboarding (first-run role picker still works).
+- Payroll RPCs (`replace_draft_payroll`, `finalize_payroll_period`) now accept `admin` as a fallback alongside `payroll` so a period can still be locked if the payroll user is unavailable.
+- Fixed silent-failure bug: `payroll_constants` had no UPDATE policy, so the admin-settings save matched zero rows; added the missing tenant-scoped UPDATE policy (admin-only via restrictive gate).
+- Locked down function grants per Supabase security advisors: trigger/internal functions no longer callable via RPC, user-facing RPCs restricted to `authenticated` (no anon), pinned `search_path` on `touch_updated_at`.
+- Captured `supabase/schema-baseline-2026-07-05.sql` — full DDL snapshot of the live schema (enums, tables, constraints, indexes, functions, triggers, policies) as the missing "migration zero", since the live DB had diverged from repo migrations.
+- Deleted stray `query_periods.sql` scratch file. Verified all changes with impersonated-JWT smoke tests (security_supervisor blocked from employees/invoices, allowed on shift_logs; admin/payroll flows unaffected).
+
+### 12:20
+- Recovered UAT results from unsaved Windows Notepad tabs (TabState autosave binary parsing) and saved them as `UAT-2026-07-03.md`.
+
 ## 2026-07-02
 
 ### 00:21

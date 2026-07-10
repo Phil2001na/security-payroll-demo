@@ -49,6 +49,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { profile } = useAuth();
   const role = profile?.role as AppRole | undefined;
   const isCeo = profile?.is_ceo_executive === true;
+  const canUseAi = isCeo || role === "admin";
   const isAdmin = role === "admin" && !isCeo;
 
   // Security supervisors are an attendance-only role — they see nothing else.
@@ -90,7 +91,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         Operations
       </div>
       {visibleNav.map(renderItem)}
-      {isCeo && (
+      {canUseAi && (
         <>
           <div className="px-2 pt-5 pb-2 text-xs uppercase tracking-wider text-sidebar-foreground/50">
             Executive
