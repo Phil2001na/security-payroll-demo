@@ -2,6 +2,10 @@
 
 ## 2026-07-11
 
+### 21:05
+- Reconciled the diverged Supabase migration history (Philip-approved): marked 35 remote-only entries reverted and 39 already-applied repo migrations applied (metadata only, no schema changes), then `supabase db push` applied `20260711090000_equipment_inventory.sql` to the live project. `db push` now works normally going forward.
+- Verified: regenerated types match the hand-written equipment types; trigger fn is SECURITY DEFINER with pinned `search_path`; anon key gets `permission denied` on both new tables via PostgREST. Per-role JWT smoke test still outstanding (needs Management API token).
+
 ### 19:10
 - New Equipment & Inventory module (branch `feature/equipment-inventory`, from UAT feedback): item catalog with stock-on-hand, issue/return of uniforms and equipment to guards, and a per-guard audit trail card on the employee detail page (issued/returned dates, condition, lost/damaged with replacement charge).
 - Migration `20260711090000_equipment_inventory.sql`: `equipment_items` + `equipment_issues` tables, stock-movement trigger enforcing availability in the DB, two-layer RLS (tenant + writer roles admin/operations/supervisor/payroll). **Not yet applied to the live Supabase project** — apply + regenerate types before merging.
