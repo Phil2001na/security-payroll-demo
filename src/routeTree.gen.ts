@@ -18,6 +18,7 @@ import { Route as AppSitesRouteImport } from './routes/_app.sites'
 import { Route as AppScheduleRouteImport } from './routes/_app.schedule'
 import { Route as AppPayrollRouteImport } from './routes/_app.payroll'
 import { Route as AppInvoicesRouteImport } from './routes/_app.invoices'
+import { Route as AppEquipmentRouteImport } from './routes/_app.equipment'
 import { Route as AppDisciplinaryRouteImport } from './routes/_app.disciplinary'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppClientsRouteImport } from './routes/_app.clients'
@@ -75,6 +76,11 @@ const AppPayrollRoute = AppPayrollRouteImport.update({
 const AppInvoicesRoute = AppInvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEquipmentRoute = AppEquipmentRouteImport.update({
+  id: '/equipment',
+  path: '/equipment',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDisciplinaryRoute = AppDisciplinaryRouteImport.update({
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
+  '/equipment': typeof AppEquipmentRoute
   '/invoices': typeof AppInvoicesRoute
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AppClientsRoute
   '/dashboard': typeof AppDashboardRoute
   '/disciplinary': typeof AppDisciplinaryRoute
+  '/equipment': typeof AppEquipmentRoute
   '/invoices': typeof AppInvoicesRoute
   '/payroll': typeof AppPayrollRoute
   '/schedule': typeof AppScheduleRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/_app/clients': typeof AppClientsRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/disciplinary': typeof AppDisciplinaryRoute
+  '/_app/equipment': typeof AppEquipmentRoute
   '/_app/invoices': typeof AppInvoicesRoute
   '/_app/payroll': typeof AppPayrollRoute
   '/_app/schedule': typeof AppScheduleRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/dashboard'
     | '/disciplinary'
+    | '/equipment'
     | '/invoices'
     | '/payroll'
     | '/schedule'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/dashboard'
     | '/disciplinary'
+    | '/equipment'
     | '/invoices'
     | '/payroll'
     | '/schedule'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/_app/clients'
     | '/_app/dashboard'
     | '/_app/disciplinary'
+    | '/_app/equipment'
     | '/_app/invoices'
     | '/_app/payroll'
     | '/_app/schedule'
@@ -367,6 +379,13 @@ declare module '@tanstack/react-router' {
       path: '/invoices'
       fullPath: '/invoices'
       preLoaderRoute: typeof AppInvoicesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/equipment': {
+      id: '/_app/equipment'
+      path: '/equipment'
+      fullPath: '/equipment'
+      preLoaderRoute: typeof AppEquipmentRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/disciplinary': {
@@ -478,6 +497,7 @@ interface AppRouteChildren {
   AppClientsRoute: typeof AppClientsRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDisciplinaryRoute: typeof AppDisciplinaryRoute
+  AppEquipmentRoute: typeof AppEquipmentRoute
   AppInvoicesRoute: typeof AppInvoicesRoute
   AppPayrollRoute: typeof AppPayrollRoute
   AppScheduleRoute: typeof AppScheduleRoute
@@ -501,6 +521,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppClientsRoute: AppClientsRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDisciplinaryRoute: AppDisciplinaryRoute,
+  AppEquipmentRoute: AppEquipmentRoute,
   AppInvoicesRoute: AppInvoicesRoute,
   AppPayrollRoute: AppPayrollRoute,
   AppScheduleRoute: AppScheduleRoute,

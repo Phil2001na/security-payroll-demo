@@ -1037,6 +1037,144 @@ export type Database = {
           },
         ]
       }
+      equipment_issues: {
+        Row: {
+          acknowledged: boolean
+          charge_amount: number | null
+          condition_on_return: string | null
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          issued_at: string
+          issued_by: string | null
+          item_id: string
+          notes: string | null
+          quantity: number
+          returned_at: string | null
+          returned_to: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          charge_amount?: number | null
+          condition_on_return?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          issued_at?: string
+          issued_by?: string | null
+          item_id: string
+          notes?: string | null
+          quantity?: number
+          returned_at?: string | null
+          returned_to?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged?: boolean
+          charge_amount?: number | null
+          condition_on_return?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          issued_at?: string
+          issued_by?: string | null
+          item_id?: string
+          notes?: string | null
+          quantity?: number
+          returned_at?: string | null
+          returned_to?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_issues_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_issues_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_issues_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_items: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          quantity_available: number
+          quantity_total: number
+          sku: string | null
+          tenant_id: string
+          unit_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          quantity_available?: number
+          quantity_total?: number
+          sku?: string | null
+          tenant_id: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          quantity_available?: number
+          quantity_total?: number
+          sku?: string | null
+          tenant_id?: string
+          unit_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       installment_plans: {
         Row: {
           balance_remaining: number

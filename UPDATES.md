@@ -2,6 +2,11 @@
 
 ## 2026-07-11
 
+### 19:10
+- New Equipment & Inventory module (branch `feature/equipment-inventory`, from UAT feedback): item catalog with stock-on-hand, issue/return of uniforms and equipment to guards, and a per-guard audit trail card on the employee detail page (issued/returned dates, condition, lost/damaged with replacement charge).
+- Migration `20260711090000_equipment_inventory.sql`: `equipment_items` + `equipment_issues` tables, stock-movement trigger enforcing availability in the DB, two-layer RLS (tenant + writer roles admin/operations/supervisor/payroll). **Not yet applied to the live Supabase project** — apply + regenerate types before merging.
+- Lost/damaged is track-only in v1: charge is recorded on the issue row; payroll deduction stays manual via the Deductions module.
+
 ### 15:40
 - Deployed the admin-AI-access fix that had been written on 2026-07-09 but never shipped: the live `erp-brain` Edge Function (through v11) and deployed frontend were still CEO-only, so admins saw no AI Assistant nav item and got 403s. Deployed the function (now v13) and committed the frontend gate change.
 - Fixed a bug in `20260709202900_admin_ai_access.sql`: it referenced `public.current_tenant_id()`, which doesn't exist (the real helper is `get_my_tenant_id()`); the migration would have failed on any real apply. Corrected and applied to the live project.
