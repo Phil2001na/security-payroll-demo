@@ -1,3034 +1,3521 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: "14.5";
+  };
+  graphql_public: {
+    Tables: {
+      [_ in never]: never;
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json;
+          operationName?: string;
+          query?: string;
+          variables?: Json;
+        };
+        Returns: Json;
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
   public: {
     Tables: {
       ai_audit_events: {
         Row: {
-          created_at: string
-          data_sources: Json
-          event_type: string
-          id: string
-          message_id: string | null
-          model_name: string | null
-          model_provider: string
-          prompt_hash: string
-          prompt_preview: string | null
-          read_only: boolean
-          request_metadata: Json
-          response_hash: string | null
-          retrieval_plan: Json
-          rows_examined: number
-          session_id: string | null
-          tenant_id: string
-          token_usage: Json
-          user_id: string
-        }
+          created_at: string;
+          data_sources: Json;
+          event_type: string;
+          id: string;
+          message_id: string | null;
+          model_name: string | null;
+          model_provider: string;
+          prompt_hash: string;
+          prompt_preview: string | null;
+          read_only: boolean;
+          request_metadata: Json;
+          response_hash: string | null;
+          retrieval_plan: Json;
+          rows_examined: number;
+          session_id: string | null;
+          tenant_id: string;
+          token_usage: Json;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          data_sources?: Json
-          event_type: string
-          id?: string
-          message_id?: string | null
-          model_name?: string | null
-          model_provider?: string
-          prompt_hash: string
-          prompt_preview?: string | null
-          read_only?: boolean
-          request_metadata?: Json
-          response_hash?: string | null
-          retrieval_plan?: Json
-          rows_examined?: number
-          session_id?: string | null
-          tenant_id: string
-          token_usage?: Json
-          user_id: string
-        }
+          created_at?: string;
+          data_sources?: Json;
+          event_type: string;
+          id?: string;
+          message_id?: string | null;
+          model_name?: string | null;
+          model_provider?: string;
+          prompt_hash: string;
+          prompt_preview?: string | null;
+          read_only?: boolean;
+          request_metadata?: Json;
+          response_hash?: string | null;
+          retrieval_plan?: Json;
+          rows_examined?: number;
+          session_id?: string | null;
+          tenant_id: string;
+          token_usage?: Json;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          data_sources?: Json
-          event_type?: string
-          id?: string
-          message_id?: string | null
-          model_name?: string | null
-          model_provider?: string
-          prompt_hash?: string
-          prompt_preview?: string | null
-          read_only?: boolean
-          request_metadata?: Json
-          response_hash?: string | null
-          retrieval_plan?: Json
-          rows_examined?: number
-          session_id?: string | null
-          tenant_id?: string
-          token_usage?: Json
-          user_id?: string
-        }
+          created_at?: string;
+          data_sources?: Json;
+          event_type?: string;
+          id?: string;
+          message_id?: string | null;
+          model_name?: string | null;
+          model_provider?: string;
+          prompt_hash?: string;
+          prompt_preview?: string | null;
+          read_only?: boolean;
+          request_metadata?: Json;
+          response_hash?: string | null;
+          retrieval_plan?: Json;
+          rows_examined?: number;
+          session_id?: string | null;
+          tenant_id?: string;
+          token_usage?: Json;
+          user_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ai_audit_events_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversation_messages"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_audit_events_message_id_fkey";
+            columns: ["message_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversation_messages";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ai_audit_events_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversation_sessions"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_audit_events_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversation_sessions";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ai_audit_events_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_audit_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       ai_conversation_messages: {
         Row: {
-          actor_user_id: string | null
-          content: string
-          content_summary: string | null
-          created_at: string
-          data_sources: Json
-          id: string
-          metadata: Json
-          retrieval_snapshot: Json
-          role: string
-          session_id: string
-          tenant_id: string
-          token_usage: Json
-        }
+          actor_user_id: string | null;
+          content: string;
+          content_summary: string | null;
+          created_at: string;
+          data_sources: Json;
+          id: string;
+          metadata: Json;
+          retrieval_snapshot: Json;
+          role: string;
+          session_id: string;
+          tenant_id: string;
+          token_usage: Json;
+        };
         Insert: {
-          actor_user_id?: string | null
-          content: string
-          content_summary?: string | null
-          created_at?: string
-          data_sources?: Json
-          id?: string
-          metadata?: Json
-          retrieval_snapshot?: Json
-          role: string
-          session_id: string
-          tenant_id: string
-          token_usage?: Json
-        }
+          actor_user_id?: string | null;
+          content: string;
+          content_summary?: string | null;
+          created_at?: string;
+          data_sources?: Json;
+          id?: string;
+          metadata?: Json;
+          retrieval_snapshot?: Json;
+          role: string;
+          session_id: string;
+          tenant_id: string;
+          token_usage?: Json;
+        };
         Update: {
-          actor_user_id?: string | null
-          content?: string
-          content_summary?: string | null
-          created_at?: string
-          data_sources?: Json
-          id?: string
-          metadata?: Json
-          retrieval_snapshot?: Json
-          role?: string
-          session_id?: string
-          tenant_id?: string
-          token_usage?: Json
-        }
+          actor_user_id?: string | null;
+          content?: string;
+          content_summary?: string | null;
+          created_at?: string;
+          data_sources?: Json;
+          id?: string;
+          metadata?: Json;
+          retrieval_snapshot?: Json;
+          role?: string;
+          session_id?: string;
+          tenant_id?: string;
+          token_usage?: Json;
+        };
         Relationships: [
           {
-            foreignKeyName: "ai_conversation_messages_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversation_sessions"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_conversation_messages_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversation_sessions";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ai_conversation_messages_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_conversation_messages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       ai_conversation_sessions: {
         Row: {
-          created_at: string
-          id: string
-          last_message_at: string | null
-          metadata: Json
-          model_name: string | null
-          model_provider: string
-          owner_user_id: string
-          purpose: string
-          status: string
-          tenant_id: string
-          title: string | null
-          updated_at: string
-        }
+          created_at: string;
+          id: string;
+          last_message_at: string | null;
+          metadata: Json;
+          model_name: string | null;
+          model_provider: string;
+          owner_user_id: string;
+          purpose: string;
+          status: string;
+          tenant_id: string;
+          title: string | null;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          last_message_at?: string | null
-          metadata?: Json
-          model_name?: string | null
-          model_provider?: string
-          owner_user_id: string
-          purpose?: string
-          status?: string
-          tenant_id: string
-          title?: string | null
-          updated_at?: string
-        }
+          created_at?: string;
+          id?: string;
+          last_message_at?: string | null;
+          metadata?: Json;
+          model_name?: string | null;
+          model_provider?: string;
+          owner_user_id: string;
+          purpose?: string;
+          status?: string;
+          tenant_id: string;
+          title?: string | null;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          last_message_at?: string | null
-          metadata?: Json
-          model_name?: string | null
-          model_provider?: string
-          owner_user_id?: string
-          purpose?: string
-          status?: string
-          tenant_id?: string
-          title?: string | null
-          updated_at?: string
-        }
+          created_at?: string;
+          id?: string;
+          last_message_at?: string | null;
+          metadata?: Json;
+          model_name?: string | null;
+          model_provider?: string;
+          owner_user_id?: string;
+          purpose?: string;
+          status?: string;
+          tenant_id?: string;
+          title?: string | null;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ai_conversation_sessions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_conversation_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       ai_executive_memories: {
         Row: {
-          confidence: number
-          content: string
-          created_at: string
-          created_by: string | null
-          executive_user_id: string
-          id: string
-          label: string
-          last_used_at: string | null
-          memory_type: string
-          metadata: Json
-          sensitivity: string
-          source: string
-          source_message_id: string | null
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
+          confidence: number;
+          content: string;
+          created_at: string;
+          created_by: string | null;
+          executive_user_id: string;
+          id: string;
+          label: string;
+          last_used_at: string | null;
+          memory_type: string;
+          metadata: Json;
+          sensitivity: string;
+          source: string;
+          source_message_id: string | null;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          confidence?: number
-          content: string
-          created_at?: string
-          created_by?: string | null
-          executive_user_id: string
-          id?: string
-          label: string
-          last_used_at?: string | null
-          memory_type: string
-          metadata?: Json
-          sensitivity?: string
-          source?: string
-          source_message_id?: string | null
-          status?: string
-          tenant_id: string
-          updated_at?: string
-        }
+          confidence?: number;
+          content: string;
+          created_at?: string;
+          created_by?: string | null;
+          executive_user_id: string;
+          id?: string;
+          label: string;
+          last_used_at?: string | null;
+          memory_type: string;
+          metadata?: Json;
+          sensitivity?: string;
+          source?: string;
+          source_message_id?: string | null;
+          status?: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          confidence?: number
-          content?: string
-          created_at?: string
-          created_by?: string | null
-          executive_user_id?: string
-          id?: string
-          label?: string
-          last_used_at?: string | null
-          memory_type?: string
-          metadata?: Json
-          sensitivity?: string
-          source?: string
-          source_message_id?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          confidence?: number;
+          content?: string;
+          created_at?: string;
+          created_by?: string | null;
+          executive_user_id?: string;
+          id?: string;
+          label?: string;
+          last_used_at?: string | null;
+          memory_type?: string;
+          metadata?: Json;
+          sensitivity?: string;
+          source?: string;
+          source_message_id?: string | null;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ai_executive_memories_source_message_id_fkey"
-            columns: ["source_message_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversation_messages"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_executive_memories_source_message_id_fkey";
+            columns: ["source_message_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversation_messages";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ai_executive_memories_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ai_executive_memories_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       attendance_logs: {
         Row: {
-          approved_at: string | null
-          approved_by: string | null
-          assignment_id: string | null
-          created_at: string | null
-          date: string | null
-          employee_id: string | null
-          hours_worked: number | null
-          id: string | null
-          night_hours: number | null
-          notes: string | null
-          pay_period_id: string | null
-          shift_type_id: string | null
-          site_id: string | null
-          status: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id: string | null
-          updated_at: string | null
-        }
+          approved_at: string | null;
+          approved_by: string | null;
+          assignment_id: string | null;
+          created_at: string | null;
+          date: string | null;
+          employee_id: string | null;
+          hours_worked: number | null;
+          id: string | null;
+          night_hours: number | null;
+          notes: string | null;
+          pay_period_id: string | null;
+          shift_type_id: string | null;
+          site_id: string | null;
+          status: Database["public"]["Enums"]["shift_log_status"] | null;
+          tenant_id: string | null;
+          updated_at: string | null;
+        };
         Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string | null
-          date?: string | null
-          employee_id?: string | null
-          hours_worked?: number | null
-          id?: string | null
-          night_hours?: number | null
-          notes?: string | null
-          pay_period_id?: string | null
-          shift_type_id?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-        }
+          approved_at?: string | null;
+          approved_by?: string | null;
+          assignment_id?: string | null;
+          created_at?: string | null;
+          date?: string | null;
+          employee_id?: string | null;
+          hours_worked?: number | null;
+          id?: string | null;
+          night_hours?: number | null;
+          notes?: string | null;
+          pay_period_id?: string | null;
+          shift_type_id?: string | null;
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["shift_log_status"] | null;
+          tenant_id?: string | null;
+          updated_at?: string | null;
+        };
         Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string | null
-          date?: string | null
-          employee_id?: string | null
-          hours_worked?: number | null
-          id?: string | null
-          night_hours?: number | null
-          notes?: string | null
-          pay_period_id?: string | null
-          shift_type_id?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["shift_log_status"] | null
-          tenant_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
+          approved_at?: string | null;
+          approved_by?: string | null;
+          assignment_id?: string | null;
+          created_at?: string | null;
+          date?: string | null;
+          employee_id?: string | null;
+          hours_worked?: number | null;
+          id?: string | null;
+          night_hours?: number | null;
+          notes?: string | null;
+          pay_period_id?: string | null;
+          shift_type_id?: string | null;
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["shift_log_status"] | null;
+          tenant_id?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       audit_events: {
         Row: {
-          action: string
-          actor_email: string | null
-          actor_id: string | null
-          created_at: string
-          id: string
-          new_values: Json | null
-          notes: string | null
-          old_values: Json | null
-          record_id: string | null
-          table_name: string
-          tenant_id: string | null
-        }
+          action: string;
+          actor_email: string | null;
+          actor_id: string | null;
+          created_at: string;
+          id: string;
+          new_values: Json | null;
+          notes: string | null;
+          old_values: Json | null;
+          record_id: string | null;
+          table_name: string;
+          tenant_id: string | null;
+        };
         Insert: {
-          action: string
-          actor_email?: string | null
-          actor_id?: string | null
-          created_at?: string
-          id?: string
-          new_values?: Json | null
-          notes?: string | null
-          old_values?: Json | null
-          record_id?: string | null
-          table_name: string
-          tenant_id?: string | null
-        }
+          action: string;
+          actor_email?: string | null;
+          actor_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_values?: Json | null;
+          notes?: string | null;
+          old_values?: Json | null;
+          record_id?: string | null;
+          table_name: string;
+          tenant_id?: string | null;
+        };
         Update: {
-          action?: string
-          actor_email?: string | null
-          actor_id?: string | null
-          created_at?: string
-          id?: string
-          new_values?: Json | null
-          notes?: string | null
-          old_values?: Json | null
-          record_id?: string | null
-          table_name?: string
-          tenant_id?: string | null
-        }
-        Relationships: []
-      }
+          action?: string;
+          actor_email?: string | null;
+          actor_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_values?: Json | null;
+          notes?: string | null;
+          old_values?: Json | null;
+          record_id?: string | null;
+          table_name?: string;
+          tenant_id?: string | null;
+        };
+        Relationships: [];
+      };
       availability_templates_yango: {
         Row: {
-          created_at: string
-          end_time: string
-          id: string
-          provider_id: string
-          start_time: string
-          weekday: number
-        }
+          created_at: string;
+          end_time: string;
+          id: string;
+          provider_id: string;
+          start_time: string;
+          weekday: number;
+        };
         Insert: {
-          created_at?: string
-          end_time: string
-          id?: string
-          provider_id: string
-          start_time: string
-          weekday: number
-        }
+          created_at?: string;
+          end_time: string;
+          id?: string;
+          provider_id: string;
+          start_time: string;
+          weekday: number;
+        };
         Update: {
-          created_at?: string
-          end_time?: string
-          id?: string
-          provider_id?: string
-          start_time?: string
-          weekday?: number
-        }
+          created_at?: string;
+          end_time?: string;
+          id?: string;
+          provider_id?: string;
+          start_time?: string;
+          weekday?: number;
+        };
         Relationships: [
           {
-            foreignKeyName: "availability_templates_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "availability_templates_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       booking_services_yango: {
         Row: {
-          booking_id: string
-          duration_minutes: number
-          id: string
-          price_cents: number
-          service_id: string
-        }
+          booking_id: string;
+          duration_minutes: number;
+          id: string;
+          price_cents: number;
+          service_id: string;
+        };
         Insert: {
-          booking_id: string
-          duration_minutes: number
-          id?: string
-          price_cents: number
-          service_id: string
-        }
+          booking_id: string;
+          duration_minutes: number;
+          id?: string;
+          price_cents: number;
+          service_id: string;
+        };
         Update: {
-          booking_id?: string
-          duration_minutes?: number
-          id?: string
-          price_cents?: number
-          service_id?: string
-        }
+          booking_id?: string;
+          duration_minutes?: number;
+          id?: string;
+          price_cents?: number;
+          service_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "booking_services_yango_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "booking_services_yango_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "bookings_yango";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "booking_services_yango_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "booking_services_yango_service_id_fkey";
+            columns: ["service_id"];
+            isOneToOne: false;
+            referencedRelation: "services_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       bookings_yango: {
         Row: {
-          client_id: string
-          created_at: string
-          ends_at: string
-          id: string
-          notes: string | null
-          provider_id: string
-          starts_at: string
-          status: Database["public"]["Enums"]["yango_booking_status"]
-          total_cents: number
-          updated_at: string
-        }
+          client_id: string;
+          created_at: string;
+          ends_at: string;
+          id: string;
+          notes: string | null;
+          provider_id: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["yango_booking_status"];
+          total_cents: number;
+          updated_at: string;
+        };
         Insert: {
-          client_id: string
-          created_at?: string
-          ends_at: string
-          id?: string
-          notes?: string | null
-          provider_id: string
-          starts_at: string
-          status?: Database["public"]["Enums"]["yango_booking_status"]
-          total_cents?: number
-          updated_at?: string
-        }
+          client_id: string;
+          created_at?: string;
+          ends_at: string;
+          id?: string;
+          notes?: string | null;
+          provider_id: string;
+          starts_at: string;
+          status?: Database["public"]["Enums"]["yango_booking_status"];
+          total_cents?: number;
+          updated_at?: string;
+        };
         Update: {
-          client_id?: string
-          created_at?: string
-          ends_at?: string
-          id?: string
-          notes?: string | null
-          provider_id?: string
-          starts_at?: string
-          status?: Database["public"]["Enums"]["yango_booking_status"]
-          total_cents?: number
-          updated_at?: string
-        }
+          client_id?: string;
+          created_at?: string;
+          ends_at?: string;
+          id?: string;
+          notes?: string | null;
+          provider_id?: string;
+          starts_at?: string;
+          status?: Database["public"]["Enums"]["yango_booking_status"];
+          total_cents?: number;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "bookings_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "bookings_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       break_rules_yango: {
         Row: {
-          created_at: string
-          id: string
-          min_chunk_minutes: number
-          preferred_after_minutes: number
-          provider_id: string
-          total_break_minutes: number
-        }
+          created_at: string;
+          id: string;
+          min_chunk_minutes: number;
+          preferred_after_minutes: number;
+          provider_id: string;
+          total_break_minutes: number;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          min_chunk_minutes?: number
-          preferred_after_minutes?: number
-          provider_id: string
-          total_break_minutes?: number
-        }
+          created_at?: string;
+          id?: string;
+          min_chunk_minutes?: number;
+          preferred_after_minutes?: number;
+          provider_id: string;
+          total_break_minutes?: number;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          min_chunk_minutes?: number
-          preferred_after_minutes?: number
-          provider_id?: string
-          total_break_minutes?: number
-        }
+          created_at?: string;
+          id?: string;
+          min_chunk_minutes?: number;
+          preferred_after_minutes?: number;
+          provider_id?: string;
+          total_break_minutes?: number;
+        };
         Relationships: [
           {
-            foreignKeyName: "break_rules_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: true
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "break_rules_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: true;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       chart_of_accounts: {
         Row: {
-          code: string
-          created_at: string
-          id: string
-          name: string
-          normal_balance: Database["public"]["Enums"]["normal_balance_type"]
-          tenant_id: string
-          type: Database["public"]["Enums"]["account_type"]
-          updated_at: string
-        }
+          code: string;
+          created_at: string;
+          id: string;
+          name: string;
+          normal_balance: Database["public"]["Enums"]["normal_balance_type"];
+          tenant_id: string;
+          type: Database["public"]["Enums"]["account_type"];
+          updated_at: string;
+        };
         Insert: {
-          code: string
-          created_at?: string
-          id?: string
-          name: string
-          normal_balance: Database["public"]["Enums"]["normal_balance_type"]
-          tenant_id: string
-          type: Database["public"]["Enums"]["account_type"]
-          updated_at?: string
-        }
+          code: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          normal_balance: Database["public"]["Enums"]["normal_balance_type"];
+          tenant_id: string;
+          type: Database["public"]["Enums"]["account_type"];
+          updated_at?: string;
+        };
         Update: {
-          code?: string
-          created_at?: string
-          id?: string
-          name?: string
-          normal_balance?: Database["public"]["Enums"]["normal_balance_type"]
-          tenant_id?: string
-          type?: Database["public"]["Enums"]["account_type"]
-          updated_at?: string
-        }
+          code?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          normal_balance?: Database["public"]["Enums"]["normal_balance_type"];
+          tenant_id?: string;
+          type?: Database["public"]["Enums"]["account_type"];
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "chart_of_accounts_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "chart_of_accounts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       clients: {
         Row: {
-          active: boolean
-          address: string | null
-          contact_person: string | null
-          created_at: string
-          email: string | null
-          id: string
-          name: string
-          notes: string | null
-          payment_terms_days: number | null
-          phone: string | null
-          tenant_id: string
-          updated_at: string
-          vat_number: string | null
-        }
+          active: boolean;
+          address: string | null;
+          contact_person: string | null;
+          created_at: string;
+          email: string | null;
+          id: string;
+          name: string;
+          notes: string | null;
+          payment_terms_days: number | null;
+          phone: string | null;
+          tenant_id: string;
+          updated_at: string;
+          vat_number: string | null;
+        };
         Insert: {
-          active?: boolean
-          address?: string | null
-          contact_person?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name: string
-          notes?: string | null
-          payment_terms_days?: number | null
-          phone?: string | null
-          tenant_id: string
-          updated_at?: string
-          vat_number?: string | null
-        }
+          active?: boolean;
+          address?: string | null;
+          contact_person?: string | null;
+          created_at?: string;
+          email?: string | null;
+          id?: string;
+          name: string;
+          notes?: string | null;
+          payment_terms_days?: number | null;
+          phone?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
         Update: {
-          active?: boolean
-          address?: string | null
-          contact_person?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name?: string
-          notes?: string | null
-          payment_terms_days?: number | null
-          phone?: string | null
-          tenant_id?: string
-          updated_at?: string
-          vat_number?: string | null
-        }
+          active?: boolean;
+          address?: string | null;
+          contact_person?: string | null;
+          created_at?: string;
+          email?: string | null;
+          id?: string;
+          name?: string;
+          notes?: string | null;
+          payment_terms_days?: number | null;
+          phone?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "clients_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "clients_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       clients_yango: {
         Row: {
-          created_at: string
-          id: string
-          preferred_provider_id: string | null
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          preferred_provider_id: string | null;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          preferred_provider_id?: string | null
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          preferred_provider_id?: string | null;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          preferred_provider_id?: string | null
-          user_id?: string
-        }
+          created_at?: string;
+          id?: string;
+          preferred_provider_id?: string | null;
+          user_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "clients_yango_preferred_provider_id_fkey"
-            columns: ["preferred_provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "clients_yango_preferred_provider_id_fkey";
+            columns: ["preferred_provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       deduction_types: {
         Row: {
-          active: boolean
-          category: Database["public"]["Enums"]["deduction_category"]
-          code: string
-          created_at: string
-          default_amount: number
-          id: string
-          is_percentage: boolean
-          label: string
-          note: string | null
-          percentage: number | null
-          requires_collective_agreement: boolean
-          requires_evidence: boolean
-          tenant_id: string
-          updated_at: string
-        }
+          active: boolean;
+          category: Database["public"]["Enums"]["deduction_category"];
+          code: string;
+          created_at: string;
+          default_amount: number;
+          id: string;
+          is_percentage: boolean;
+          label: string;
+          note: string | null;
+          percentage: number | null;
+          requires_collective_agreement: boolean;
+          requires_evidence: boolean;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          active?: boolean
-          category: Database["public"]["Enums"]["deduction_category"]
-          code: string
-          created_at?: string
-          default_amount?: number
-          id?: string
-          is_percentage?: boolean
-          label: string
-          note?: string | null
-          percentage?: number | null
-          requires_collective_agreement?: boolean
-          requires_evidence?: boolean
-          tenant_id: string
-          updated_at?: string
-        }
+          active?: boolean;
+          category: Database["public"]["Enums"]["deduction_category"];
+          code: string;
+          created_at?: string;
+          default_amount?: number;
+          id?: string;
+          is_percentage?: boolean;
+          label: string;
+          note?: string | null;
+          percentage?: number | null;
+          requires_collective_agreement?: boolean;
+          requires_evidence?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          active?: boolean
-          category?: Database["public"]["Enums"]["deduction_category"]
-          code?: string
-          created_at?: string
-          default_amount?: number
-          id?: string
-          is_percentage?: boolean
-          label?: string
-          note?: string | null
-          percentage?: number | null
-          requires_collective_agreement?: boolean
-          requires_evidence?: boolean
-          tenant_id?: string
-          updated_at?: string
-        }
+          active?: boolean;
+          category?: Database["public"]["Enums"]["deduction_category"];
+          code?: string;
+          created_at?: string;
+          default_amount?: number;
+          id?: string;
+          is_percentage?: boolean;
+          label?: string;
+          note?: string | null;
+          percentage?: number | null;
+          requires_collective_agreement?: boolean;
+          requires_evidence?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "deduction_types_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "deduction_types_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       deductions: {
         Row: {
-          amount: number
-          created_at: string
-          created_by: string | null
-          deduction_type_id: string
-          disciplinary_action_id: string | null
-          employee_id: string
-          evidence_url: string | null
-          id: string
-          incident_date: string | null
-          incident_site_id: string | null
-          installment_plan_id: string | null
-          note: string | null
-          pay_period_id: string
-          tenant_id: string
-          updated_at: string
-        }
+          amount: number;
+          created_at: string;
+          created_by: string | null;
+          deduction_type_id: string;
+          disciplinary_action_id: string | null;
+          employee_id: string;
+          evidence_url: string | null;
+          id: string;
+          incident_date: string | null;
+          incident_site_id: string | null;
+          installment_plan_id: string | null;
+          note: string | null;
+          pay_period_id: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          amount: number
-          created_at?: string
-          created_by?: string | null
-          deduction_type_id: string
-          disciplinary_action_id?: string | null
-          employee_id: string
-          evidence_url?: string | null
-          id?: string
-          incident_date?: string | null
-          incident_site_id?: string | null
-          installment_plan_id?: string | null
-          note?: string | null
-          pay_period_id: string
-          tenant_id: string
-          updated_at?: string
-        }
+          amount: number;
+          created_at?: string;
+          created_by?: string | null;
+          deduction_type_id: string;
+          disciplinary_action_id?: string | null;
+          employee_id: string;
+          evidence_url?: string | null;
+          id?: string;
+          incident_date?: string | null;
+          incident_site_id?: string | null;
+          installment_plan_id?: string | null;
+          note?: string | null;
+          pay_period_id: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          amount?: number
-          created_at?: string
-          created_by?: string | null
-          deduction_type_id?: string
-          disciplinary_action_id?: string | null
-          employee_id?: string
-          evidence_url?: string | null
-          id?: string
-          incident_date?: string | null
-          incident_site_id?: string | null
-          installment_plan_id?: string | null
-          note?: string | null
-          pay_period_id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          amount?: number;
+          created_at?: string;
+          created_by?: string | null;
+          deduction_type_id?: string;
+          disciplinary_action_id?: string | null;
+          employee_id?: string;
+          evidence_url?: string | null;
+          id?: string;
+          incident_date?: string | null;
+          incident_site_id?: string | null;
+          installment_plan_id?: string | null;
+          note?: string | null;
+          pay_period_id?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "deductions_deduction_type_id_fkey"
-            columns: ["deduction_type_id"]
-            isOneToOne: false
-            referencedRelation: "deduction_types"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_deduction_type_id_fkey";
+            columns: ["deduction_type_id"];
+            isOneToOne: false;
+            referencedRelation: "deduction_types";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_disciplinary_action_id_fkey"
-            columns: ["disciplinary_action_id"]
-            isOneToOne: false
-            referencedRelation: "disciplinary_actions"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_disciplinary_action_id_fkey";
+            columns: ["disciplinary_action_id"];
+            isOneToOne: false;
+            referencedRelation: "disciplinary_actions";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_incident_site_id_fkey"
-            columns: ["incident_site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_incident_site_id_fkey";
+            columns: ["incident_site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_installment_plan_id_fkey"
-            columns: ["installment_plan_id"]
-            isOneToOne: false
-            referencedRelation: "installment_plans"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_installment_plan_id_fkey";
+            columns: ["installment_plan_id"];
+            isOneToOne: false;
+            referencedRelation: "installment_plans";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "deductions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "deductions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       disciplinary_actions: {
         Row: {
-          action_type: Database["public"]["Enums"]["disciplinary_action_type"]
-          collective_agreement_reference: string | null
-          collective_agreement_url: string | null
-          created_at: string
-          created_by: string | null
-          description: string
-          employee_id: string
-          evidence_url: string | null
-          fine_amount: number | null
-          id: string
-          incident_date: string
-          incident_site_id: string | null
-          offence_code: string
-          suspension_hours: number | null
-          suspension_pay_period_id: string | null
-          tenant_id: string
-          updated_at: string
-        }
+          action_type: Database["public"]["Enums"]["disciplinary_action_type"];
+          collective_agreement_reference: string | null;
+          collective_agreement_url: string | null;
+          confirmed_at: string | null;
+          confirmed_by: string | null;
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          employee_id: string;
+          evidence_url: string | null;
+          fine_amount: number | null;
+          id: string;
+          incident_date: string;
+          incident_site_id: string | null;
+          offence_code: string;
+          status: Database["public"]["Enums"]["approval_status"];
+          suspension_hours: number | null;
+          suspension_pay_period_id: string | null;
+          tenant_id: string;
+          updated_at: string;
+          verified_at: string | null;
+          verified_by: string | null;
+        };
         Insert: {
-          action_type: Database["public"]["Enums"]["disciplinary_action_type"]
-          collective_agreement_reference?: string | null
-          collective_agreement_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          description: string
-          employee_id: string
-          evidence_url?: string | null
-          fine_amount?: number | null
-          id?: string
-          incident_date: string
-          incident_site_id?: string | null
-          offence_code: string
-          suspension_hours?: number | null
-          suspension_pay_period_id?: string | null
-          tenant_id: string
-          updated_at?: string
-        }
+          action_type: Database["public"]["Enums"]["disciplinary_action_type"];
+          collective_agreement_reference?: string | null;
+          collective_agreement_url?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description: string;
+          employee_id: string;
+          evidence_url?: string | null;
+          fine_amount?: number | null;
+          id?: string;
+          incident_date: string;
+          incident_site_id?: string | null;
+          offence_code: string;
+          status?: Database["public"]["Enums"]["approval_status"];
+          suspension_hours?: number | null;
+          suspension_pay_period_id?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
         Update: {
-          action_type?: Database["public"]["Enums"]["disciplinary_action_type"]
-          collective_agreement_reference?: string | null
-          collective_agreement_url?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string
-          employee_id?: string
-          evidence_url?: string | null
-          fine_amount?: number | null
-          id?: string
-          incident_date?: string
-          incident_site_id?: string | null
-          offence_code?: string
-          suspension_hours?: number | null
-          suspension_pay_period_id?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
+          action_type?: Database["public"]["Enums"]["disciplinary_action_type"];
+          collective_agreement_reference?: string | null;
+          collective_agreement_url?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string;
+          employee_id?: string;
+          evidence_url?: string | null;
+          fine_amount?: number | null;
+          id?: string;
+          incident_date?: string;
+          incident_site_id?: string | null;
+          offence_code?: string;
+          status?: Database["public"]["Enums"]["approval_status"];
+          suspension_hours?: number | null;
+          suspension_pay_period_id?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "disciplinary_actions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "disciplinary_actions_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "disciplinary_actions_incident_site_id_fkey"
-            columns: ["incident_site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "disciplinary_actions_incident_site_id_fkey";
+            columns: ["incident_site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "disciplinary_actions_suspension_pay_period_id_fkey"
-            columns: ["suspension_pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "disciplinary_actions_suspension_pay_period_id_fkey";
+            columns: ["suspension_pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "disciplinary_actions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "disciplinary_actions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       employees: {
         Row: {
-          bank_account_number: string | null
-          bank_name: string | null
-          category: Database["public"]["Enums"]["employee_category"]
-          contract_signed_at: string | null
-          contract_signed_pdf_url: string | null
-          contract_template_kind: string | null
-          created_at: string
-          days_per_week: number
-          display_name: string | null
-          email: string | null
-          employee_code: string
-          first_names: string
-          home_site_id: string | null
-          hourly_rate: number
-          id: string
-          literacy_grade: Database["public"]["Enums"]["literacy_grade"] | null
-          monthly_salary: number
-          national_id: string | null
-          ordinarily_works_sundays: boolean
-          phone: string | null
-          photo_url: string | null
-          position: Database["public"]["Enums"]["employee_position"]
-          preferred_shift: Database["public"]["Enums"]["shift_preference"]
-          sesorb_registration_number: string | null
-          start_date: string | null
-          status: Database["public"]["Enums"]["employee_status"]
-          sunday_agreement_url: string | null
-          surname: string
-          tenant_id: string
-          transport_allowance: number
-          union_member: boolean
-          updated_at: string
-        }
+          bank_account_number: string | null;
+          bank_name: string | null;
+          category: Database["public"]["Enums"]["employee_category"];
+          contract_signed_at: string | null;
+          contract_signed_pdf_url: string | null;
+          contract_template_kind: string | null;
+          created_at: string;
+          days_per_week: number;
+          display_name: string | null;
+          email: string | null;
+          employee_code: string;
+          first_names: string;
+          home_site_id: string | null;
+          hourly_rate: number;
+          id: string;
+          literacy_grade: Database["public"]["Enums"]["literacy_grade"] | null;
+          monthly_salary: number;
+          national_id: string | null;
+          ordinarily_works_sundays: boolean;
+          phone: string | null;
+          photo_url: string | null;
+          position: Database["public"]["Enums"]["employee_position"];
+          preferred_shift: Database["public"]["Enums"]["shift_preference"];
+          sesorb_registration_number: string | null;
+          start_date: string | null;
+          status: Database["public"]["Enums"]["employee_status"];
+          sunday_agreement_url: string | null;
+          surname: string;
+          tenant_id: string;
+          transport_allowance: number;
+          union_member: boolean;
+          updated_at: string;
+        };
         Insert: {
-          bank_account_number?: string | null
-          bank_name?: string | null
-          category?: Database["public"]["Enums"]["employee_category"]
-          contract_signed_at?: string | null
-          contract_signed_pdf_url?: string | null
-          contract_template_kind?: string | null
-          created_at?: string
-          days_per_week?: number
-          display_name?: string | null
-          email?: string | null
-          employee_code: string
-          first_names: string
-          home_site_id?: string | null
-          hourly_rate?: number
-          id?: string
-          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null
-          monthly_salary?: number
-          national_id?: string | null
-          ordinarily_works_sundays?: boolean
-          phone?: string | null
-          photo_url?: string | null
-          position?: Database["public"]["Enums"]["employee_position"]
-          preferred_shift?: Database["public"]["Enums"]["shift_preference"]
-          sesorb_registration_number?: string | null
-          start_date?: string | null
-          status?: Database["public"]["Enums"]["employee_status"]
-          sunday_agreement_url?: string | null
-          surname: string
-          tenant_id: string
-          transport_allowance?: number
-          union_member?: boolean
-          updated_at?: string
-        }
+          bank_account_number?: string | null;
+          bank_name?: string | null;
+          category?: Database["public"]["Enums"]["employee_category"];
+          contract_signed_at?: string | null;
+          contract_signed_pdf_url?: string | null;
+          contract_template_kind?: string | null;
+          created_at?: string;
+          days_per_week?: number;
+          display_name?: string | null;
+          email?: string | null;
+          employee_code: string;
+          first_names: string;
+          home_site_id?: string | null;
+          hourly_rate?: number;
+          id?: string;
+          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null;
+          monthly_salary?: number;
+          national_id?: string | null;
+          ordinarily_works_sundays?: boolean;
+          phone?: string | null;
+          photo_url?: string | null;
+          position?: Database["public"]["Enums"]["employee_position"];
+          preferred_shift?: Database["public"]["Enums"]["shift_preference"];
+          sesorb_registration_number?: string | null;
+          start_date?: string | null;
+          status?: Database["public"]["Enums"]["employee_status"];
+          sunday_agreement_url?: string | null;
+          surname: string;
+          tenant_id: string;
+          transport_allowance?: number;
+          union_member?: boolean;
+          updated_at?: string;
+        };
         Update: {
-          bank_account_number?: string | null
-          bank_name?: string | null
-          category?: Database["public"]["Enums"]["employee_category"]
-          contract_signed_at?: string | null
-          contract_signed_pdf_url?: string | null
-          contract_template_kind?: string | null
-          created_at?: string
-          days_per_week?: number
-          display_name?: string | null
-          email?: string | null
-          employee_code?: string
-          first_names?: string
-          home_site_id?: string | null
-          hourly_rate?: number
-          id?: string
-          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null
-          monthly_salary?: number
-          national_id?: string | null
-          ordinarily_works_sundays?: boolean
-          phone?: string | null
-          photo_url?: string | null
-          position?: Database["public"]["Enums"]["employee_position"]
-          preferred_shift?: Database["public"]["Enums"]["shift_preference"]
-          sesorb_registration_number?: string | null
-          start_date?: string | null
-          status?: Database["public"]["Enums"]["employee_status"]
-          sunday_agreement_url?: string | null
-          surname?: string
-          tenant_id?: string
-          transport_allowance?: number
-          union_member?: boolean
-          updated_at?: string
-        }
+          bank_account_number?: string | null;
+          bank_name?: string | null;
+          category?: Database["public"]["Enums"]["employee_category"];
+          contract_signed_at?: string | null;
+          contract_signed_pdf_url?: string | null;
+          contract_template_kind?: string | null;
+          created_at?: string;
+          days_per_week?: number;
+          display_name?: string | null;
+          email?: string | null;
+          employee_code?: string;
+          first_names?: string;
+          home_site_id?: string | null;
+          hourly_rate?: number;
+          id?: string;
+          literacy_grade?: Database["public"]["Enums"]["literacy_grade"] | null;
+          monthly_salary?: number;
+          national_id?: string | null;
+          ordinarily_works_sundays?: boolean;
+          phone?: string | null;
+          photo_url?: string | null;
+          position?: Database["public"]["Enums"]["employee_position"];
+          preferred_shift?: Database["public"]["Enums"]["shift_preference"];
+          sesorb_registration_number?: string | null;
+          start_date?: string | null;
+          status?: Database["public"]["Enums"]["employee_status"];
+          sunday_agreement_url?: string | null;
+          surname?: string;
+          tenant_id?: string;
+          transport_allowance?: number;
+          union_member?: boolean;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "employees_home_site_id_fkey"
-            columns: ["home_site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "employees_home_site_id_fkey";
+            columns: ["home_site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "employees_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "employees_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
+      employment_exits: {
+        Row: {
+          cancel_reason: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          confirmed_at: string | null;
+          confirmed_by: string | null;
+          created_at: string;
+          employee_id: string;
+          exit_type: Database["public"]["Enums"]["employment_exit_type"];
+          final_pay_period_id: string | null;
+          id: string;
+          last_working_day: string | null;
+          notes: string | null;
+          notice_date: string | null;
+          reason: string;
+          recorded_at: string;
+          recorded_by: string;
+          status: Database["public"]["Enums"]["approval_status"];
+          tenant_id: string;
+          updated_at: string;
+          verified_at: string | null;
+          verified_by: string | null;
+        };
+        Insert: {
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          employee_id: string;
+          exit_type: Database["public"]["Enums"]["employment_exit_type"];
+          final_pay_period_id?: string | null;
+          id?: string;
+          last_working_day?: string | null;
+          notes?: string | null;
+          notice_date?: string | null;
+          reason: string;
+          recorded_at?: string;
+          recorded_by: string;
+          status?: Database["public"]["Enums"]["approval_status"];
+          tenant_id: string;
+          updated_at?: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
+        Update: {
+          cancel_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          employee_id?: string;
+          exit_type?: Database["public"]["Enums"]["employment_exit_type"];
+          final_pay_period_id?: string | null;
+          id?: string;
+          last_working_day?: string | null;
+          notes?: string | null;
+          notice_date?: string | null;
+          reason?: string;
+          recorded_at?: string;
+          recorded_by?: string;
+          status?: Database["public"]["Enums"]["approval_status"];
+          tenant_id?: string;
+          updated_at?: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "employment_exits_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "employment_exits_final_pay_period_id_fkey";
+            columns: ["final_pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "employment_exits_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       equipment_issues: {
         Row: {
-          acknowledged: boolean
-          charge_amount: number | null
-          condition_on_return: string | null
-          created_at: string
-          created_by: string | null
-          employee_id: string
-          id: string
-          issued_at: string
-          issued_by: string | null
-          item_id: string
-          notes: string | null
-          quantity: number
-          returned_at: string | null
-          returned_to: string | null
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
+          acknowledged: boolean;
+          charge_amount: number | null;
+          condition_on_return: string | null;
+          created_at: string;
+          created_by: string | null;
+          employee_id: string;
+          id: string;
+          issued_at: string;
+          issued_by: string | null;
+          item_id: string;
+          notes: string | null;
+          quantity: number;
+          returned_at: string | null;
+          returned_to: string | null;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          acknowledged?: boolean
-          charge_amount?: number | null
-          condition_on_return?: string | null
-          created_at?: string
-          created_by?: string | null
-          employee_id: string
-          id?: string
-          issued_at?: string
-          issued_by?: string | null
-          item_id: string
-          notes?: string | null
-          quantity?: number
-          returned_at?: string | null
-          returned_to?: string | null
-          status?: string
-          tenant_id: string
-          updated_at?: string
-        }
+          acknowledged?: boolean;
+          charge_amount?: number | null;
+          condition_on_return?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          employee_id: string;
+          id?: string;
+          issued_at?: string;
+          issued_by?: string | null;
+          item_id: string;
+          notes?: string | null;
+          quantity?: number;
+          returned_at?: string | null;
+          returned_to?: string | null;
+          status?: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          acknowledged?: boolean
-          charge_amount?: number | null
-          condition_on_return?: string | null
-          created_at?: string
-          created_by?: string | null
-          employee_id?: string
-          id?: string
-          issued_at?: string
-          issued_by?: string | null
-          item_id?: string
-          notes?: string | null
-          quantity?: number
-          returned_at?: string | null
-          returned_to?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          acknowledged?: boolean;
+          charge_amount?: number | null;
+          condition_on_return?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          employee_id?: string;
+          id?: string;
+          issued_at?: string;
+          issued_by?: string | null;
+          item_id?: string;
+          notes?: string | null;
+          quantity?: number;
+          returned_at?: string | null;
+          returned_to?: string | null;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "equipment_issues_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "equipment_issues_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "equipment_issues_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
+            foreignKeyName: "equipment_issues_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "equipment_items";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "equipment_issues_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "equipment_issues_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       equipment_items: {
         Row: {
-          category: string
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          name: string
-          notes: string | null
-          quantity_available: number
-          quantity_total: number
-          sku: string | null
-          tenant_id: string
-          unit_cost: number | null
-          updated_at: string
-        }
+          category: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          is_active: boolean;
+          name: string;
+          notes: string | null;
+          quantity_available: number;
+          quantity_total: number;
+          sku: string | null;
+          tenant_id: string;
+          unit_cost: number | null;
+          updated_at: string;
+        };
         Insert: {
-          category?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          notes?: string | null
-          quantity_available?: number
-          quantity_total?: number
-          sku?: string | null
-          tenant_id: string
-          unit_cost?: number | null
-          updated_at?: string
-        }
+          category?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          notes?: string | null;
+          quantity_available?: number;
+          quantity_total?: number;
+          sku?: string | null;
+          tenant_id: string;
+          unit_cost?: number | null;
+          updated_at?: string;
+        };
         Update: {
-          category?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          notes?: string | null
-          quantity_available?: number
-          quantity_total?: number
-          sku?: string | null
-          tenant_id?: string
-          unit_cost?: number | null
-          updated_at?: string
-        }
+          category?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          notes?: string | null;
+          quantity_available?: number;
+          quantity_total?: number;
+          sku?: string | null;
+          tenant_id?: string;
+          unit_cost?: number | null;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "equipment_items_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "equipment_items_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       installment_plans: {
         Row: {
-          balance_remaining: number
-          created_at: string
-          deduction_type_id: string
-          employee_id: string
-          end_period_id: string | null
-          id: string
-          monthly_amount: number
-          purpose: string
-          start_period_id: string | null
-          status: Database["public"]["Enums"]["installment_status"]
-          tenant_id: string
-          total_amount: number
-          updated_at: string
-        }
+          balance_remaining: number;
+          created_at: string;
+          deduction_type_id: string;
+          employee_id: string;
+          end_period_id: string | null;
+          id: string;
+          monthly_amount: number;
+          purpose: string;
+          start_period_id: string | null;
+          status: Database["public"]["Enums"]["installment_status"];
+          tenant_id: string;
+          total_amount: number;
+          updated_at: string;
+        };
         Insert: {
-          balance_remaining: number
-          created_at?: string
-          deduction_type_id: string
-          employee_id: string
-          end_period_id?: string | null
-          id?: string
-          monthly_amount: number
-          purpose: string
-          start_period_id?: string | null
-          status?: Database["public"]["Enums"]["installment_status"]
-          tenant_id: string
-          total_amount: number
-          updated_at?: string
-        }
+          balance_remaining: number;
+          created_at?: string;
+          deduction_type_id: string;
+          employee_id: string;
+          end_period_id?: string | null;
+          id?: string;
+          monthly_amount: number;
+          purpose: string;
+          start_period_id?: string | null;
+          status?: Database["public"]["Enums"]["installment_status"];
+          tenant_id: string;
+          total_amount: number;
+          updated_at?: string;
+        };
         Update: {
-          balance_remaining?: number
-          created_at?: string
-          deduction_type_id?: string
-          employee_id?: string
-          end_period_id?: string | null
-          id?: string
-          monthly_amount?: number
-          purpose?: string
-          start_period_id?: string | null
-          status?: Database["public"]["Enums"]["installment_status"]
-          tenant_id?: string
-          total_amount?: number
-          updated_at?: string
-        }
+          balance_remaining?: number;
+          created_at?: string;
+          deduction_type_id?: string;
+          employee_id?: string;
+          end_period_id?: string | null;
+          id?: string;
+          monthly_amount?: number;
+          purpose?: string;
+          start_period_id?: string | null;
+          status?: Database["public"]["Enums"]["installment_status"];
+          tenant_id?: string;
+          total_amount?: number;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "installment_plans_deduction_type_id_fkey"
-            columns: ["deduction_type_id"]
-            isOneToOne: false
-            referencedRelation: "deduction_types"
-            referencedColumns: ["id"]
+            foreignKeyName: "installment_plans_deduction_type_id_fkey";
+            columns: ["deduction_type_id"];
+            isOneToOne: false;
+            referencedRelation: "deduction_types";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "installment_plans_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "installment_plans_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "installment_plans_end_period_id_fkey"
-            columns: ["end_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "installment_plans_end_period_id_fkey";
+            columns: ["end_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "installment_plans_start_period_id_fkey"
-            columns: ["start_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "installment_plans_start_period_id_fkey";
+            columns: ["start_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "installment_plans_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "installment_plans_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       invoice_items: {
         Row: {
-          created_at: string
-          description: string
-          id: string
-          invoice_id: string
-          quantity: number
-          tax_rate: number
-          unit_price: number
-        }
+          created_at: string;
+          description: string;
+          id: string;
+          invoice_id: string;
+          quantity: number;
+          tax_rate: number;
+          unit_price: number;
+        };
         Insert: {
-          created_at?: string
-          description: string
-          id?: string
-          invoice_id: string
-          quantity: number
-          tax_rate?: number
-          unit_price: number
-        }
+          created_at?: string;
+          description: string;
+          id?: string;
+          invoice_id: string;
+          quantity: number;
+          tax_rate?: number;
+          unit_price: number;
+        };
         Update: {
-          created_at?: string
-          description?: string
-          id?: string
-          invoice_id?: string
-          quantity?: number
-          tax_rate?: number
-          unit_price?: number
-        }
+          created_at?: string;
+          description?: string;
+          id?: string;
+          invoice_id?: string;
+          quantity?: number;
+          tax_rate?: number;
+          unit_price?: number;
+        };
         Relationships: [
           {
-            foreignKeyName: "invoice_items_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoice_items_invoice_id_fkey";
+            columns: ["invoice_id"];
+            isOneToOne: false;
+            referencedRelation: "invoices";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       invoices: {
         Row: {
-          client_id: string | null
-          created_at: string
-          due_date: string
-          id: string
-          invoice_date: string
-          invoice_number: string | null
-          issued_at: string | null
-          notes: string | null
-          paid_at: string | null
-          pay_period_id: string | null
-          receipt_url: string | null
-          site_id: string | null
-          status: Database["public"]["Enums"]["invoice_status"]
-          tax: number
-          tenant_id: string
-          total: number
-          type: Database["public"]["Enums"]["invoice_type"]
-          updated_at: string
-          vendor_id: string | null
-        }
+          client_id: string | null;
+          created_at: string;
+          due_date: string;
+          id: string;
+          invoice_date: string;
+          invoice_number: string | null;
+          issued_at: string | null;
+          notes: string | null;
+          paid_at: string | null;
+          pay_period_id: string | null;
+          receipt_url: string | null;
+          site_id: string | null;
+          status: Database["public"]["Enums"]["invoice_status"];
+          tax: number;
+          tenant_id: string;
+          total: number;
+          type: Database["public"]["Enums"]["invoice_type"];
+          updated_at: string;
+          vendor_id: string | null;
+        };
         Insert: {
-          client_id?: string | null
-          created_at?: string
-          due_date: string
-          id?: string
-          invoice_date?: string
-          invoice_number?: string | null
-          issued_at?: string | null
-          notes?: string | null
-          paid_at?: string | null
-          pay_period_id?: string | null
-          receipt_url?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["invoice_status"]
-          tax?: number
-          tenant_id: string
-          total: number
-          type: Database["public"]["Enums"]["invoice_type"]
-          updated_at?: string
-          vendor_id?: string | null
-        }
+          client_id?: string | null;
+          created_at?: string;
+          due_date: string;
+          id?: string;
+          invoice_date?: string;
+          invoice_number?: string | null;
+          issued_at?: string | null;
+          notes?: string | null;
+          paid_at?: string | null;
+          pay_period_id?: string | null;
+          receipt_url?: string | null;
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["invoice_status"];
+          tax?: number;
+          tenant_id: string;
+          total: number;
+          type: Database["public"]["Enums"]["invoice_type"];
+          updated_at?: string;
+          vendor_id?: string | null;
+        };
         Update: {
-          client_id?: string | null
-          created_at?: string
-          due_date?: string
-          id?: string
-          invoice_date?: string
-          invoice_number?: string | null
-          issued_at?: string | null
-          notes?: string | null
-          paid_at?: string | null
-          pay_period_id?: string | null
-          receipt_url?: string | null
-          site_id?: string | null
-          status?: Database["public"]["Enums"]["invoice_status"]
-          tax?: number
-          tenant_id?: string
-          total?: number
-          type?: Database["public"]["Enums"]["invoice_type"]
-          updated_at?: string
-          vendor_id?: string | null
-        }
+          client_id?: string | null;
+          created_at?: string;
+          due_date?: string;
+          id?: string;
+          invoice_date?: string;
+          invoice_number?: string | null;
+          issued_at?: string | null;
+          notes?: string | null;
+          paid_at?: string | null;
+          pay_period_id?: string | null;
+          receipt_url?: string | null;
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["invoice_status"];
+          tax?: number;
+          tenant_id?: string;
+          total?: number;
+          type?: Database["public"]["Enums"]["invoice_type"];
+          updated_at?: string;
+          vendor_id?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "invoices_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoices_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "invoices_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoices_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "invoices_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoices_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "invoices_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoices_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "invoices_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
+            foreignKeyName: "invoices_vendor_id_fkey";
+            columns: ["vendor_id"];
+            isOneToOne: false;
+            referencedRelation: "vendors";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
+      invoice_payments: {
+        Row: {
+          amount: number;
+          created_at: string;
+          id: string;
+          invoice_id: string;
+          notes: string | null;
+          received_at: string;
+          recorded_by: string | null;
+          reference: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          id?: string;
+          invoice_id: string;
+          notes?: string | null;
+          received_at?: string;
+          recorded_by?: string | null;
+          reference?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          amount?: number;
+          notes?: string | null;
+          received_at?: string;
+          reference?: string | null;
+        };
+        Relationships: [];
+      };
       leave_accruals: {
         Row: {
-          created_at: string
-          days_accrued: number
-          employee_id: string
-          id: string
-          pay_period_id: string
-          tenant_id: string
-        }
+          created_at: string;
+          days_accrued: number;
+          employee_id: string;
+          id: string;
+          pay_period_id: string;
+          tenant_id: string;
+        };
         Insert: {
-          created_at?: string
-          days_accrued?: number
-          employee_id: string
-          id?: string
-          pay_period_id: string
-          tenant_id: string
-        }
+          created_at?: string;
+          days_accrued?: number;
+          employee_id: string;
+          id?: string;
+          pay_period_id: string;
+          tenant_id: string;
+        };
         Update: {
-          created_at?: string
-          days_accrued?: number
-          employee_id?: string
-          id?: string
-          pay_period_id?: string
-          tenant_id?: string
-        }
+          created_at?: string;
+          days_accrued?: number;
+          employee_id?: string;
+          id?: string;
+          pay_period_id?: string;
+          tenant_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "leave_accruals_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "leave_accruals_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "leave_accruals_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "leave_accruals_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "leave_accruals_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "leave_accruals_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       leave_balances: {
         Row: {
-          annual_days: number
-          compassionate_days: number
-          employee_id: string
-          id: string
-          off_days: number
-          sick_days: number
-          tenant_id: string
-          updated_at: string
-        }
+          annual_days: number;
+          compassionate_days: number;
+          employee_id: string;
+          id: string;
+          off_days: number;
+          sick_days: number;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          annual_days?: number
-          compassionate_days?: number
-          employee_id: string
-          id?: string
-          off_days?: number
-          sick_days?: number
-          tenant_id: string
-          updated_at?: string
-        }
+          annual_days?: number;
+          compassionate_days?: number;
+          employee_id: string;
+          id?: string;
+          off_days?: number;
+          sick_days?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          annual_days?: number
-          compassionate_days?: number
-          employee_id?: string
-          id?: string
-          off_days?: number
-          sick_days?: number
-          tenant_id?: string
-          updated_at?: string
-        }
+          annual_days?: number;
+          compassionate_days?: number;
+          employee_id?: string;
+          id?: string;
+          off_days?: number;
+          sick_days?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "leave_balances_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "leave_balances_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: true;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "leave_balances_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "leave_balances_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
+      leave_coverage: {
+        Row: {
+          assigned_at: string | null;
+          assigned_by: string | null;
+          coverage_date: string;
+          created_at: string;
+          id: string;
+          leave_employee_id: string;
+          original_assignment_id: string;
+          planned_hours: number;
+          replacement_assignment_id: string | null;
+          replacement_employee_id: string | null;
+          request_day_id: string;
+          shift_type_id: string;
+          site_id: string;
+          status: Database["public"]["Enums"]["leave_coverage_status"];
+          tenant_id: string;
+          updated_at: string;
+          waived_reason: string | null;
+        };
+        Insert: {
+          assigned_at?: string | null;
+          assigned_by?: string | null;
+          coverage_date: string;
+          id?: string;
+          leave_employee_id: string;
+          original_assignment_id: string;
+          planned_hours: number;
+          replacement_assignment_id?: string | null;
+          replacement_employee_id?: string | null;
+          request_day_id: string;
+          shift_type_id: string;
+          site_id: string;
+          status?: Database["public"]["Enums"]["leave_coverage_status"];
+          tenant_id: string;
+          waived_reason?: string | null;
+        };
+        Update: {
+          assigned_at?: string | null;
+          assigned_by?: string | null;
+          replacement_assignment_id?: string | null;
+          replacement_employee_id?: string | null;
+          status?: Database["public"]["Enums"]["leave_coverage_status"];
+          waived_reason?: string | null;
+        };
+        Relationships: [];
+      };
+      leave_cycles: {
+        Row: {
+          created_at: string;
+          cycle_end: string;
+          cycle_start: string;
+          employee_id: string;
+          entitlement_units: number;
+          id: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          cycle_end: string;
+          cycle_start: string;
+          employee_id: string;
+          entitlement_units: number;
+          id?: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          tenant_id: string;
+        };
+        Update: {
+          cycle_end?: string;
+          cycle_start?: string;
+          entitlement_units?: number;
+        };
+        Relationships: [];
+      };
+      leave_ledger: {
+        Row: {
+          cycle_id: string | null;
+          created_at: string;
+          created_by: string | null;
+          effective_date: string;
+          employee_id: string;
+          entry_type: Database["public"]["Enums"]["leave_ledger_entry_type"];
+          id: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          pay_period_id: string | null;
+          reference: string | null;
+          request_id: string | null;
+          tenant_id: string;
+          units: number;
+        };
+        Insert: {
+          cycle_id?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          effective_date?: string;
+          employee_id: string;
+          entry_type: Database["public"]["Enums"]["leave_ledger_entry_type"];
+          id?: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          pay_period_id?: string | null;
+          reference?: string | null;
+          request_id?: string | null;
+          tenant_id: string;
+          units: number;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      leave_policies: {
+        Row: {
+          active: boolean;
+          allow_negative: boolean;
+          balance_enforced: boolean;
+          created_at: string;
+          evidence_required_after_days: number | null;
+          id: string;
+          label: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          maximum_consecutive_days: number | null;
+          minimum_notice_days: number;
+          paid_percent: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          allow_negative?: boolean;
+          balance_enforced?: boolean;
+          evidence_required_after_days?: number | null;
+          id?: string;
+          label: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          maximum_consecutive_days?: number | null;
+          minimum_notice_days?: number;
+          paid_percent?: number;
+          tenant_id: string;
+        };
+        Update: {
+          active?: boolean;
+          allow_negative?: boolean;
+          balance_enforced?: boolean;
+          evidence_required_after_days?: number | null;
+          maximum_consecutive_days?: number | null;
+          minimum_notice_days?: number;
+          paid_percent?: number;
+        };
+        Relationships: [];
+      };
+      leave_request_days: {
+        Row: {
+          charge_units: number;
+          created_at: string;
+          employee_id: string;
+          id: string;
+          leave_date: string;
+          original_assignment_id: string | null;
+          original_planned_hours: number | null;
+          original_shift_type_id: string | null;
+          original_site_id: string | null;
+          paid_hours: number;
+          request_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          charge_units?: number;
+          employee_id: string;
+          id?: string;
+          leave_date: string;
+          request_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          charge_units?: number;
+          original_assignment_id?: string | null;
+          original_planned_hours?: number | null;
+          original_shift_type_id?: string | null;
+          original_site_id?: string | null;
+          paid_hours?: number;
+        };
+        Relationships: [];
+      };
+      leave_requests: {
+        Row: {
+          balance_charged: boolean;
+          cancellation_reason: string | null;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          charged_units: number;
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          decision_notes: string | null;
+          employee_id: string;
+          end_date: string;
+          evidence_url: string | null;
+          id: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          paid_percent: number;
+          reason: string;
+          requested_at: string;
+          requested_by: string;
+          start_date: string;
+          status: Database["public"]["Enums"]["leave_request_status"];
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          balance_charged?: boolean;
+          employee_id: string;
+          end_date: string;
+          evidence_url?: string | null;
+          id?: string;
+          leave_type: Database["public"]["Enums"]["leave_type"];
+          reason: string;
+          requested_by: string;
+          start_date: string;
+          tenant_id: string;
+        };
+        Update: {
+          balance_charged?: boolean;
+          cancellation_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          charged_units?: number;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_notes?: string | null;
+          status?: Database["public"]["Enums"]["leave_request_status"];
+        };
+        Relationships: [];
+      };
       ledger_entries: {
         Row: {
-          created_at: string
-          description: string
-          entry_date: string
-          id: string
-          reference_id: string | null
-          reference_type: string | null
-          tenant_id: string
-        }
+          created_at: string;
+          description: string;
+          entry_date: string;
+          id: string;
+          reference_id: string | null;
+          reference_type: string | null;
+          tenant_id: string;
+        };
         Insert: {
-          created_at?: string
-          description: string
-          entry_date: string
-          id?: string
-          reference_id?: string | null
-          reference_type?: string | null
-          tenant_id: string
-        }
+          created_at?: string;
+          description: string;
+          entry_date: string;
+          id?: string;
+          reference_id?: string | null;
+          reference_type?: string | null;
+          tenant_id: string;
+        };
         Update: {
-          created_at?: string
-          description?: string
-          entry_date?: string
-          id?: string
-          reference_id?: string | null
-          reference_type?: string | null
-          tenant_id?: string
-        }
+          created_at?: string;
+          description?: string;
+          entry_date?: string;
+          id?: string;
+          reference_id?: string | null;
+          reference_type?: string | null;
+          tenant_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ledger_entries_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ledger_entries_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       ledger_lines: {
         Row: {
-          account_id: string
-          created_at: string
-          credit: number
-          debit: number
-          id: string
-          ledger_id: string
-          tenant_id: string
-        }
+          account_id: string;
+          created_at: string;
+          credit: number;
+          debit: number;
+          id: string;
+          ledger_id: string;
+          tenant_id: string;
+        };
         Insert: {
-          account_id: string
-          created_at?: string
-          credit?: number
-          debit?: number
-          id?: string
-          ledger_id: string
-          tenant_id: string
-        }
+          account_id: string;
+          created_at?: string;
+          credit?: number;
+          debit?: number;
+          id?: string;
+          ledger_id: string;
+          tenant_id: string;
+        };
         Update: {
-          account_id?: string
-          created_at?: string
-          credit?: number
-          debit?: number
-          id?: string
-          ledger_id?: string
-          tenant_id?: string
-        }
+          account_id?: string;
+          created_at?: string;
+          credit?: number;
+          debit?: number;
+          id?: string;
+          ledger_id?: string;
+          tenant_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ledger_lines_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "chart_of_accounts"
-            referencedColumns: ["id"]
+            foreignKeyName: "ledger_lines_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "chart_of_accounts";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ledger_lines_ledger_id_fkey"
-            columns: ["ledger_id"]
-            isOneToOne: false
-            referencedRelation: "ledger_entries"
-            referencedColumns: ["id"]
+            foreignKeyName: "ledger_lines_ledger_id_fkey";
+            columns: ["ledger_id"];
+            isOneToOne: false;
+            referencedRelation: "ledger_entries";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ledger_lines_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ledger_lines_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       pay_periods: {
         Row: {
-          created_at: string
-          end_date: string
-          id: string
-          label: string
-          locked_at: string | null
-          locked_by: string | null
-          pay_date: string
-          start_date: string
-          status: Database["public"]["Enums"]["pay_period_status"]
-          tenant_id: string
-          updated_at: string
-        }
+          created_at: string;
+          end_date: string;
+          id: string;
+          label: string;
+          locked_at: string | null;
+          locked_by: string | null;
+          pay_date: string;
+          start_date: string;
+          status: Database["public"]["Enums"]["pay_period_status"];
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          end_date: string
-          id?: string
-          label: string
-          locked_at?: string | null
-          locked_by?: string | null
-          pay_date: string
-          start_date: string
-          status?: Database["public"]["Enums"]["pay_period_status"]
-          tenant_id: string
-          updated_at?: string
-        }
+          created_at?: string;
+          end_date: string;
+          id?: string;
+          label: string;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          pay_date: string;
+          start_date: string;
+          status?: Database["public"]["Enums"]["pay_period_status"];
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          end_date?: string
-          id?: string
-          label?: string
-          locked_at?: string | null
-          locked_by?: string | null
-          pay_date?: string
-          start_date?: string
-          status?: Database["public"]["Enums"]["pay_period_status"]
-          tenant_id?: string
-          updated_at?: string
-        }
+          created_at?: string;
+          end_date?: string;
+          id?: string;
+          label?: string;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          pay_date?: string;
+          start_date?: string;
+          status?: Database["public"]["Enums"]["pay_period_status"];
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "pay_periods_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "pay_periods_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       paye_brackets: {
         Row: {
-          base_tax: number
-          created_at: string
-          effective_from: string
-          id: string
-          lower_bound: number
-          marginal_rate: number
-          tenant_id: string
-          upper_bound: number | null
-        }
+          base_tax: number;
+          created_at: string;
+          effective_from: string;
+          id: string;
+          lower_bound: number;
+          marginal_rate: number;
+          tenant_id: string;
+          upper_bound: number | null;
+        };
         Insert: {
-          base_tax?: number
-          created_at?: string
-          effective_from?: string
-          id?: string
-          lower_bound: number
-          marginal_rate: number
-          tenant_id: string
-          upper_bound?: number | null
-        }
+          base_tax?: number;
+          created_at?: string;
+          effective_from?: string;
+          id?: string;
+          lower_bound: number;
+          marginal_rate: number;
+          tenant_id: string;
+          upper_bound?: number | null;
+        };
         Update: {
-          base_tax?: number
-          created_at?: string
-          effective_from?: string
-          id?: string
-          lower_bound?: number
-          marginal_rate?: number
-          tenant_id?: string
-          upper_bound?: number | null
-        }
+          base_tax?: number;
+          created_at?: string;
+          effective_from?: string;
+          id?: string;
+          lower_bound?: number;
+          marginal_rate?: number;
+          tenant_id?: string;
+          upper_bound?: number | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "paye_brackets_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "paye_brackets_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       payments_yango: {
         Row: {
-          authorized_cents: number
-          booking_id: string
-          captured_cents: number
-          created_at: string
-          external_ref: string | null
-          id: string
-          provider_tag: string
-          status: Database["public"]["Enums"]["yango_payment_status"]
-          updated_at: string
-        }
+          authorized_cents: number;
+          booking_id: string;
+          captured_cents: number;
+          created_at: string;
+          external_ref: string | null;
+          id: string;
+          provider_tag: string;
+          status: Database["public"]["Enums"]["yango_payment_status"];
+          updated_at: string;
+        };
         Insert: {
-          authorized_cents?: number
-          booking_id: string
-          captured_cents?: number
-          created_at?: string
-          external_ref?: string | null
-          id?: string
-          provider_tag?: string
-          status?: Database["public"]["Enums"]["yango_payment_status"]
-          updated_at?: string
-        }
+          authorized_cents?: number;
+          booking_id: string;
+          captured_cents?: number;
+          created_at?: string;
+          external_ref?: string | null;
+          id?: string;
+          provider_tag?: string;
+          status?: Database["public"]["Enums"]["yango_payment_status"];
+          updated_at?: string;
+        };
         Update: {
-          authorized_cents?: number
-          booking_id?: string
-          captured_cents?: number
-          created_at?: string
-          external_ref?: string | null
-          id?: string
-          provider_tag?: string
-          status?: Database["public"]["Enums"]["yango_payment_status"]
-          updated_at?: string
-        }
+          authorized_cents?: number;
+          booking_id?: string;
+          captured_cents?: number;
+          created_at?: string;
+          external_ref?: string | null;
+          id?: string;
+          provider_tag?: string;
+          status?: Database["public"]["Enums"]["yango_payment_status"];
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "payments_yango_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "payments_yango_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: false;
+            referencedRelation: "bookings_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       payouts_yango: {
         Row: {
-          amount_cents: number
-          created_at: string
-          id: string
-          paid_at: string | null
-          provider_id: string
-          status: Database["public"]["Enums"]["yango_payout_status"]
-        }
+          amount_cents: number;
+          created_at: string;
+          id: string;
+          paid_at: string | null;
+          provider_id: string;
+          status: Database["public"]["Enums"]["yango_payout_status"];
+        };
         Insert: {
-          amount_cents: number
-          created_at?: string
-          id?: string
-          paid_at?: string | null
-          provider_id: string
-          status?: Database["public"]["Enums"]["yango_payout_status"]
-        }
+          amount_cents: number;
+          created_at?: string;
+          id?: string;
+          paid_at?: string | null;
+          provider_id: string;
+          status?: Database["public"]["Enums"]["yango_payout_status"];
+        };
         Update: {
-          amount_cents?: number
-          created_at?: string
-          id?: string
-          paid_at?: string | null
-          provider_id?: string
-          status?: Database["public"]["Enums"]["yango_payout_status"]
-        }
+          amount_cents?: number;
+          created_at?: string;
+          id?: string;
+          paid_at?: string | null;
+          provider_id?: string;
+          status?: Database["public"]["Enums"]["yango_payout_status"];
+        };
         Relationships: [
           {
-            foreignKeyName: "payouts_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "payouts_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       payroll_constants: {
         Row: {
-          created_at: string
-          description: string | null
-          effective_from: string
-          id: string
-          key: string
-          tenant_id: string
-          updated_at: string
-          value: number
-        }
+          created_at: string;
+          description: string | null;
+          effective_from: string;
+          id: string;
+          key: string;
+          tenant_id: string;
+          updated_at: string;
+          value: number;
+        };
         Insert: {
-          created_at?: string
-          description?: string | null
-          effective_from?: string
-          id?: string
-          key: string
-          tenant_id: string
-          updated_at?: string
-          value: number
-        }
+          created_at?: string;
+          description?: string | null;
+          effective_from?: string;
+          id?: string;
+          key: string;
+          tenant_id: string;
+          updated_at?: string;
+          value: number;
+        };
         Update: {
-          created_at?: string
-          description?: string | null
-          effective_from?: string
-          id?: string
-          key?: string
-          tenant_id?: string
-          updated_at?: string
-          value?: number
-        }
+          created_at?: string;
+          description?: string | null;
+          effective_from?: string;
+          id?: string;
+          key?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          value?: number;
+        };
         Relationships: [
           {
-            foreignKeyName: "payroll_constants_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "payroll_constants_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       payroll_runs: {
         Row: {
-          compliance_warnings: Json
-          consensual_deductions: number
-          created_at: string
-          employee_id: string
-          finalized_at: string | null
-          generated_at: string
-          gross_salary: number
-          id: string
-          leave_balances_snapshot: Json | null
-          net_salary: number
-          night_hours: number
-          night_premium_amount: number
-          normal_amount: number
-          normal_hours: number
-          other_statutory: number
-          overtime_amount: number
-          overtime_hours: number
-          paid_at: string | null
-          pay_period_id: string
-          paye_amount: number
-          public_holiday_amount: number
-          public_holiday_hours: number
-          rate_per_hour: number
-          ssc_amount: number
-          status: Database["public"]["Enums"]["payroll_run_status"]
-          sunday_amount: number
-          sunday_hours: number
-          tenant_id: string
-          total_deductions: number
-          transport_allowance: number
-          updated_at: string
-        }
+          annual_leave_hours: number;
+          compassionate_leave_hours: number;
+          maternity_leave_hours: number;
+          maternity_paid_hours: number;
+          compliance_warnings: Json;
+          consensual_deductions: number;
+          created_at: string;
+          employee_id: string;
+          finalized_at: string | null;
+          generated_at: string;
+          gross_salary: number;
+          id: string;
+          leave_balances_snapshot: Json | null;
+          net_salary: number;
+          night_hours: number;
+          night_premium_amount: number;
+          normal_amount: number;
+          normal_hours: number;
+          other_statutory: number;
+          overtime_amount: number;
+          overtime_hours: number;
+          paid_at: string | null;
+          pay_period_id: string;
+          paye_amount: number;
+          public_holiday_amount: number;
+          public_holiday_hours: number;
+          rate_per_hour: number;
+          ssc_amount: number;
+          sick_leave_hours: number;
+          status: Database["public"]["Enums"]["payroll_run_status"];
+          sunday_amount: number;
+          sunday_callin_amount: number;
+          sunday_callin_hours: number;
+          sunday_hours: number;
+          tenant_id: string;
+          total_deductions: number;
+          transport_allowance: number;
+          unpaid_leave_hours: number;
+          updated_at: string;
+        };
         Insert: {
-          compliance_warnings?: Json
-          consensual_deductions?: number
-          created_at?: string
-          employee_id: string
-          finalized_at?: string | null
-          generated_at?: string
-          gross_salary?: number
-          id?: string
-          leave_balances_snapshot?: Json | null
-          net_salary?: number
-          night_hours?: number
-          night_premium_amount?: number
-          normal_amount?: number
-          normal_hours?: number
-          other_statutory?: number
-          overtime_amount?: number
-          overtime_hours?: number
-          paid_at?: string | null
-          pay_period_id: string
-          paye_amount?: number
-          public_holiday_amount?: number
-          public_holiday_hours?: number
-          rate_per_hour: number
-          ssc_amount?: number
-          status?: Database["public"]["Enums"]["payroll_run_status"]
-          sunday_amount?: number
-          sunday_hours?: number
-          tenant_id: string
-          total_deductions?: number
-          transport_allowance?: number
-          updated_at?: string
-        }
+          annual_leave_hours?: number;
+          compassionate_leave_hours?: number;
+          maternity_leave_hours?: number;
+          maternity_paid_hours?: number;
+          compliance_warnings?: Json;
+          consensual_deductions?: number;
+          created_at?: string;
+          employee_id: string;
+          finalized_at?: string | null;
+          generated_at?: string;
+          gross_salary?: number;
+          id?: string;
+          leave_balances_snapshot?: Json | null;
+          net_salary?: number;
+          night_hours?: number;
+          night_premium_amount?: number;
+          normal_amount?: number;
+          normal_hours?: number;
+          other_statutory?: number;
+          overtime_amount?: number;
+          overtime_hours?: number;
+          paid_at?: string | null;
+          pay_period_id: string;
+          paye_amount?: number;
+          public_holiday_amount?: number;
+          public_holiday_hours?: number;
+          rate_per_hour: number;
+          ssc_amount?: number;
+          sick_leave_hours?: number;
+          status?: Database["public"]["Enums"]["payroll_run_status"];
+          sunday_amount?: number;
+          sunday_callin_amount?: number;
+          sunday_callin_hours?: number;
+          sunday_hours?: number;
+          tenant_id: string;
+          total_deductions?: number;
+          transport_allowance?: number;
+          unpaid_leave_hours?: number;
+          updated_at?: string;
+        };
         Update: {
-          compliance_warnings?: Json
-          consensual_deductions?: number
-          created_at?: string
-          employee_id?: string
-          finalized_at?: string | null
-          generated_at?: string
-          gross_salary?: number
-          id?: string
-          leave_balances_snapshot?: Json | null
-          net_salary?: number
-          night_hours?: number
-          night_premium_amount?: number
-          normal_amount?: number
-          normal_hours?: number
-          other_statutory?: number
-          overtime_amount?: number
-          overtime_hours?: number
-          paid_at?: string | null
-          pay_period_id?: string
-          paye_amount?: number
-          public_holiday_amount?: number
-          public_holiday_hours?: number
-          rate_per_hour?: number
-          ssc_amount?: number
-          status?: Database["public"]["Enums"]["payroll_run_status"]
-          sunday_amount?: number
-          sunday_hours?: number
-          tenant_id?: string
-          total_deductions?: number
-          transport_allowance?: number
-          updated_at?: string
-        }
+          annual_leave_hours?: number;
+          compassionate_leave_hours?: number;
+          maternity_leave_hours?: number;
+          maternity_paid_hours?: number;
+          compliance_warnings?: Json;
+          consensual_deductions?: number;
+          created_at?: string;
+          employee_id?: string;
+          finalized_at?: string | null;
+          generated_at?: string;
+          gross_salary?: number;
+          id?: string;
+          leave_balances_snapshot?: Json | null;
+          net_salary?: number;
+          night_hours?: number;
+          night_premium_amount?: number;
+          normal_amount?: number;
+          normal_hours?: number;
+          other_statutory?: number;
+          overtime_amount?: number;
+          overtime_hours?: number;
+          paid_at?: string | null;
+          pay_period_id?: string;
+          paye_amount?: number;
+          public_holiday_amount?: number;
+          public_holiday_hours?: number;
+          rate_per_hour?: number;
+          ssc_amount?: number;
+          sick_leave_hours?: number;
+          status?: Database["public"]["Enums"]["payroll_run_status"];
+          sunday_amount?: number;
+          sunday_callin_amount?: number;
+          sunday_callin_hours?: number;
+          sunday_hours?: number;
+          tenant_id?: string;
+          total_deductions?: number;
+          transport_allowance?: number;
+          unpaid_leave_hours?: number;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "payroll_runs_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "payroll_runs_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "payroll_runs_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "payroll_runs_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "payroll_runs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "payroll_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       portfolio_images_yango: {
         Row: {
-          caption: string | null
-          created_at: string
-          id: string
-          position: number
-          provider_id: string
-          url: string
-        }
+          caption: string | null;
+          created_at: string;
+          id: string;
+          position: number;
+          provider_id: string;
+          url: string;
+        };
         Insert: {
-          caption?: string | null
-          created_at?: string
-          id?: string
-          position?: number
-          provider_id: string
-          url: string
-        }
+          caption?: string | null;
+          created_at?: string;
+          id?: string;
+          position?: number;
+          provider_id: string;
+          url: string;
+        };
         Update: {
-          caption?: string | null
-          created_at?: string
-          id?: string
-          position?: number
-          provider_id?: string
-          url?: string
-        }
+          caption?: string | null;
+          created_at?: string;
+          id?: string;
+          position?: number;
+          provider_id?: string;
+          url?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "portfolio_images_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "portfolio_images_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       profiles: {
         Row: {
-          assigned_site_ids: string[]
-          created_at: string
-          email: string | null
-          full_name: string
-          id: string
-          is_active: boolean
-          is_ceo_executive: boolean
-          onboarding_complete: boolean
-          role: Database["public"]["Enums"]["app_role"]
-          tenant_id: string
-          updated_at: string
-        }
+          assigned_site_ids: string[];
+          created_at: string;
+          email: string | null;
+          full_name: string;
+          id: string;
+          is_active: boolean;
+          is_ceo_executive: boolean;
+          onboarding_complete: boolean;
+          role: Database["public"]["Enums"]["app_role"];
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          assigned_site_ids?: string[]
-          created_at?: string
-          email?: string | null
-          full_name?: string
-          id: string
-          is_active?: boolean
-          is_ceo_executive?: boolean
-          onboarding_complete?: boolean
-          role?: Database["public"]["Enums"]["app_role"]
-          tenant_id: string
-          updated_at?: string
-        }
+          assigned_site_ids?: string[];
+          created_at?: string;
+          email?: string | null;
+          full_name?: string;
+          id: string;
+          is_active?: boolean;
+          is_ceo_executive?: boolean;
+          onboarding_complete?: boolean;
+          role?: Database["public"]["Enums"]["app_role"];
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          assigned_site_ids?: string[]
-          created_at?: string
-          email?: string | null
-          full_name?: string
-          id?: string
-          is_active?: boolean
-          is_ceo_executive?: boolean
-          onboarding_complete?: boolean
-          role?: Database["public"]["Enums"]["app_role"]
-          tenant_id?: string
-          updated_at?: string
-        }
+          assigned_site_ids?: string[];
+          created_at?: string;
+          email?: string | null;
+          full_name?: string;
+          id?: string;
+          is_active?: boolean;
+          is_ceo_executive?: boolean;
+          onboarding_complete?: boolean;
+          role?: Database["public"]["Enums"]["app_role"];
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "profiles_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "profiles_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       profiles_yango: {
         Row: {
-          avatar_url: string | null
-          created_at: string
-          display_name: string | null
-          id: string
-          phone: string | null
-          updated_at: string
-        }
+          avatar_url: string | null;
+          created_at: string;
+          display_name: string | null;
+          id: string;
+          phone: string | null;
+          updated_at: string;
+        };
         Insert: {
-          avatar_url?: string | null
-          created_at?: string
-          display_name?: string | null
-          id: string
-          phone?: string | null
-          updated_at?: string
-        }
+          avatar_url?: string | null;
+          created_at?: string;
+          display_name?: string | null;
+          id: string;
+          phone?: string | null;
+          updated_at?: string;
+        };
         Update: {
-          avatar_url?: string | null
-          created_at?: string
-          display_name?: string | null
-          id?: string
-          phone?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
+          avatar_url?: string | null;
+          created_at?: string;
+          display_name?: string | null;
+          id?: string;
+          phone?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       providers_yango: {
         Row: {
-          address: string | null
-          avatar_url: string | null
-          bio: string | null
-          business_name: string
-          city: string
-          cover_url: string | null
-          created_at: string
-          id: string
-          lat: number | null
-          lng: number | null
-          rating: number | null
-          rating_count: number | null
-          updated_at: string
-          user_id: string | null
-        }
+          address: string | null;
+          avatar_url: string | null;
+          bio: string | null;
+          business_name: string;
+          city: string;
+          cover_url: string | null;
+          created_at: string;
+          id: string;
+          lat: number | null;
+          lng: number | null;
+          rating: number | null;
+          rating_count: number | null;
+          updated_at: string;
+          user_id: string | null;
+        };
         Insert: {
-          address?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          business_name: string
-          city: string
-          cover_url?: string | null
-          created_at?: string
-          id?: string
-          lat?: number | null
-          lng?: number | null
-          rating?: number | null
-          rating_count?: number | null
-          updated_at?: string
-          user_id?: string | null
-        }
+          address?: string | null;
+          avatar_url?: string | null;
+          bio?: string | null;
+          business_name: string;
+          city: string;
+          cover_url?: string | null;
+          created_at?: string;
+          id?: string;
+          lat?: number | null;
+          lng?: number | null;
+          rating?: number | null;
+          rating_count?: number | null;
+          updated_at?: string;
+          user_id?: string | null;
+        };
         Update: {
-          address?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          business_name?: string
-          city?: string
-          cover_url?: string | null
-          created_at?: string
-          id?: string
-          lat?: number | null
-          lng?: number | null
-          rating?: number | null
-          rating_count?: number | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+          address?: string | null;
+          avatar_url?: string | null;
+          bio?: string | null;
+          business_name?: string;
+          city?: string;
+          cover_url?: string | null;
+          created_at?: string;
+          id?: string;
+          lat?: number | null;
+          lng?: number | null;
+          rating?: number | null;
+          rating_count?: number | null;
+          updated_at?: string;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
       ps_exemptions: {
         Row: {
-          created_at: string
-          created_by: string | null
-          document_url: string | null
-          effective_from: string
-          effective_to: string
-          employee_id: string
-          id: string
-          notes: string | null
-          reference: string
-          tenant_id: string
-          updated_at: string
-        }
+          created_at: string;
+          created_by: string | null;
+          document_url: string | null;
+          effective_from: string;
+          effective_to: string;
+          employee_id: string;
+          id: string;
+          notes: string | null;
+          reference: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          created_by?: string | null
-          document_url?: string | null
-          effective_from: string
-          effective_to: string
-          employee_id: string
-          id?: string
-          notes?: string | null
-          reference: string
-          tenant_id: string
-          updated_at?: string
-        }
+          created_at?: string;
+          created_by?: string | null;
+          document_url?: string | null;
+          effective_from: string;
+          effective_to: string;
+          employee_id: string;
+          id?: string;
+          notes?: string | null;
+          reference: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          created_by?: string | null
-          document_url?: string | null
-          effective_from?: string
-          effective_to?: string
-          employee_id?: string
-          id?: string
-          notes?: string | null
-          reference?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          created_at?: string;
+          created_by?: string | null;
+          document_url?: string | null;
+          effective_from?: string;
+          effective_to?: string;
+          employee_id?: string;
+          id?: string;
+          notes?: string | null;
+          reference?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "ps_exemptions_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "ps_exemptions_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ps_exemptions_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "ps_exemptions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       public_holidays: {
         Row: {
-          created_at: string
-          date: string
-          id: string
-          name: string
-          tenant_id: string
-        }
+          created_at: string;
+          date: string;
+          id: string;
+          name: string;
+          tenant_id: string;
+        };
         Insert: {
-          created_at?: string
-          date: string
-          id?: string
-          name: string
-          tenant_id: string
-        }
+          created_at?: string;
+          date: string;
+          id?: string;
+          name: string;
+          tenant_id: string;
+        };
         Update: {
-          created_at?: string
-          date?: string
-          id?: string
-          name?: string
-          tenant_id?: string
-        }
+          created_at?: string;
+          date?: string;
+          id?: string;
+          name?: string;
+          tenant_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "public_holidays_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "public_holidays_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       ratings_yango: {
         Row: {
-          booking_id: string
-          client_id: string
-          comment: string | null
-          created_at: string
-          id: string
-          provider_id: string
-          stars: number
-        }
+          booking_id: string;
+          client_id: string;
+          comment: string | null;
+          created_at: string;
+          id: string;
+          provider_id: string;
+          stars: number;
+        };
         Insert: {
-          booking_id: string
-          client_id: string
-          comment?: string | null
-          created_at?: string
-          id?: string
-          provider_id: string
-          stars: number
-        }
+          booking_id: string;
+          client_id: string;
+          comment?: string | null;
+          created_at?: string;
+          id?: string;
+          provider_id: string;
+          stars: number;
+        };
         Update: {
-          booking_id?: string
-          client_id?: string
-          comment?: string | null
-          created_at?: string
-          id?: string
-          provider_id?: string
-          stars?: number
-        }
+          booking_id?: string;
+          client_id?: string;
+          comment?: string | null;
+          created_at?: string;
+          id?: string;
+          provider_id?: string;
+          stars?: number;
+        };
         Relationships: [
           {
-            foreignKeyName: "ratings_yango_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: true
-            referencedRelation: "bookings_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "ratings_yango_booking_id_fkey";
+            columns: ["booking_id"];
+            isOneToOne: true;
+            referencedRelation: "bookings_yango";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "ratings_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "ratings_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       schedule_assignments: {
         Row: {
-          created_at: string
-          created_by: string | null
-          date: string
-          employee_id: string
-          id: string
-          is_replacement: boolean
-          notes: string | null
-          planned_hours: number
-          replaced_assignment_id: string | null
-          shift_type_id: string
-          site_id: string
-          tenant_id: string
-          updated_at: string
-        }
+          created_at: string;
+          created_by: string | null;
+          date: string;
+          employee_id: string;
+          id: string;
+          is_replacement: boolean;
+          leave_request_day_id: string | null;
+          notes: string | null;
+          planned_hours: number;
+          replaced_assignment_id: string | null;
+          shift_type_id: string;
+          site_id: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          created_by?: string | null
-          date: string
-          employee_id: string
-          id?: string
-          is_replacement?: boolean
-          notes?: string | null
-          planned_hours: number
-          replaced_assignment_id?: string | null
-          shift_type_id: string
-          site_id: string
-          tenant_id: string
-          updated_at?: string
-        }
+          created_at?: string;
+          created_by?: string | null;
+          date: string;
+          employee_id: string;
+          id?: string;
+          is_replacement?: boolean;
+          leave_request_day_id?: string | null;
+          notes?: string | null;
+          planned_hours: number;
+          replaced_assignment_id?: string | null;
+          shift_type_id: string;
+          site_id: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          created_by?: string | null
-          date?: string
-          employee_id?: string
-          id?: string
-          is_replacement?: boolean
-          notes?: string | null
-          planned_hours?: number
-          replaced_assignment_id?: string | null
-          shift_type_id?: string
-          site_id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          created_at?: string;
+          created_by?: string | null;
+          date?: string;
+          employee_id?: string;
+          id?: string;
+          is_replacement?: boolean;
+          leave_request_day_id?: string | null;
+          notes?: string | null;
+          planned_hours?: number;
+          replaced_assignment_id?: string | null;
+          shift_type_id?: string;
+          site_id?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "schedule_assignments_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_assignments_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "schedule_assignments_replaced_assignment_id_fkey"
-            columns: ["replaced_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "schedule_assignments"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_assignments_replaced_assignment_id_fkey";
+            columns: ["replaced_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_assignments";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "schedule_assignments_shift_type_id_fkey"
-            columns: ["shift_type_id"]
-            isOneToOne: false
-            referencedRelation: "shift_types"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_assignments_shift_type_id_fkey";
+            columns: ["shift_type_id"];
+            isOneToOne: false;
+            referencedRelation: "shift_types";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "schedule_assignments_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_assignments_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "schedule_assignments_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_assignments_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       schedule_slots_yango: {
         Row: {
-          booking_id: string | null
-          created_at: string
-          ends_at: string
-          id: string
-          provider_id: string
-          starts_at: string
-          status: Database["public"]["Enums"]["yango_slot_status"]
-        }
+          booking_id: string | null;
+          created_at: string;
+          ends_at: string;
+          id: string;
+          provider_id: string;
+          starts_at: string;
+          status: Database["public"]["Enums"]["yango_slot_status"];
+        };
         Insert: {
-          booking_id?: string | null
-          created_at?: string
-          ends_at: string
-          id?: string
-          provider_id: string
-          starts_at: string
-          status?: Database["public"]["Enums"]["yango_slot_status"]
-        }
+          booking_id?: string | null;
+          created_at?: string;
+          ends_at: string;
+          id?: string;
+          provider_id: string;
+          starts_at: string;
+          status?: Database["public"]["Enums"]["yango_slot_status"];
+        };
         Update: {
-          booking_id?: string | null
-          created_at?: string
-          ends_at?: string
-          id?: string
-          provider_id?: string
-          starts_at?: string
-          status?: Database["public"]["Enums"]["yango_slot_status"]
-        }
+          booking_id?: string | null;
+          created_at?: string;
+          ends_at?: string;
+          id?: string;
+          provider_id?: string;
+          starts_at?: string;
+          status?: Database["public"]["Enums"]["yango_slot_status"];
+        };
         Relationships: [
           {
-            foreignKeyName: "schedule_slots_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "schedule_slots_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       service_items: {
         Row: {
-          active: boolean
-          created_at: string
-          default_rate: number
-          description: string | null
-          id: string
-          name: string
-          tenant_id: string
-          unit: string
-          updated_at: string
-        }
+          active: boolean;
+          created_at: string;
+          default_rate: number;
+          description: string | null;
+          id: string;
+          name: string;
+          tenant_id: string;
+          unit: string;
+          updated_at: string;
+        };
         Insert: {
-          active?: boolean
-          created_at?: string
-          default_rate?: number
-          description?: string | null
-          id?: string
-          name: string
-          tenant_id: string
-          unit?: string
-          updated_at?: string
-        }
+          active?: boolean;
+          created_at?: string;
+          default_rate?: number;
+          description?: string | null;
+          id?: string;
+          name: string;
+          tenant_id: string;
+          unit?: string;
+          updated_at?: string;
+        };
         Update: {
-          active?: boolean
-          created_at?: string
-          default_rate?: number
-          description?: string | null
-          id?: string
-          name?: string
-          tenant_id?: string
-          unit?: string
-          updated_at?: string
-        }
+          active?: boolean;
+          created_at?: string;
+          default_rate?: number;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          tenant_id?: string;
+          unit?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "service_items_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "service_items_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       services_yango: {
         Row: {
-          created_at: string
-          description: string | null
-          duration_minutes: number
-          id: string
-          is_active: boolean
-          name: string
-          price_cents: number
-          provider_id: string
-        }
+          created_at: string;
+          description: string | null;
+          duration_minutes: number;
+          id: string;
+          is_active: boolean;
+          name: string;
+          price_cents: number;
+          provider_id: string;
+        };
         Insert: {
-          created_at?: string
-          description?: string | null
-          duration_minutes: number
-          id?: string
-          is_active?: boolean
-          name: string
-          price_cents: number
-          provider_id: string
-        }
+          created_at?: string;
+          description?: string | null;
+          duration_minutes: number;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          price_cents: number;
+          provider_id: string;
+        };
         Update: {
-          created_at?: string
-          description?: string | null
-          duration_minutes?: number
-          id?: string
-          is_active?: boolean
-          name?: string
-          price_cents?: number
-          provider_id?: string
-        }
+          created_at?: string;
+          description?: string | null;
+          duration_minutes?: number;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          price_cents?: number;
+          provider_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "services_yango_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "providers_yango"
-            referencedColumns: ["id"]
+            foreignKeyName: "services_yango_provider_id_fkey";
+            columns: ["provider_id"];
+            isOneToOne: false;
+            referencedRelation: "providers_yango";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       shift_logs: {
         Row: {
-          approved_at: string | null
-          approved_by: string | null
-          assignment_id: string | null
-          created_at: string
-          date: string
-          employee_id: string
-          hours_worked: number
-          id: string
-          night_hours: number
-          notes: string | null
-          pay_period_id: string
-          shift_type_id: string
-          site_id: string
-          status: Database["public"]["Enums"]["shift_log_status"]
-          tenant_id: string
-          updated_at: string
-        }
+          approved_at: string | null;
+          approved_by: string | null;
+          assignment_id: string | null;
+          created_at: string;
+          date: string;
+          employee_id: string;
+          hours_worked: number;
+          id: string;
+          night_hours: number;
+          notes: string | null;
+          pay_period_id: string;
+          shift_type_id: string;
+          site_id: string;
+          status: Database["public"]["Enums"]["shift_log_status"];
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string
-          date: string
-          employee_id: string
-          hours_worked?: number
-          id?: string
-          night_hours?: number
-          notes?: string | null
-          pay_period_id: string
-          shift_type_id: string
-          site_id: string
-          status?: Database["public"]["Enums"]["shift_log_status"]
-          tenant_id: string
-          updated_at?: string
-        }
+          approved_at?: string | null;
+          approved_by?: string | null;
+          assignment_id?: string | null;
+          created_at?: string;
+          date: string;
+          employee_id: string;
+          hours_worked?: number;
+          id?: string;
+          night_hours?: number;
+          notes?: string | null;
+          pay_period_id: string;
+          shift_type_id: string;
+          site_id: string;
+          status?: Database["public"]["Enums"]["shift_log_status"];
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          assignment_id?: string | null
-          created_at?: string
-          date?: string
-          employee_id?: string
-          hours_worked?: number
-          id?: string
-          night_hours?: number
-          notes?: string | null
-          pay_period_id?: string
-          shift_type_id?: string
-          site_id?: string
-          status?: Database["public"]["Enums"]["shift_log_status"]
-          tenant_id?: string
-          updated_at?: string
-        }
+          approved_at?: string | null;
+          approved_by?: string | null;
+          assignment_id?: string | null;
+          created_at?: string;
+          date?: string;
+          employee_id?: string;
+          hours_worked?: number;
+          id?: string;
+          night_hours?: number;
+          notes?: string | null;
+          pay_period_id?: string;
+          shift_type_id?: string;
+          site_id?: string;
+          status?: Database["public"]["Enums"]["shift_log_status"];
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "shift_logs_assignment_id_fkey"
-            columns: ["assignment_id"]
-            isOneToOne: false
-            referencedRelation: "schedule_assignments"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_assignment_id_fkey";
+            columns: ["assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_assignments";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "shift_logs_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "shift_logs_pay_period_id_fkey"
-            columns: ["pay_period_id"]
-            isOneToOne: false
-            referencedRelation: "pay_periods"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "shift_logs_shift_type_id_fkey"
-            columns: ["shift_type_id"]
-            isOneToOne: false
-            referencedRelation: "shift_types"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_shift_type_id_fkey";
+            columns: ["shift_type_id"];
+            isOneToOne: false;
+            referencedRelation: "shift_types";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "shift_logs_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "shift_logs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_logs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       shift_types: {
         Row: {
-          active: boolean
-          code: string
-          created_at: string
-          day_of_week: Database["public"]["Enums"]["day_of_week"]
-          default_hours: number
-          end_min: number | null
-          id: string
-          is_leave: boolean
-          is_premium: boolean
-          label: string
-          pay_rule: Database["public"]["Enums"]["pay_rule"]
-          period: Database["public"]["Enums"]["shift_period"]
-          rate_multiplier: number
-          start_min: number | null
-          tenant_id: string
-          updated_at: string
-        }
+          active: boolean;
+          code: string;
+          created_at: string;
+          day_of_week: Database["public"]["Enums"]["day_of_week"];
+          default_hours: number;
+          end_min: number | null;
+          id: string;
+          is_leave: boolean;
+          is_premium: boolean;
+          label: string;
+          pay_rule: Database["public"]["Enums"]["pay_rule"];
+          period: Database["public"]["Enums"]["shift_period"];
+          rate_multiplier: number;
+          start_min: number | null;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          active?: boolean
-          code: string
-          created_at?: string
-          day_of_week?: Database["public"]["Enums"]["day_of_week"]
-          default_hours?: number
-          end_min?: number | null
-          id?: string
-          is_leave?: boolean
-          is_premium?: boolean
-          label: string
-          pay_rule?: Database["public"]["Enums"]["pay_rule"]
-          period?: Database["public"]["Enums"]["shift_period"]
-          rate_multiplier?: number
-          start_min?: number | null
-          tenant_id: string
-          updated_at?: string
-        }
+          active?: boolean;
+          code: string;
+          created_at?: string;
+          day_of_week?: Database["public"]["Enums"]["day_of_week"];
+          default_hours?: number;
+          end_min?: number | null;
+          id?: string;
+          is_leave?: boolean;
+          is_premium?: boolean;
+          label: string;
+          pay_rule?: Database["public"]["Enums"]["pay_rule"];
+          period?: Database["public"]["Enums"]["shift_period"];
+          rate_multiplier?: number;
+          start_min?: number | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          active?: boolean
-          code?: string
-          created_at?: string
-          day_of_week?: Database["public"]["Enums"]["day_of_week"]
-          default_hours?: number
-          end_min?: number | null
-          id?: string
-          is_leave?: boolean
-          is_premium?: boolean
-          label?: string
-          pay_rule?: Database["public"]["Enums"]["pay_rule"]
-          period?: Database["public"]["Enums"]["shift_period"]
-          rate_multiplier?: number
-          start_min?: number | null
-          tenant_id?: string
-          updated_at?: string
-        }
+          active?: boolean;
+          code?: string;
+          created_at?: string;
+          day_of_week?: Database["public"]["Enums"]["day_of_week"];
+          default_hours?: number;
+          end_min?: number | null;
+          id?: string;
+          is_leave?: boolean;
+          is_premium?: boolean;
+          label?: string;
+          pay_rule?: Database["public"]["Enums"]["pay_rule"];
+          period?: Database["public"]["Enums"]["shift_period"];
+          rate_multiplier?: number;
+          start_min?: number | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "shift_types_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "shift_types_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       signed_agreements: {
         Row: {
-          contract_snapshot: string
-          created_at: string
-          employee_id: string
-          id: string
-          id_document_url: string
-          signature_url: string
-          signed_at: string
-          signed_by_supervisor: string | null
-          signed_ip: string | null
-          site_id: string | null
-          tenant_id: string
-          updated_at: string
-        }
+          contract_snapshot: string;
+          created_at: string;
+          employee_id: string;
+          id: string;
+          id_document_url: string;
+          signature_url: string;
+          signed_at: string;
+          signed_by_supervisor: string | null;
+          signed_ip: string | null;
+          site_id: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          contract_snapshot: string
-          created_at?: string
-          employee_id: string
-          id?: string
-          id_document_url: string
-          signature_url: string
-          signed_at?: string
-          signed_by_supervisor?: string | null
-          signed_ip?: string | null
-          site_id?: string | null
-          tenant_id: string
-          updated_at?: string
-        }
+          contract_snapshot: string;
+          created_at?: string;
+          employee_id: string;
+          id?: string;
+          id_document_url: string;
+          signature_url: string;
+          signed_at?: string;
+          signed_by_supervisor?: string | null;
+          signed_ip?: string | null;
+          site_id?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          contract_snapshot?: string
-          created_at?: string
-          employee_id?: string
-          id?: string
-          id_document_url?: string
-          signature_url?: string
-          signed_at?: string
-          signed_by_supervisor?: string | null
-          signed_ip?: string | null
-          site_id?: string | null
-          tenant_id?: string
-          updated_at?: string
-        }
+          contract_snapshot?: string;
+          created_at?: string;
+          employee_id?: string;
+          id?: string;
+          id_document_url?: string;
+          signature_url?: string;
+          signed_at?: string;
+          signed_by_supervisor?: string | null;
+          signed_ip?: string | null;
+          site_id?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "signed_agreements_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
+            foreignKeyName: "signed_agreements_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "signed_agreements_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "signed_agreements_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "signed_agreements_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "signed_agreements_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       site_requirements: {
         Row: {
-          created_at: string
-          day_of_week: number
-          id: string
-          quantity_required: number
-          shift_kind: Database["public"]["Enums"]["shift_kind"]
-          shift_type_id: string | null
-          site_id: string
-          tenant_id: string
-          updated_at: string
-        }
+          created_at: string;
+          day_of_week: number;
+          id: string;
+          quantity_required: number;
+          shift_kind: Database["public"]["Enums"]["shift_kind"];
+          shift_type_id: string | null;
+          site_id: string;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          day_of_week: number
-          id?: string
-          quantity_required?: number
-          shift_kind: Database["public"]["Enums"]["shift_kind"]
-          shift_type_id?: string | null
-          site_id: string
-          tenant_id: string
-          updated_at?: string
-        }
+          created_at?: string;
+          day_of_week: number;
+          id?: string;
+          quantity_required?: number;
+          shift_kind: Database["public"]["Enums"]["shift_kind"];
+          shift_type_id?: string | null;
+          site_id: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          day_of_week?: number
-          id?: string
-          quantity_required?: number
-          shift_kind?: Database["public"]["Enums"]["shift_kind"]
-          shift_type_id?: string | null
-          site_id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
+          created_at?: string;
+          day_of_week?: number;
+          id?: string;
+          quantity_required?: number;
+          shift_kind?: Database["public"]["Enums"]["shift_kind"];
+          shift_type_id?: string | null;
+          site_id?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "site_requirements_shift_type_id_fkey"
-            columns: ["shift_type_id"]
-            isOneToOne: false
-            referencedRelation: "shift_types"
-            referencedColumns: ["id"]
+            foreignKeyName: "site_requirements_shift_type_id_fkey";
+            columns: ["shift_type_id"];
+            isOneToOne: false;
+            referencedRelation: "shift_types";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "site_requirements_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
+            foreignKeyName: "site_requirements_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "site_requirements_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "site_requirements_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       sites: {
         Row: {
-          active: boolean
-          address: string | null
-          billing_rate: number
-          client_address: string | null
-          client_contact_email: string | null
-          client_id: string | null
-          client_name: string | null
-          code: string | null
-          contract_terms_text: string | null
-          created_at: string
-          default_shifts: Json
-          id: string
-          name: string
-          notes: string | null
-          required_guard_grade: Database["public"]["Enums"]["literacy_grade"] | null
-          tenant_id: string
-          updated_at: string
-        }
+          active: boolean;
+          address: string | null;
+          billing_rate: number;
+          client_address: string | null;
+          client_contact_email: string | null;
+          client_id: string | null;
+          client_name: string | null;
+          code: string | null;
+          contract_terms_text: string | null;
+          created_at: string;
+          default_shifts: Json;
+          id: string;
+          name: string;
+          notes: string | null;
+          required_guard_grade: Database["public"]["Enums"]["literacy_grade"] | null;
+          tenant_id: string;
+          updated_at: string;
+        };
         Insert: {
-          active?: boolean
-          address?: string | null
-          billing_rate?: number
-          client_address?: string | null
-          client_contact_email?: string | null
-          client_id?: string | null
-          client_name?: string | null
-          code?: string | null
-          contract_terms_text?: string | null
-          created_at?: string
-          default_shifts?: Json
-          id?: string
-          name: string
-          notes?: string | null
-          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null
-          tenant_id: string
-          updated_at?: string
-        }
+          active?: boolean;
+          address?: string | null;
+          billing_rate?: number;
+          client_address?: string | null;
+          client_contact_email?: string | null;
+          client_id?: string | null;
+          client_name?: string | null;
+          code?: string | null;
+          contract_terms_text?: string | null;
+          created_at?: string;
+          default_shifts?: Json;
+          id?: string;
+          name: string;
+          notes?: string | null;
+          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
         Update: {
-          active?: boolean
-          address?: string | null
-          billing_rate?: number
-          client_address?: string | null
-          client_contact_email?: string | null
-          client_id?: string | null
-          client_name?: string | null
-          code?: string | null
-          contract_terms_text?: string | null
-          created_at?: string
-          default_shifts?: Json
-          id?: string
-          name?: string
-          notes?: string | null
-          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null
-          tenant_id?: string
-          updated_at?: string
-        }
+          active?: boolean;
+          address?: string | null;
+          billing_rate?: number;
+          client_address?: string | null;
+          client_contact_email?: string | null;
+          client_id?: string | null;
+          client_name?: string | null;
+          code?: string | null;
+          contract_terms_text?: string | null;
+          created_at?: string;
+          default_shifts?: Json;
+          id?: string;
+          name?: string;
+          notes?: string | null;
+          required_guard_grade?: Database["public"]["Enums"]["literacy_grade"] | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "sites_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
+            foreignKeyName: "sites_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "sites_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "sites_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       tenants: {
         Row: {
-          bank_account_name: string | null
-          bank_account_number: string | null
-          bank_branch_code: string | null
-          bank_branch_name: string | null
-          bank_name: string | null
-          company_email: string | null
-          company_phone: string | null
-          company_website: string | null
-          contract_template_driver: string | null
-          contract_template_management: string | null
-          contract_template_officer: string | null
-          created_at: string
-          default_contract_terms: string | null
-          default_hourly_rate: number
-          default_tax_rate: number
-          default_transport_allowance: number
-          id: string
-          invoice_due_days: number
-          invoice_footer_note: string | null
-          invoice_penalty_note: string | null
-          legal_name: string | null
-          logo_url: string | null
-          name: string
-          night_premium_enabled: boolean
-          pay_date_day: number
-          pay_period_start_day: number
-          registered_address: string | null
-          s17_3_exemption_document_url: string | null
-          s17_3_exemption_reference: string | null
-          sesorb_registration_number: string | null
-          updated_at: string
-          vat_number: string | null
-        }
+          bank_account_name: string | null;
+          bank_account_number: string | null;
+          bank_branch_code: string | null;
+          bank_branch_name: string | null;
+          bank_name: string | null;
+          company_email: string | null;
+          company_phone: string | null;
+          company_website: string | null;
+          contract_template_driver: string | null;
+          contract_template_management: string | null;
+          contract_template_officer: string | null;
+          created_at: string;
+          default_contract_terms: string | null;
+          default_hourly_rate: number;
+          default_tax_rate: number;
+          default_transport_allowance: number;
+          id: string;
+          invoice_due_days: number;
+          invoice_footer_note: string | null;
+          invoice_penalty_note: string | null;
+          legal_name: string | null;
+          logo_url: string | null;
+          name: string;
+          night_premium_enabled: boolean;
+          pay_date_day: number;
+          pay_period_start_day: number;
+          registered_address: string | null;
+          s17_3_exemption_document_url: string | null;
+          s17_3_exemption_reference: string | null;
+          sesorb_registration_number: string | null;
+          updated_at: string;
+          vat_number: string | null;
+        };
         Insert: {
-          bank_account_name?: string | null
-          bank_account_number?: string | null
-          bank_branch_code?: string | null
-          bank_branch_name?: string | null
-          bank_name?: string | null
-          company_email?: string | null
-          company_phone?: string | null
-          company_website?: string | null
-          contract_template_driver?: string | null
-          contract_template_management?: string | null
-          contract_template_officer?: string | null
-          created_at?: string
-          default_contract_terms?: string | null
-          default_hourly_rate?: number
-          default_tax_rate?: number
-          default_transport_allowance?: number
-          id?: string
-          invoice_due_days?: number
-          invoice_footer_note?: string | null
-          invoice_penalty_note?: string | null
-          legal_name?: string | null
-          logo_url?: string | null
-          name: string
-          night_premium_enabled?: boolean
-          pay_date_day?: number
-          pay_period_start_day?: number
-          registered_address?: string | null
-          s17_3_exemption_document_url?: string | null
-          s17_3_exemption_reference?: string | null
-          sesorb_registration_number?: string | null
-          updated_at?: string
-          vat_number?: string | null
-        }
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_branch_code?: string | null;
+          bank_branch_name?: string | null;
+          bank_name?: string | null;
+          company_email?: string | null;
+          company_phone?: string | null;
+          company_website?: string | null;
+          contract_template_driver?: string | null;
+          contract_template_management?: string | null;
+          contract_template_officer?: string | null;
+          created_at?: string;
+          default_contract_terms?: string | null;
+          default_hourly_rate?: number;
+          default_tax_rate?: number;
+          default_transport_allowance?: number;
+          id?: string;
+          invoice_due_days?: number;
+          invoice_footer_note?: string | null;
+          invoice_penalty_note?: string | null;
+          legal_name?: string | null;
+          logo_url?: string | null;
+          name: string;
+          night_premium_enabled?: boolean;
+          pay_date_day?: number;
+          pay_period_start_day?: number;
+          registered_address?: string | null;
+          s17_3_exemption_document_url?: string | null;
+          s17_3_exemption_reference?: string | null;
+          sesorb_registration_number?: string | null;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
         Update: {
-          bank_account_name?: string | null
-          bank_account_number?: string | null
-          bank_branch_code?: string | null
-          bank_branch_name?: string | null
-          bank_name?: string | null
-          company_email?: string | null
-          company_phone?: string | null
-          company_website?: string | null
-          contract_template_driver?: string | null
-          contract_template_management?: string | null
-          contract_template_officer?: string | null
-          created_at?: string
-          default_contract_terms?: string | null
-          default_hourly_rate?: number
-          default_tax_rate?: number
-          default_transport_allowance?: number
-          id?: string
-          invoice_due_days?: number
-          invoice_footer_note?: string | null
-          invoice_penalty_note?: string | null
-          legal_name?: string | null
-          logo_url?: string | null
-          name?: string
-          night_premium_enabled?: boolean
-          pay_date_day?: number
-          pay_period_start_day?: number
-          registered_address?: string | null
-          s17_3_exemption_document_url?: string | null
-          s17_3_exemption_reference?: string | null
-          sesorb_registration_number?: string | null
-          updated_at?: string
-          vat_number?: string | null
-        }
-        Relationships: []
-      }
+          bank_account_name?: string | null;
+          bank_account_number?: string | null;
+          bank_branch_code?: string | null;
+          bank_branch_name?: string | null;
+          bank_name?: string | null;
+          company_email?: string | null;
+          company_phone?: string | null;
+          company_website?: string | null;
+          contract_template_driver?: string | null;
+          contract_template_management?: string | null;
+          contract_template_officer?: string | null;
+          created_at?: string;
+          default_contract_terms?: string | null;
+          default_hourly_rate?: number;
+          default_tax_rate?: number;
+          default_transport_allowance?: number;
+          id?: string;
+          invoice_due_days?: number;
+          invoice_footer_note?: string | null;
+          invoice_penalty_note?: string | null;
+          legal_name?: string | null;
+          logo_url?: string | null;
+          name?: string;
+          night_premium_enabled?: boolean;
+          pay_date_day?: number;
+          pay_period_start_day?: number;
+          registered_address?: string | null;
+          s17_3_exemption_document_url?: string | null;
+          s17_3_exemption_reference?: string | null;
+          sesorb_registration_number?: string | null;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
+        Relationships: [];
+      };
       user_roles_yango: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["yango_app_role"]
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          role: Database["public"]["Enums"]["yango_app_role"];
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["yango_app_role"]
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          role: Database["public"]["Enums"]["yango_app_role"];
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["yango_app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          role?: Database["public"]["Enums"]["yango_app_role"];
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       vendors: {
         Row: {
-          active: boolean
-          address: string | null
-          contact_email: string | null
-          created_at: string
-          id: string
-          name: string
-          notes: string | null
-          phone: string | null
-          tenant_id: string
-          updated_at: string
-          vat_number: string | null
-        }
+          active: boolean;
+          address: string | null;
+          contact_email: string | null;
+          created_at: string;
+          id: string;
+          name: string;
+          notes: string | null;
+          phone: string | null;
+          tenant_id: string;
+          updated_at: string;
+          vat_number: string | null;
+        };
         Insert: {
-          active?: boolean
-          address?: string | null
-          contact_email?: string | null
-          created_at?: string
-          id?: string
-          name: string
-          notes?: string | null
-          phone?: string | null
-          tenant_id: string
-          updated_at?: string
-          vat_number?: string | null
-        }
+          active?: boolean;
+          address?: string | null;
+          contact_email?: string | null;
+          created_at?: string;
+          id?: string;
+          name: string;
+          notes?: string | null;
+          phone?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
         Update: {
-          active?: boolean
-          address?: string | null
-          contact_email?: string | null
-          created_at?: string
-          id?: string
-          name?: string
-          notes?: string | null
-          phone?: string | null
-          tenant_id?: string
-          updated_at?: string
-          vat_number?: string | null
-        }
+          active?: boolean;
+          address?: string | null;
+          contact_email?: string | null;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          notes?: string | null;
+          phone?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          vat_number?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "vendors_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
+            foreignKeyName: "vendors_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
-    }
+        ];
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
+      adjust_leave_balance: {
+        Args: {
+          p_employee: string;
+          p_reason: string;
+          p_type: Database["public"]["Enums"]["leave_type"];
+          p_units: number;
+        };
+        Returns: undefined;
+      };
+      approve_leave_request: { Args: { p_notes?: string; p_request: string }; Returns: undefined };
+      assign_leave_cover: { Args: { p_coverage: string; p_employee: string }; Returns: string };
+      cancel_employment_exit: {
+        Args: { p_exit: string; p_reason: string };
+        Returns: undefined;
+      };
+      confirm_disciplinary_action: {
+        Args: { p_action: string };
+        Returns: undefined;
+      };
+      confirm_employment_exit: {
+        Args: { p_exit: string; p_final_period?: string };
+        Returns: undefined;
+      };
       finalize_payroll_period: {
-        Args: { p_period: string }
-        Returns: undefined
-      }
+        Args: { p_period: string };
+        Returns: undefined;
+      };
+      cancel_leave_request: { Args: { p_reason: string; p_request: string }; Returns: undefined };
       fn_get_or_create_account: {
         Args: {
-          p_code: string
-          p_name: string
-          p_normal: Database["public"]["Enums"]["normal_balance_type"]
-          p_tenant: string
-          p_type: Database["public"]["Enums"]["account_type"]
-        }
-        Returns: string
-      }
-      get_my_tenant_id: { Args: never; Returns: string }
+          p_code: string;
+          p_name: string;
+          p_normal: Database["public"]["Enums"]["normal_balance_type"];
+          p_tenant: string;
+          p_type: Database["public"]["Enums"]["account_type"];
+        };
+        Returns: string;
+      };
+      get_my_role: { Args: never; Returns: string };
+      get_my_tenant_id: { Args: never; Returns: string };
+      is_ceo_executive: { Args: never; Returns: boolean };
       replace_draft_payroll: {
-        Args: { p_period: string; p_rows: Json }
-        Returns: undefined
-      }
-      set_user_role: {
-        Args: { p_role: Database["public"]["Enums"]["app_role"]; p_user: string }
-        Returns: undefined
-      }
+        Args: { p_period: string; p_rows: Json };
+        Returns: undefined;
+      };
+      reject_leave_request: { Args: { p_reason: string; p_request: string }; Returns: undefined };
       set_site_supervisors: {
-        Args: { p_site: string; p_user_ids: string[] }
-        Returns: undefined
-      }
+        Args: { p_site: string; p_user_ids: string[] };
+        Returns: undefined;
+      };
+      set_user_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"];
+          p_user: string;
+        };
+        Returns: undefined;
+      };
       set_user_sites: {
-        Args: { p_site_ids: string[]; p_user: string }
-        Returns: undefined
-      }
+        Args: { p_site_ids: string[]; p_user: string };
+        Returns: undefined;
+      };
+      submit_leave_request: {
+        Args: {
+          p_employee: string;
+          p_end: string;
+          p_evidence_url?: string;
+          p_reason: string;
+          p_start: string;
+          p_type: Database["public"]["Enums"]["leave_type"];
+        };
+        Returns: string;
+      };
+      unassign_leave_cover: { Args: { p_coverage: string }; Returns: undefined };
+      update_leave_policy: {
+        Args: {
+          p_active: boolean;
+          p_allow_negative: boolean;
+          p_balance_enforced: boolean;
+          p_evidence_required_after_days: number | null;
+          p_maximum_consecutive_days: number | null;
+          p_minimum_notice_days: number;
+          p_paid_percent: number;
+          p_type: Database["public"]["Enums"]["leave_type"];
+        };
+        Returns: undefined;
+      };
+      waive_leave_cover: { Args: { p_coverage: string; p_reason: string }; Returns: undefined };
+      verify_disciplinary_action: {
+        Args: { p_action: string };
+        Returns: undefined;
+      };
+      verify_employment_exit: { Args: { p_exit: string }; Returns: undefined };
       yango_has_role: {
         Args: {
-          _role: Database["public"]["Enums"]["yango_app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-    }
+          _role: Database["public"]["Enums"]["yango_app_role"];
+          _user_id: string;
+        };
+        Returns: boolean;
+      };
+    };
     Enums: {
-      account_type: "asset" | "liability" | "equity" | "income" | "expense"
-      app_role: "admin" | "accountant" | "payroll" | "operations" | "supervisor" | "security_supervisor" | "viewer"
-      day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any"
+      account_type: "asset" | "liability" | "equity" | "income" | "expense";
+      app_role:
+        | "admin"
+        | "accountant"
+        | "operations"
+        | "supervisor"
+        | "viewer"
+        | "payroll"
+        | "security_supervisor";
+      approval_status: "recorded" | "verified" | "confirmed" | "cancelled";
+      day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" | "any";
       deduction_category:
         | "statutory"
         | "recurring"
         | "offence_fine"
         | "offence_suspension"
         | "loan"
-        | "other"
+        | "other";
       disciplinary_action_type:
         | "verbal_warning"
         | "written_warning"
         | "final_warning"
         | "unpaid_suspension"
         | "fine_with_ca"
-        | "dismissal"
-      employee_category: "officer" | "management"
+        | "dismissal";
+      employee_category: "officer" | "management";
       employee_position:
         | "security_officer"
         | "supervisor"
@@ -3036,14 +3523,26 @@ export type Database = {
         | "operations_manager"
         | "admin"
         | "other"
-        | "driver"
-      employee_status: "active" | "suspended" | "terminated"
-      installment_status: "active" | "paid_off" | "paused" | "written_off"
-      invoice_status: "draft" | "issued" | "paid" | "void"
-      invoice_type: "AR" | "AP"
-      literacy_grade: "A+" | "A" | "B" | "C" | "D"
-      normal_balance_type: "debit" | "credit"
-      pay_period_status: "open" | "locked" | "paid"
+        | "driver";
+      employee_status: "active" | "suspended" | "terminated";
+      employment_exit_type: "dismissal" | "resignation" | "end_of_contract" | "abscondment";
+      installment_status: "active" | "paid_off" | "paused" | "written_off";
+      invoice_status: "draft" | "issued" | "paid" | "void";
+      invoice_type: "AR" | "AP";
+      literacy_grade: "A+" | "A" | "B" | "C" | "D";
+      leave_coverage_status: "open" | "assigned" | "waived" | "cancelled";
+      leave_ledger_entry_type:
+        | "opening"
+        | "entitlement"
+        | "accrual"
+        | "usage"
+        | "reversal"
+        | "adjustment"
+        | "expiry";
+      leave_request_status: "submitted" | "approved" | "rejected" | "cancelled";
+      leave_type: "annual" | "sick" | "compassionate" | "maternity" | "unpaid";
+      normal_balance_type: "debit" | "credit";
+      pay_period_status: "open" | "locked" | "paid";
       pay_rule:
         | "standard"
         | "sunday_default"
@@ -3051,162 +3550,162 @@ export type Database = {
         | "public_holiday_ordinary"
         | "public_holiday_non_ordinary"
         | "leave"
-        | "off"
-      payroll_run_status: "draft" | "finalized" | "paid"
-      shift_kind: "day" | "night"
+        | "off";
+      payroll_run_status: "draft" | "finalized" | "paid";
+      shift_kind: "day" | "night";
       shift_log_status:
         | "pending"
-        | "submitted"
         | "approved"
         | "no_show"
         | "replaced_by_other"
         | "suspended_unpaid"
-      shift_period: "morning" | "day" | "night" | "full_day"
-      shift_preference: "day" | "night" | "both"
-      yango_app_role: "admin" | "provider" | "client"
-      yango_booking_status:
-        | "pending"
-        | "confirmed"
-        | "completed"
-        | "no_show"
-        | "cancelled"
-      yango_payment_status:
-        | "pending"
-        | "authorized"
-        | "captured"
-        | "released"
-        | "failed"
-      yango_payout_status: "pending" | "paid" | "failed"
-      yango_slot_status: "open" | "booked" | "blocked"
-    }
+        | "submitted";
+      shift_period: "morning" | "day" | "night" | "full_day";
+      shift_preference: "day" | "night" | "both";
+      yango_app_role: "admin" | "provider" | "client";
+      yango_booking_status: "pending" | "confirmed" | "completed" | "no_show" | "cancelled";
+      yango_payment_status: "pending" | "authorized" | "captured" | "released" | "failed";
+      yango_payout_status: "pending" | "paid" | "failed";
+      yango_slot_status: "open" | "booked" | "blocked";
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+      Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+      Insert: infer I;
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+      Update: infer U;
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+    : never;
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "income", "expense"],
-      app_role: ["admin", "accountant", "payroll", "operations", "supervisor", "security_supervisor", "viewer"],
+      app_role: [
+        "admin",
+        "accountant",
+        "operations",
+        "supervisor",
+        "viewer",
+        "payroll",
+        "security_supervisor",
+      ],
+      approval_status: ["recorded", "verified", "confirmed", "cancelled"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat", "sun", "any"],
       deduction_category: [
         "statutory",
@@ -3235,10 +3734,23 @@ export const Constants = {
         "driver",
       ],
       employee_status: ["active", "suspended", "terminated"],
+      employment_exit_type: ["dismissal", "resignation", "end_of_contract", "abscondment"],
       installment_status: ["active", "paid_off", "paused", "written_off"],
       invoice_status: ["draft", "issued", "paid", "void"],
       invoice_type: ["AR", "AP"],
       literacy_grade: ["A+", "A", "B", "C", "D"],
+      leave_coverage_status: ["open", "assigned", "waived", "cancelled"],
+      leave_ledger_entry_type: [
+        "opening",
+        "entitlement",
+        "accrual",
+        "usage",
+        "reversal",
+        "adjustment",
+        "expiry",
+      ],
+      leave_request_status: ["submitted", "approved", "rejected", "cancelled"],
+      leave_type: ["annual", "sick", "compassionate", "maternity", "unpaid"],
       normal_balance_type: ["debit", "credit"],
       pay_period_status: ["open", "locked", "paid"],
       pay_rule: [
@@ -3254,31 +3766,19 @@ export const Constants = {
       shift_kind: ["day", "night"],
       shift_log_status: [
         "pending",
-        "submitted",
         "approved",
         "no_show",
         "replaced_by_other",
         "suspended_unpaid",
+        "submitted",
       ],
       shift_period: ["morning", "day", "night", "full_day"],
       shift_preference: ["day", "night", "both"],
       yango_app_role: ["admin", "provider", "client"],
-      yango_booking_status: [
-        "pending",
-        "confirmed",
-        "completed",
-        "no_show",
-        "cancelled",
-      ],
-      yango_payment_status: [
-        "pending",
-        "authorized",
-        "captured",
-        "released",
-        "failed",
-      ],
+      yango_booking_status: ["pending", "confirmed", "completed", "no_show", "cancelled"],
+      yango_payment_status: ["pending", "authorized", "captured", "released", "failed"],
       yango_payout_status: ["pending", "paid", "failed"],
       yango_slot_status: ["open", "booked", "blocked"],
     },
   },
-} as const
+} as const;

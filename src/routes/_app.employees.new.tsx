@@ -10,7 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/employees/new")({
@@ -33,7 +39,15 @@ const employeeSchema = z.object({
   surname: z.string().trim().min(1, "Required").max(80),
   first_names: z.string().trim().min(1, "Required").max(120),
   national_id: z.string().trim().max(40).optional().or(z.literal("")),
-  position: z.enum(["security_officer", "driver", "supervisor", "site_manager", "operations_manager", "admin", "other"]),
+  position: z.enum([
+    "security_officer",
+    "driver",
+    "supervisor",
+    "site_manager",
+    "operations_manager",
+    "admin",
+    "other",
+  ]),
   hourly_rate: z.coerce.number().min(0),
   monthly_salary: z.coerce.number().min(0),
   transport_allowance: z.coerce.number().min(0),
@@ -56,12 +70,22 @@ function NewEmployeePage() {
   const [submitting, setSubmitting] = useState(false);
   const canCreateManagement = profile?.role === "admin" || profile?.role === "operations";
   const [form, setForm] = useState({
-    employee_code: "", surname: "", first_names: "", national_id: "",
-    position: "security_officer" as typeof positions[number]["value"],
-    hourly_rate: 16, monthly_salary: 0, transport_allowance: 350,
-    phone: "", email: "", start_date: "", home_site_id: "",
-    bank_name: "", bank_account_number: "",
-    union_member: false, ordinarily_works_sundays: false,
+    employee_code: "",
+    surname: "",
+    first_names: "",
+    national_id: "",
+    position: "security_officer" as (typeof positions)[number]["value"],
+    hourly_rate: 16,
+    monthly_salary: 0,
+    transport_allowance: 350,
+    phone: "",
+    email: "",
+    start_date: "",
+    home_site_id: "",
+    bank_name: "",
+    bank_account_number: "",
+    union_member: false,
+    ordinarily_works_sundays: false,
     preferred_shift: "both" as "day" | "night" | "both",
     days_per_week: 6,
     literacy_grade: "" as "" | "A+" | "A" | "B" | "C" | "D",
@@ -74,7 +98,11 @@ function NewEmployeePage() {
     queryKey: ["sites-list", profile?.tenant_id],
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("sites").select("id, name").eq("active", true).order("name");
+      const { data, error } = await supabase
+        .from("sites")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -105,29 +133,33 @@ function NewEmployeePage() {
     try {
       const v = parsed.data;
       const category = meta.category;
-      const { data, error } = await supabase.from("employees").insert({
-        tenant_id: profile.tenant_id,
-        employee_code: v.employee_code,
-        surname: v.surname,
-        first_names: v.first_names,
-        national_id: v.national_id || null,
-        position: v.position,
-        category,
-        hourly_rate: category === "officer" ? v.hourly_rate : 0,
-        monthly_salary: category === "management" ? v.monthly_salary : 0,
-        transport_allowance: v.transport_allowance,
-        phone: v.phone || null,
-        email: v.email || null,
-        start_date: v.start_date || null,
-        home_site_id: category === "officer" ? (v.home_site_id || null) : null,
-        bank_name: v.bank_name || null,
-        bank_account_number: v.bank_account_number || null,
-        union_member: v.union_member,
-        ordinarily_works_sundays: v.ordinarily_works_sundays,
-        preferred_shift: v.preferred_shift,
-        days_per_week: v.days_per_week,
-        literacy_grade: category === "officer" ? (v.literacy_grade || null) : null,
-      }).select("id").single();
+      const { data, error } = await supabase
+        .from("employees")
+        .insert({
+          tenant_id: profile.tenant_id,
+          employee_code: v.employee_code,
+          surname: v.surname,
+          first_names: v.first_names,
+          national_id: v.national_id || null,
+          position: v.position,
+          category,
+          hourly_rate: category === "officer" ? v.hourly_rate : 0,
+          monthly_salary: category === "management" ? v.monthly_salary : 0,
+          transport_allowance: v.transport_allowance,
+          phone: v.phone || null,
+          email: v.email || null,
+          start_date: v.start_date || null,
+          home_site_id: category === "officer" ? v.home_site_id || null : null,
+          bank_name: v.bank_name || null,
+          bank_account_number: v.bank_account_number || null,
+          union_member: v.union_member,
+          ordinarily_works_sundays: v.ordinarily_works_sundays,
+          preferred_shift: v.preferred_shift,
+          days_per_week: v.days_per_week,
+          literacy_grade: category === "officer" ? v.literacy_grade || null : null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
       toast.success("Employee created");
       void navigate({ to: "/employees/$employeeId", params: { employeeId: data.id } });
@@ -142,45 +174,79 @@ function NewEmployeePage() {
     <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-3">
-          <Link to="/employees"><ArrowLeft className="mr-1 h-4 w-4" /> Back to employees</Link>
+          <Link to="/employees">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Back to employees
+          </Link>
         </Button>
         <h1 className="font-display text-3xl font-bold tracking-tight mt-3">Add employee</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Create a new guard, supervisor, or staff member. The minimum security guard rate is N$16/hr per the 2026 sectoral determination.
+          Create a new guard, supervisor, or staff member. The minimum security guard rate is
+          N$16/hr per the 2026 sectoral determination.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
-          <CardHeader><CardTitle>Identity</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Identity</CardTitle>
+          </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Employee code" required>
-              <Input value={form.employee_code} onChange={(e) => setForm({ ...form, employee_code: e.target.value })} required />
+              <Input
+                value={form.employee_code}
+                onChange={(e) => setForm({ ...form, employee_code: e.target.value })}
+                required
+              />
             </Field>
             <Field label="National ID">
-              <Input value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} />
+              <Input
+                value={form.national_id}
+                onChange={(e) => setForm({ ...form, national_id: e.target.value })}
+              />
             </Field>
             <Field label="Surname" required>
-              <Input value={form.surname} onChange={(e) => setForm({ ...form, surname: e.target.value })} required />
+              <Input
+                value={form.surname}
+                onChange={(e) => setForm({ ...form, surname: e.target.value })}
+                required
+              />
             </Field>
             <Field label="First names" required>
-              <Input value={form.first_names} onChange={(e) => setForm({ ...form, first_names: e.target.value })} required />
+              <Input
+                value={form.first_names}
+                onChange={(e) => setForm({ ...form, first_names: e.target.value })}
+                required
+              />
             </Field>
             <Field label="Phone">
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </Field>
             <Field label="Email">
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
             </Field>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Role & site</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Role & site</CardTitle>
+          </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Position" required>
-              <Select value={form.position} onValueChange={(v) => setForm({ ...form, position: v as typeof form.position })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.position}
+                onValueChange={(v) => setForm({ ...form, position: v as typeof form.position })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {positions.map((p) => (
                     <SelectItem
@@ -188,13 +254,16 @@ function NewEmployeePage() {
                       value={p.value}
                       disabled={p.category === "management" && !canCreateManagement}
                     >
-                      {p.label}{p.category === "management" ? " — fixed salary" : ""}
+                      {p.label}
+                      {p.category === "management" ? " — fixed salary" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {isManagement && !canCreateManagement && (
-                <p className="text-xs text-destructive mt-1">Only Admin or Operations Manager can add management staff.</p>
+                <p className="text-xs text-destructive mt-1">
+                  Only Admin or Operations Manager can add management staff.
+                </p>
               )}
             </Field>
             <Field label="Home site">
@@ -203,23 +272,37 @@ function NewEmployeePage() {
                 onValueChange={(v) => setForm({ ...form, home_site_id: v === "none" ? "" : v })}
                 disabled={isManagement}
               >
-                <SelectTrigger><SelectValue placeholder={isManagement ? "N/A for management" : "Unassigned"} /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder={isManagement ? "N/A for management" : "Unassigned"} />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Unassigned</SelectItem>
-                  {sites?.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {sites?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>
             <Field label="Start date">
-              <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+              <Input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+              />
             </Field>
             <Field label="Preferred shift">
               <Select
                 value={form.preferred_shift}
-                onValueChange={(v) => setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })}
+                onValueChange={(v) =>
+                  setForm({ ...form, preferred_shift: v as "day" | "night" | "both" })
+                }
                 disabled={isManagement}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="both">Day or Night</SelectItem>
                   <SelectItem value="day">Day only</SelectItem>
@@ -233,7 +316,9 @@ function NewEmployeePage() {
                 onValueChange={(v) => setForm({ ...form, days_per_week: Number(v) })}
                 disabled={isManagement}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5, 6].map((d) => (
                     <SelectItem key={d} value={String(d)}>
@@ -243,17 +328,24 @@ function NewEmployeePage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Scheduling guide only. Leave is earned from days actually worked
-                (1 day per 12 worked), not from this setting.
+                This ordinary work pattern sets the four-week annual-leave entitlement and is also
+                used by roster planning. Keep it accurate when the contract changes.
               </p>
             </Field>
             <Field label="Literacy grade">
               <Select
                 value={form.literacy_grade || "none"}
-                onValueChange={(v) => setForm({ ...form, literacy_grade: v === "none" ? "" : v as "A+" | "A" | "B" | "C" | "D" })}
+                onValueChange={(v) =>
+                  setForm({
+                    ...form,
+                    literacy_grade: v === "none" ? "" : (v as "A+" | "A" | "B" | "C" | "D"),
+                  })
+                }
                 disabled={isManagement}
               >
-                <SelectTrigger><SelectValue placeholder={isManagement ? "N/A for management" : "Ungraded"} /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder={isManagement ? "N/A for management" : "Ungraded"} />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Ungraded</SelectItem>
                   <SelectItem value="A+">A+ — Fluent, multilingual</SelectItem>
@@ -268,36 +360,67 @@ function NewEmployeePage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Compensation</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Compensation</CardTitle>
+          </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {isManagement ? (
               <Field label="Monthly salary (NAD)" required>
-                <Input type="number" step="0.01" min="0" value={form.monthly_salary}
-                  onChange={(e) => setForm({ ...form, monthly_salary: Number(e.target.value) })} required />
-                <p className="text-xs text-muted-foreground mt-1">Paid flat each pay period regardless of hours worked. PAYE + SSC still apply.</p>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.monthly_salary}
+                  onChange={(e) => setForm({ ...form, monthly_salary: Number(e.target.value) })}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Paid flat each pay period regardless of hours worked. PAYE + SSC still apply.
+                </p>
               </Field>
             ) : (
               <Field label="Hourly rate (NAD)" required>
-                <Input type="number" step="0.01" min="16" value={form.hourly_rate}
-                  onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} required />
-                <p className="text-xs text-muted-foreground mt-1">Min N$16/hr per 2026 sectoral determination. Guards & drivers paid the same rate.</p>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="16"
+                  value={form.hourly_rate}
+                  onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Min N$16/hr per 2026 sectoral determination. Guards & drivers paid the same rate.
+                </p>
               </Field>
             )}
             <Field label="Transport allowance (NAD/month)">
-              <Input type="number" step="0.01" min="0" value={form.transport_allowance}
-                onChange={(e) => setForm({ ...form, transport_allowance: Number(e.target.value) })} />
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.transport_allowance}
+                onChange={(e) => setForm({ ...form, transport_allowance: Number(e.target.value) })}
+              />
             </Field>
             <Field label="Bank name">
-              <Input value={form.bank_name} onChange={(e) => setForm({ ...form, bank_name: e.target.value })} />
+              <Input
+                value={form.bank_name}
+                onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+              />
             </Field>
             <Field label="Bank account">
-              <Input value={form.bank_account_number} onChange={(e) => setForm({ ...form, bank_account_number: e.target.value })} />
+              <Input
+                value={form.bank_account_number}
+                onChange={(e) => setForm({ ...form, bank_account_number: e.target.value })}
+              />
             </Field>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Agreements</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Agreements</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
             <ToggleRow
               label="Union member"
@@ -315,9 +438,15 @@ function NewEmployeePage() {
         </Card>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" asChild><Link to="/employees">Cancel</Link></Button>
+          <Button type="button" variant="ghost" asChild>
+            <Link to="/employees">Cancel</Link>
+          </Button>
           <Button type="submit" disabled={submitting}>
-            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {submitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
             Create employee
           </Button>
         </div>
@@ -326,7 +455,15 @@ function NewEmployeePage() {
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -337,8 +474,16 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function ToggleRow({ label, description, checked, onChange }: {
-  label: string; description: string; checked: boolean; onChange: (v: boolean) => void;
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-md border p-3">

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build decisions — security-payroll-demo</title>
+<style>
+  :root {
+    --bg:#0f172a; --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --ask:#0ea5e9; --built:#16a34a; --why:#d97706; --blocked:#dc2626;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:#f8fafc; }
+  header { background:var(--bg); color:#fff; padding:28px 24px; }
+  header h1 { margin:0 0 6px; font-size:24px; }
+  header p { margin:0; color:#cbd5e1; max-width:70ch; font-size:14px; }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px 64px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin:18px 0 22px; }
+  .legend b { color:var(--ink); }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:16px; overflow:hidden; }
+  .item > h2 { margin:0; padding:14px 16px; font-size:16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); }
+  .num { font:600 12px/1 ui-monospace,Menlo,monospace; background:#f1f5f9; color:var(--muted); padding:5px 7px; border-radius:6px; }
+  .tag { margin-left:auto; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:4px 8px; border-radius:999px; }
+  .tag.built { background:#dcfce7; color:#166534; }
+  .tag.partial { background:#fef3c7; color:#92400e; }
+  .tag.blocked { background:#fee2e2; color:#991b1b; }
+  .rows { padding:4px 16px 14px; }
+  .row { display:grid; grid-template-columns:150px 1fr; gap:14px; padding:10px 0; border-bottom:1px dashed var(--line); }
+  .row:last-child { border-bottom:0; }
+  .row > .k { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding-top:2px; }
+  .k.ask { color:var(--ask); } .k.built { color:var(--built); } .k.why { color:var(--why); } .k.open { color:var(--blocked); }
+  .row > .v { margin:0; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:13px; }
+  .money { background:#f0fdf4; border-left:3px solid var(--built); padding:8px 12px; margin-top:8px; font-size:14px; }
+  .note { background:#fffbeb; border-left:3px solid var(--why); padding:8px 12px; margin-top:8px; font-size:14px; }
+  @media (max-width:720px) { .row { grid-template-columns:1fr; gap:4px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>What was asked for, what got built, and why they differ</h1>
+  <p>Every UAT item from 3 July 2026, with the requirement as written, what actually shipped, and the reasoning
+     wherever the two aren't the same. Written 20 July 2026, revised 24 July after the Sunday
+     rate rule was corrected (#10). Verification steps live in <code>tracker.html</code>;
+     this page is the reasoning behind them.</p>
+</header>
+<main>
+
+<div class="legend">
+  <span><b>Built</b> — shipped, ready for you to verify</span>
+  <span><b>Partial</b> — shipped, but a decision is still owed</span>
+  <span><b>Blocked</b> — needs a decision before any code</span>
+</div>
+
+<div class="item">
+  <h2><span class="num">01</span> Supervisor can flag an offence <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Supervisors should be able to record misconduct — a guard caught sleeping on duty, for example — and payroll should see it when doing the verification step.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">A flag action on each muster row files a warning-level disciplinary action against that guard, for that date and site. Payroll sees it as a badge on the guard's payroll row, with the offence, who recorded it and whether it's been signed off.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">Supervisors got permission to file <em>warnings only</em> — never a fine or a suspension, which are the things that move money. That's enforced in the database, not just hidden in the UI, so it holds regardless of how the row is written.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">02</span> Disciplinary history per guard <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">A guard's disciplinary history in one place — past warnings, incidents and outcomes.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">A "Disciplinary history" card on the guard's profile: every record for that guard, newest first, with date, site, offence, action taken, any fine or suspension, and the name of whoever recorded it.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">Built as described, with one addition — each entry also shows where it sits in the sign-off chain. Without that a history list can't answer the question you actually bring to it: who says so, and was this ever agreed? A separate decision came out of building #1: supervisors reach all of this through the muster row rather than being given the Disciplinary section, which shows fines, suspensions and every guard in the company.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">12</span> Three people: record, verify, confirm <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">A disciplinary action must go through recording, verification and confirmation by three different people.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Actions move Recorded → Verified → Confirmed, and the database refuses to let the same person take two of the three steps. The same chain covers dismissals and exits.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">Built as specified. The consequence worth knowing is that pay now waits for the chain: an action has no effect on a payslip until it is confirmed, where previously a fine hit the payslip the moment it was typed in. The five records already on file were marked confirmed during the upgrade, so nothing already filed changed value.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">04 / 05 / 12</span> Absence, dismissal and exits <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Three separate items: mark a guard absent with a reason; a way to dismiss a guard; a way to record resignations and exits.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Marking a guard absent now always opens a reason dialog (pick a preset or type your own) — absent is never a silent one-click state. On the third unexcused absence in a period the row offers to open the offence flag prefilled with those dates. Dismissal, resignation and every other exit are one workflow on the employee's profile, with a mandatory reason and a record → verify → confirm sign-off chain.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">Dismissal isn't a button, it's a procedure — an unfair-dismissal claim turns on whether there was a documented reason and a fair process. One exit workflow covering every exit type, with sign-off by different people at each step, is both cheaper to build and the thing that actually protects the company. Building "dismiss" and "resign" as separate features would have produced two half-records of the same event.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">15 / 16</span> Absence reasons and repeat AWOL <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Not in the UAT — these came out of building #4.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">A standard reason list (no-show, called in sick, AWOL, sent home, family emergency, suspended, arrived too late, or free text), and a prompt on the muster row once a guard has two or more unexcused absences in the period.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">The reason is what separates an excused absence from AWOL, and AWOL is what a warning is eventually built on. Without a structured reason the system can't tell the two apart, and the repeat-offender prompt has nothing to count.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">06</span> Transport allowance vs attendance <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Transport allowance shouldn't be paid in full to a guard who didn't work the full month.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Transport = allowance × (days worked ÷ days rostered), shown on the payslip as "Transport allowance (20/22 days)". No roster for the period means the full allowance — there's nothing to judge attendance against.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">My own first plan was wrong and the data caught it. Dividing by the contracted pattern (6 days × weeks) would have cut N$350 to N$299.44 — a 14% cut for guards with <em>perfect</em> attendance — because rosters give about 22 working days against the pattern's 25.7. Roughly N$7,300 a month wrongly withheld across 145 guards. Against rostered days, 50 of 56 guards are unaffected and only real absence reduces the allowance.</p>
+      <div class="money">Also corrected: proration doesn't move PAYE. Tax is charged on gross minus transport, so both sides fall together. Social security does move, since it's a percentage of gross.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">08</span> Day and night confirmed separately <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">A guard's day and night shifts get confirmed in one action, so you can't tell which was actually checked.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">The muster is now a Day shift card and a Night shift card, each with its own counts, its own "mark all present", and its own confirm button that saves only its own rows.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">No new data was needed. Attendance was already stored per shift and every shift type already knows whether it's day or night — the screen was just flattening them. Recording a separate day/night confirmation, as the item implied, would have duplicated state the shift log already holds and then needed reconciling with it.</p></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">09 / 11</span> Roster rules — 10 off days, paired <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Two items: guards must get at least 10 off days in a period, and off days should come as consecutive pairs rather than scattered singles.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">One rule set covering both, plus the roster half of the hour cap, judged across a whole period. A "Roster rules" panel on Schedule names each guard and what they broke. The generator now prefers, among guards who cost exactly the same, whoever already works the neighbouring day — work in blocks means rest in blocks.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">These aren't three rules, they're one roster. Pairing off days pushes hours toward the cap; a 10-day minimum changes which pairs are possible. Built as separate checks they'd each pass while the roster as a whole failed. Two deliberate choices: it <em>reports</em> rather than blocks, and pairing sits <em>after</em> cost in the generator so it can never raise the wage bill.</p>
+      <div class="note">Reality check from your live data: 23 of 32 rostered guards already have fewer than 10 off days (minimum 8) — a 6-day pattern over a 31-day period can't produce 10. Blocking would have made the roster unsaveable on day one. Pairing, by contrast, is already fine: 137 paired rest blocks against 9 single off days, and the panel explains each of those 9.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">10</span> Sunday pay: 1.5× by contract, 2× for call-ins <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Sundays pay 1.5×, because the employment contract already commits every guard to that rate. 2× applies only when the guard was called in to replace someone marked absent. Public holidays stay at 2× for everyone.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Exactly that. Rostered Sundays pay 1.5× for everyone, with no per-guard switch to maintain. A Sunday worked as cover for an absentee pays the full 2× and shows on the payslip as its own "Sunday call-in" line, so the guard can see why that day paid more. Public holidays are untouched — 2× whether rostered or not.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">This replaces what I built on 20 July, which had 1.5× applying only to guards individually flagged as ordinarily working Sundays — 9 of 330. That was the wrong reading and has been corrected. The per-guard flag still exists in the database, unused; the roster's cost estimator was updated to match, so the cheapest-guard ranking reflects what payroll will actually pay.</p>
+      <div class="money"><b>This one does move money.</b> On live data (approved shifts, 24 May – 19 Jul 2026), 2,556 Sunday hours across 58 guards move from 2× to 1.5× — about <b>N$23,000 less over those two months</b>, roughly N$11–12k a month. Already-finalized periods are untouched.</div>
+      <div class="note">Recorded in <code>SAAS building notes for this software.md</code> as a tenant policy, not a product default, with instructions for reversing it — the blanket-agreement reading is this client's call and their exposure, and the next company built on this codebase should decide it fresh.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">14</span> Client statements <span class="tag built">Built</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">You can see a client's invoices one at a time, but there's no statement rolling them up to send. The original note suggested generating it through the AI assistant.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">A statement per client and date range: opening balance, every invoice and payment in date order with a running balance, closing balance, and aging (current / 30 / 60 / 90+). Downloads as a PDF.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">Not generated by the AI assistant. A statement is a document the client checks against their own books and may dispute, so every figure is computed from the invoice ledger and rendered through the same deterministic path as payslips. A language model that quietly gets one number wrong is a different class of problem to a bug.</p>
+      <div class="money">Reconciled against live data: City of Windhoek Civic Centre closes at N$71,732.00 — exactly its outstanding issued total — aged N$8,372.00 at 30–60 days and N$63,360.00 at 90+.</div>
+      <div class="note">Limitation: this schema has no payments table. An invoice is settled by marking it paid, so a payment is that event for the full amount — partial payments can't be shown until the schema supports them.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">07</span> Monthly hour cap <span class="tag partial">Partial — your call</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Cap guards at 240 hours and 20 overtime hours per month.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Attendance shows a running monthly total per guard (amber from 90%, red past the cap) and warns before you confirm attendance that would push someone over. A database-level hard block is written and ready, but ships switched off.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">The cap conflicts with how the company actually rosters. A 6-day × 12-hour pattern is about 264 hours; July 2026 already has 9 guards rostered over 240 (maximum 276), June had 20 (maximum 264). Enforcing 240 caps a guard at roughly 20 shifts a month, which means fewer shifts each and more headcount. That's a business decision, not a default we impose.</p>
+      <div class="note"><b>Needs you:</b> does the client accept 240h ≈ 20 shifts per guard per month? If yes, say the word and the hard block gets applied to the live database. The 20-hour overtime cap is deliberately not built — overtime is derived weekly at payroll time, not stored per shift, so it belongs on the payroll run rather than the muster.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">03</span> Leave and sick days <span class="tag built">Built — verify</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Leave and sick days shouldn't count Sundays, and the leave balance is wrong.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">A complete scheduled-day leave module: request, independent approval/rejection, private evidence, balance ledger, roster conversion, coverage assignment/waiver, cancellation reversal, employee history, payroll persistence and separate payslip lines.</p></div>
+    <div class="row"><div class="k why">Why this design</div><p class="v">Security guards work irregular rosters, so leave is charged by distinct scheduled working dates, not Sundays or weekday assumptions. Approval converts the original shifts to typed leave, opens one relief requirement per vacated shift, and values paid hours from the original roster. Off-days inside the requested range cost nothing.</p>
+      <div class="note"><b>Decision applied:</b> option B, proper leave management. Normal leave has one independent approver after manager submission, not the disciplinary three-person chain. Coverage and payroll checks are downstream controls, not extra approvals. Annual, sick and compassionate balances follow their statutory cycles.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">13</span> Patrol logging <span class="tag blocked">Blocked</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k ask">Asked for</div><p class="v">Somewhere to log and review patrols — rounds, checkpoints, times — as evidence a site was walked.</p></div>
+    <div class="row"><div class="k built">Built</div><p class="v">Nothing yet. Needs scoping with the client first.</p></div>
+    <div class="row"><div class="k why">Why different</div><p class="v">A patrol log exists to prove to the client that their site was walked, so its entire value is whether the data can be trusted. A screen where a supervisor types patrol times in afterwards proves nothing and will quietly stop being filled in. The parts worth building are checkpoints per site and rounds as timestamped visits, designed so a QR scan on a phone can create the record later without reshaping the data. It's also the only phone-first item on the list, which makes it a different kind of build to everything else here.</p>
+      <div class="note"><b>Needs you:</b> confirm the client wants this enough to justify a phone-first build, and whether scanning is in scope.</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="item">
+  <h2><span class="num">&mdash;</span> One change worth knowing about <span class="tag built">Behaviour change</span></h2>
+  <div class="rows">
+    <div class="row"><div class="k open">Heads up</div><p class="v">Payroll now applies <b>only confirmed</b> disciplinary actions. A fine that hasn't been through record → verify → confirm has no effect on a payslip. The five actions already on file were marked confirmed during the migration, so nothing that had already been filed changed value.</p></div>
+  </div>
+</div>
+
+</main>
+</body>
+</html>

@@ -53,7 +53,7 @@ type GroupTab = "officers" | "management";
 function EmployeesPage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
+  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll" && role !== "security_supervisor") {
     return <AccessDenied message="Employee records are restricted to payroll and operations staff." />;
   }
   const [search, setSearch] = useState("");

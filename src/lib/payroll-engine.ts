@@ -22,15 +22,13 @@ export function estimateShiftCost(
     public_holiday_multiplier: number;
     night_premium_rate: number;
   },
-  // Employees who ordinarily work Sundays under agreement are costed at the reduced
-  // Sunday multiplier, so the cheapest-guard ranking matches what they're actually paid.
-  ordinarilyWorksSundays = false,
 ): number {
   const nightAdder = isNightPeriod ? shiftHours * hourlyRate * constants.night_premium_rate : 0;
+  // Anything costed here is a shift being *rostered*, so a Sunday always attracts the
+  // agreed multiplier — the 2× default only ever applies to a replacement called in later,
+  // which by definition isn't on the roster yet. Keeps the cheapest-guard ranking honest.
   if (payRule === "sunday_default" || payRule === "sunday_ordinary") {
-    const sundayMult = ordinarilyWorksSundays && constants.sunday_agreed_multiplier != null
-      ? constants.sunday_agreed_multiplier
-      : constants.sunday_multiplier;
+    const sundayMult = constants.sunday_agreed_multiplier ?? constants.sunday_multiplier;
     return round2(shiftHours * hourlyRate * sundayMult + nightAdder);
   }
   if (payRule.startsWith("public_holiday")) {
@@ -41,8 +39,8 @@ export function estimateShiftCost(
   const overtimeHours = shiftHours - ordinaryHours;
   return round2(
     ordinaryHours * hourlyRate +
-    overtimeHours * hourlyRate * constants.overtime_multiplier +
-    nightAdder,
+      overtimeHours * hourlyRate * constants.overtime_multiplier +
+      nightAdder,
   );
 }
 
@@ -52,8 +50,20 @@ export type ShiftLogRow = {
   date: string;
   hours_worked: number;
   night_hours: number;
-  status: "pending" | "submitted" | "approved" | "no_show" | "replaced_by_other" | "suspended_unpaid";
+  status:
+    | "pending"
+    | "submitted"
+    | "approved"
+    | "no_show"
+    | "replaced_by_other"
+    | "suspended_unpaid";
+  // True when this shift came from an assignment created to cover someone else — i.e. the
+  // guard was called in, not rostered. That's what makes a Sunday "unplanned" (#10): the
+  // reduced 1.5× agreed multiplier only applies to Sundays the guard agreed to work.
+  schedule_assignments?: { is_replacement: boolean; planned_hours?: number | null } | null;
   shift_types?: {
+    code?: string | null;
+    is_leave?: boolean | null;
     pay_rule: string;
     rate_multiplier: number;
     // Clock window of the shift, in minutes from midnight (07:00 = 420, 19:00 = 1140).
@@ -76,6 +86,7 @@ export type EmployeeRow = {
   monthly_salary?: number | null;
   category?: "officer" | "management" | null;
   transport_allowance: number;
+  days_per_week?: number | null;
   ordinarily_works_sundays: boolean;
   bank_name: string | null;
   bank_account_number: string | null;
@@ -101,8 +112,10 @@ export type PayrollConstants = {
   night_premium_rate: number;
   overtime_multiplier: number;
   sunday_multiplier: number;
-  // Reduced Sunday multiplier for employees who ordinarily work Sundays under a written
-  // agreement (Labour Act s.21 — 1.5× instead of the 2× default).
+  // Reduced Sunday multiplier for work the employee agreed in advance to do (Labour Act
+  // s.21 — 1.5× instead of the 2× default). This tenant applies it to everyone via the
+  // employment contract; the default is reserved for replacement call-ins. Public
+  // holidays are not covered by that agreement and stay at 2× for everyone.
   sunday_agreed_multiplier: number;
   public_holiday_multiplier: number;
   weekly_ordinary_cap: number;
@@ -119,7 +132,18 @@ export type PayeBracket = {
 export type PayslipBuckets = {
   normal_hours: number;
   overtime_hours: number;
+  annual_leave_hours: number;
+  sick_leave_hours: number;
+  compassionate_leave_hours: number;
+  maternity_leave_hours: number;
+  maternity_paid_hours: number;
+  unpaid_leave_hours: number;
+  // Sunday hours the guard was rostered for — paid at the agreed multiplier (1.5×).
   sunday_hours: number;
+  // Sunday hours worked as cover for someone else — always the full default multiplier,
+  // because the guard never agreed to work that Sunday (#10).
+  sunday_callin_hours: number;
+  // Public holidays are not split — everyone gets the 2× default whether rostered or not.
   public_holiday_hours: number;
   night_hours: number;
   suspended_hours: number;
@@ -131,9 +155,13 @@ export type PayslipCalc = PayslipBuckets & {
   normal_amount: number;
   overtime_amount: number;
   sunday_amount: number;
+  sunday_callin_amount: number;
   public_holiday_amount: number;
   night_premium_amount: number;
   transport_allowance: number;
+  // Set only when the allowance was prorated, so the payslip can show the basis.
+  transport_days_worked?: number | null;
+  transport_expected_days?: number | null;
   gross_salary: number;
   paye_amount: number;
   ssc_amount: number;
@@ -147,10 +175,16 @@ export type PayslipCalc = PayslipBuckets & {
 
 // ---------- Constants fetch ----------
 
-export async function fetchPayrollConstants(): Promise<{ constants: PayrollConstants; brackets: PayeBracket[] }> {
+export async function fetchPayrollConstants(): Promise<{
+  constants: PayrollConstants;
+  brackets: PayeBracket[];
+}> {
   const [{ data: constRows, error: cErr }, { data: bracketRows, error: bErr }] = await Promise.all([
     supabase.from("payroll_constants").select("key,value"),
-    supabase.from("paye_brackets").select("lower_bound,upper_bound,base_tax,marginal_rate").order("lower_bound"),
+    supabase
+      .from("paye_brackets")
+      .select("lower_bound,upper_bound,base_tax,marginal_rate")
+      .order("lower_bound"),
   ]);
   if (cErr) throw cErr;
   if (bErr) throw bErr;
@@ -161,7 +195,8 @@ export async function fetchPayrollConstants(): Promise<{ constants: PayrollConst
   const constants: PayrollConstants = {
     ssc_rate: map.get("ssc_employee_rate") ?? map.get("ssc_rate") ?? 0.009,
     ssc_max_deduction: map.get("ssc_max_deduction") ?? 99,
-    tax_free_threshold: map.get("tax_free_threshold_annual") ?? map.get("tax_free_threshold") ?? 100_000,
+    tax_free_threshold:
+      map.get("tax_free_threshold_annual") ?? map.get("tax_free_threshold") ?? 100_000,
     min_wage_security: map.get("min_wage_security") ?? 16.0,
     // VET levy: 1% when ANNUAL payroll > N$1,000,000 (spec also references N$83,333 monthly ≈ same)
     vet_threshold: map.get("vet_levy_monthly_threshold") ?? 83_333,
@@ -187,10 +222,16 @@ export async function fetchPayrollConstants(): Promise<{ constants: PayrollConst
 
 // ---------- PAYE — annualise → tax → divide back to the period ----------
 // periodsPerYear lets non-monthly cycles annualise correctly (12 for monthly).
-export function calcPAYE(periodTaxable: number, brackets: PayeBracket[], periodsPerYear = 12): number {
+export function calcPAYE(
+  periodTaxable: number,
+  brackets: PayeBracket[],
+  periodsPerYear = 12,
+): number {
   if (periodTaxable <= 0 || brackets.length === 0) return 0;
   const annual = periodTaxable * periodsPerYear;
-  const b = brackets.find((x) => annual >= x.lower_bound && (x.upper_bound == null || annual < x.upper_bound));
+  const b = brackets.find(
+    (x) => annual >= x.lower_bound && (x.upper_bound == null || annual < x.upper_bound),
+  );
   if (!b) return 0;
   const annualTax = b.base_tax + (annual - b.lower_bound) * b.marginal_rate;
   return Math.max(0, annualTax / periodsPerYear);
@@ -240,7 +281,10 @@ function overlapMin(a: number, b: number, lo: number, hi: number): number {
 // calendar day it touches, carrying the night-band minutes within each segment.
 // dayOffset is the number of days after the shift's anchor date (0 = same day,
 // 1 = the morning after a night shift that crossed midnight).
-function shiftSegments(startMin: number, durationMin: number): Array<{ dayOffset: number; minutes: number; nightMinutes: number }> {
+function shiftSegments(
+  startMin: number,
+  durationMin: number,
+): Array<{ dayOffset: number; minutes: number; nightMinutes: number }> {
   const segs: Array<{ dayOffset: number; minutes: number; nightMinutes: number }> = [];
   const end = startMin + durationMin;
   let cur = startMin;
@@ -250,11 +294,29 @@ function shiftSegments(startMin: number, durationMin: number): Array<{ dayOffset
     const segEnd = Math.min(end, dayEndAbs);
     const a = cur - dayOffset * 1440; // minute-of-day start
     const z = segEnd - dayOffset * 1440; // minute-of-day end
-    const nightMinutes = overlapMin(a, z, NIGHT_EVENING_START, 1440) + overlapMin(a, z, 0, NIGHT_MORNING_END);
+    const nightMinutes =
+      overlapMin(a, z, NIGHT_EVENING_START, 1440) + overlapMin(a, z, 0, NIGHT_MORNING_END);
     segs.push({ dayOffset, minutes: segEnd - cur, nightMinutes });
     cur = segEnd;
   }
   return segs;
+}
+
+// ---------- Transport allowance proration ----------
+// Transport is a travel allowance: it pays for getting to and from work, so a guard who
+// worked half their shifts should receive half of it. A "worked day" is one distinct
+// calendar date with approved real work. Leave accrual itself is cycle-based; transport
+// deliberately remains attendance-based because it reimburses travel.
+export function countWorkedDays(logs: ShiftLogRow[]): number {
+  const days = new Set<string>();
+  for (const l of logs) {
+    if (l.status !== "approved") continue;
+    const rule = l.shift_types?.pay_rule ?? "standard";
+    if (rule === "off" || rule === "leave") continue;
+    if (Number(l.hours_worked || 0) <= 0) continue;
+    days.add(String(l.date).slice(0, 10));
+  }
+  return days.size;
 }
 
 // ---------- Bucketise shift logs ----------
@@ -271,8 +333,19 @@ function bucketiseLogs(
   publicHolidayDates: Set<string>,
 ): PayslipBuckets {
   const b: PayslipBuckets = {
-    normal_hours: 0, overtime_hours: 0, sunday_hours: 0,
-    public_holiday_hours: 0, night_hours: 0, suspended_hours: 0,
+    normal_hours: 0,
+    overtime_hours: 0,
+    sunday_hours: 0,
+    sunday_callin_hours: 0,
+    public_holiday_hours: 0,
+    night_hours: 0,
+    suspended_hours: 0,
+    annual_leave_hours: 0,
+    sick_leave_hours: 0,
+    compassionate_leave_hours: 0,
+    maternity_leave_hours: 0,
+    maternity_paid_hours: 0,
+    unpaid_leave_hours: 0,
   };
 
   // Ordinary (weekday, non-premium) hours per ISO week — split against the cap once
@@ -298,13 +371,33 @@ function bucketiseLogs(
     const hrs = Number(l.hours_worked || 0);
     const rule = l.shift_types?.pay_rule ?? "standard";
 
-    if (rule === "off") continue;
-    if (rule === "leave") {
+    if (l.shift_types?.is_leave || rule === "leave") {
+      const leaveHours =
+        l.shift_types?.code === "LEAVE-UNPAID" || l.shift_types?.code === "LEAVE-MATERNITY"
+          ? Number(l.schedule_assignments?.planned_hours || 0)
+          : hrs;
+      if (l.shift_types?.code === "LEAVE-SICK") b.sick_leave_hours += leaveHours;
+      else if (l.shift_types?.code === "LEAVE-COMPASSIONATE")
+        b.compassionate_leave_hours += leaveHours;
+      else if (l.shift_types?.code === "LEAVE-MATERNITY") {
+        b.maternity_leave_hours += leaveHours;
+        b.maternity_paid_hours += hrs;
+      } else if (l.shift_types?.code === "LEAVE-UNPAID") b.unpaid_leave_hours += leaveHours;
+      else b.annual_leave_hours += leaveHours;
       // Leave is paid at 1x as normal hours regardless of which day it lands on,
       // and carries no night premium.
-      b.normal_hours += hrs;
+      if (l.shift_types?.code !== "LEAVE-UNPAID") b.normal_hours += hrs;
       continue;
     }
+    if (rule === "off") continue;
+
+    // Cover shifts are the "unplanned" case: the guard was called in to replace an absentee
+    // and never agreed to this day, so the contract's agreed rate doesn't reduce it (#10).
+    const isCallIn = l.schedule_assignments?.is_replacement === true;
+    const addSunday = (hours: number) => {
+      if (isCallIn) b.sunday_callin_hours += hours;
+      else b.sunday_hours += hours;
+    };
 
     const segs = shiftSegments(shiftStartMin(l.shift_types), hrs * 60);
     let nightMinutes = 0;
@@ -313,7 +406,7 @@ function bucketiseLogs(
 
     if (rule === "sunday_default" || rule === "sunday_ordinary") {
       // Explicit Sunday shift type — operator deliberately marked the whole shift Sunday.
-      b.sunday_hours += hrs;
+      addSunday(hrs);
       continue;
     }
     if (rule === "public_holiday_ordinary" || rule === "public_holiday_non_ordinary") {
@@ -328,7 +421,7 @@ function bucketiseLogs(
       if (publicHolidayDates.has(day)) {
         b.public_holiday_hours += hours;
       } else if (dowOf(day) === 0) {
-        b.sunday_hours += hours;
+        addSunday(hours);
       } else {
         addOrdinary(day, hours);
       }
@@ -342,7 +435,9 @@ function bucketiseLogs(
     b.normal_hours += Math.min(hours, weeklyCap);
     b.overtime_hours += Math.max(0, hours - weeklyCap);
     if (hours > weeklyCap && !exemptWeekKeys.has(wk)) {
-      warnings.push(`Week of ${wk}: ${hours.toFixed(1)}h exceeds the ${weeklyCap}h/week cap without a PS exemption`);
+      warnings.push(
+        `Week of ${wk}: ${hours.toFixed(1)}h exceeds the ${weeklyCap}h/week cap without a PS exemption`,
+      );
     }
   }
   return b;
@@ -366,6 +461,9 @@ export function calculateNetPay(args: {
   suspensionDates?: Set<string>;
   psExemptWeekKeys?: Set<string>;
   publicHolidayDates?: Set<string>;
+  // Days this employee was rostered to work in the period — the denominator for transport
+  // proration. Omit (or 0) to keep the full allowance.
+  rosteredDays?: number;
   // CEO toggle (tenants.night_premium_enabled). When false the +6% night premium is
   // suppressed — night hours are still tracked, only the money is zeroed.
   nightPremiumEnabled?: boolean;
@@ -381,11 +479,37 @@ export function calculateNetPay(args: {
   const nightPremiumEnabled = args.nightPremiumEnabled ?? true;
   const warnings: string[] = [];
 
-  const isManagement = employee.category === "management" && Number(employee.monthly_salary || 0) > 0;
+  const isManagement =
+    employee.category === "management" && Number(employee.monthly_salary || 0) > 0;
+  // Transport proration exclusion is a category rule, not a compensation-basis one — several
+  // management employees are paid via hourly_rate (monthly_salary = 0), which made the
+  // combined isManagement flag above miss them entirely for this specific exclusion (#6).
+  const isManagementCategory = employee.category === "management";
 
   const buckets = isManagement
-    ? { normal_hours: 0, overtime_hours: 0, sunday_hours: 0, public_holiday_hours: 0, night_hours: 0, suspended_hours: 0 }
-    : bucketiseLogs(logs, suspensionDates, constants.weekly_ordinary_cap, warnings, exemptWeekKeys, publicHolidayDates);
+    ? {
+        normal_hours: 0,
+        overtime_hours: 0,
+        sunday_hours: 0,
+        sunday_callin_hours: 0,
+        public_holiday_hours: 0,
+        night_hours: 0,
+        suspended_hours: 0,
+        annual_leave_hours: 0,
+        sick_leave_hours: 0,
+        compassionate_leave_hours: 0,
+        maternity_leave_hours: 0,
+        maternity_paid_hours: 0,
+        unpaid_leave_hours: 0,
+      }
+    : bucketiseLogs(
+        logs,
+        suspensionDates,
+        constants.weekly_ordinary_cap,
+        warnings,
+        exemptWeekKeys,
+        publicHolidayDates,
+      );
 
   const rate = Number(employee.hourly_rate) || constants.min_wage_security;
 
@@ -395,33 +519,75 @@ export function calculateNetPay(args: {
 
   // Every monetary component is rounded to cents before summing so the stored
   // gross/deductions/net are exact and satisfy net === gross - deductions.
-  const normal_amount = round2(isManagement
-    ? Number(employee.monthly_salary || 0)
-    : buckets.normal_hours * rate);
-  const overtime_amount = isManagement ? 0 : round2(buckets.overtime_hours * rate * constants.overtime_multiplier);
-  // Employees who ordinarily work Sundays under a written agreement are paid the reduced
-  // Sunday multiplier (1.5× by default); everyone else gets the 2× default.
-  const sundayMultiplier = employee.ordinarily_works_sundays
-    ? constants.sunday_agreed_multiplier
-    : constants.sunday_multiplier;
-  const sunday_amount = isManagement ? 0 : round2(buckets.sunday_hours * rate * sundayMultiplier);
-  const public_holiday_amount = isManagement ? 0 : round2(buckets.public_holiday_hours * rate * constants.public_holiday_multiplier);
-  const night_premium_amount = isManagement || !nightPremiumEnabled
+  const normal_amount = round2(
+    isManagement ? Number(employee.monthly_salary || 0) : buckets.normal_hours * rate,
+  );
+  const overtime_amount = isManagement
     ? 0
-    : round2(buckets.night_hours * rate * constants.night_premium_rate);
+    : round2(buckets.overtime_hours * rate * constants.overtime_multiplier);
+  // Rostered Sundays and public holidays are paid at the reduced agreed multiplier (1.5×)
+  // for EVERY employee: this tenant's employment contract makes the s.21 agreement a
+  // condition of hire, so there is no per-employee opt-in to consult. See
+  // "SAAS building notes for this software.md" — this is a tenant policy, not a product
+  // default, and the next customer must not inherit it.
+  const sunday_amount = isManagement
+    ? 0
+    : round2(buckets.sunday_hours * rate * constants.sunday_agreed_multiplier);
+  // Cover shifts are the exception the contract doesn't reach: the guard was called in to
+  // replace an absentee, never agreed to that day, so the full default multiplier applies (#10).
+  const sunday_callin_amount = isManagement
+    ? 0
+    : round2(buckets.sunday_callin_hours * rate * constants.sunday_multiplier);
+  // Public holidays are 2× for everyone, rostered or not — the contract's agreed rate
+  // covers Sundays only, so there is nothing to split here.
+  const public_holiday_amount = isManagement
+    ? 0
+    : round2(buckets.public_holiday_hours * rate * constants.public_holiday_multiplier);
+  const night_premium_amount =
+    isManagement || !nightPremiumEnabled
+      ? 0
+      : round2(buckets.night_hours * rate * constants.night_premium_rate);
 
-  const transport_allowance = round2(Number(employee.transport_allowance) || 0);
+  // Prorated against the guard's own roster: did they work the days they were rostered for?
+  // The denominator has to be rostered days, not a days_per_week × weeks estimate — guards
+  // get off days, so a full month is ~22 worked days against a 6-day pattern's 25.7, and
+  // the pattern basis would dock ~14% from every guard with perfect attendance.
+  // No roster for the period means we can't judge attendance, so the full allowance stands;
+  // management is excluded outright (monthly salary, no shift logs to measure).
+  const fullTransport = Number(employee.transport_allowance) || 0;
+  const rosteredDays = Number(args.rosteredDays || 0);
+  let transport_allowance = round2(fullTransport);
+  let transport_days_worked: number | null = null;
+  let transport_expected_days: number | null = null;
+  if (!isManagementCategory && fullTransport > 0 && rosteredDays > 0) {
+    const worked = countWorkedDays(logs);
+    transport_days_worked = worked;
+    transport_expected_days = rosteredDays;
+    // Never more than the full allowance — a guard covering extra shifts is paid for that
+    // work through their hours, not by inflating a travel allowance.
+    transport_allowance = round2(fullTransport * Math.min(1, worked / rosteredDays));
+    if (worked < rosteredDays) {
+      warnings.push(`Transport prorated: worked ${worked} of ${rosteredDays} rostered days`);
+    }
+  }
 
   const gross_salary = round2(
-    normal_amount + overtime_amount + sunday_amount +
-    public_holiday_amount + night_premium_amount + transport_allowance,
+    normal_amount +
+      overtime_amount +
+      sunday_amount +
+      sunday_callin_amount +
+      public_holiday_amount +
+      night_premium_amount +
+      transport_allowance,
   );
 
   // Transport allowance is non-taxable; PAYE on earnings only
   const taxable = gross_salary - transport_allowance;
 
   const paye_amount = round2(calcPAYE(taxable, brackets, constants.periods_per_year));
-  const ssc_amount = round2(Math.min(gross_salary * constants.ssc_rate, constants.ssc_max_deduction));
+  const ssc_amount = round2(
+    Math.min(gross_salary * constants.ssc_rate, constants.ssc_max_deduction),
+  );
 
   // Fines — require CA ref (Labour Act s.12(5))
   let fine_deductions = 0;
@@ -433,7 +599,9 @@ export function calculateNetPay(args: {
         fine_deductions += amt;
       } else if (amt > 0) {
         disqualified_fines += amt;
-        warnings.push(`Fine N$${amt} for ${d.offence_code} lacks Collective Agreement ref — set to N$0`);
+        warnings.push(
+          `Fine N$${amt} for ${d.offence_code} lacks Collective Agreement ref — set to N$0`,
+        );
       }
     }
   }
@@ -444,7 +612,9 @@ export function calculateNetPay(args: {
     if (amt <= 0) continue;
     if (d.requires_ca && !d.has_ca_ref) {
       disqualified_fines += amt;
-      warnings.push(`Deduction N$${amt}${d.label ? ` (${d.label})` : ""} requires Collective Agreement ref — set to N$0`);
+      warnings.push(
+        `Deduction N$${amt}${d.label ? ` (${d.label})` : ""} requires Collective Agreement ref — set to N$0`,
+      );
     } else {
       fine_deductions += amt;
     }
@@ -457,13 +627,25 @@ export function calculateNetPay(args: {
 
   return {
     ...buckets,
-    employee, rate,
-    normal_amount, overtime_amount, sunday_amount,
-    public_holiday_amount, night_premium_amount, transport_allowance,
-    gross_salary, paye_amount, ssc_amount,
-    fine_deductions, disqualified_fines,
+    employee,
+    rate,
+    normal_amount,
+    overtime_amount,
+    sunday_amount,
+    sunday_callin_amount,
+    public_holiday_amount,
+    night_premium_amount,
+    transport_allowance,
+    transport_days_worked,
+    transport_expected_days,
+    gross_salary,
+    paye_amount,
+    ssc_amount,
+    fine_deductions,
+    disqualified_fines,
     consensual_deductions: consensual,
-    total_deductions, net_salary,
+    total_deductions,
+    net_salary,
     warnings,
   };
 }

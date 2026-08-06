@@ -92,6 +92,7 @@ function SettingsPage() {
             constants?.map((c) => {
               const current = edits[c.key] ?? c.value;
               const dirty = edits[c.key] != null && edits[c.key] !== Number(c.value);
+              const isCapToggle = c.key === "monthly_cap_enforced";
               return (
                 <div key={c.key} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start py-3 border-b last:border-0">
                   <div>
@@ -99,13 +100,12 @@ function SettingsPage() {
                     {c.description && <p className="text-xs text-muted-foreground mt-1">{c.description}</p>}
                   </div>
                   <div className="sm:col-span-2 flex items-center gap-2">
-                    <Input
-                      type="number"
-                      step="any"
-                      value={current}
+                    {isCapToggle ? <Switch checked={current === 1} onCheckedChange={(v) => setEdits({ ...edits, [c.key]: v ? 1 : 0 })} /> : <Input
+                      type="number" step="any" value={current}
                       onChange={(e) => setEdits({ ...edits, [c.key]: Number(e.target.value) })}
                       className="font-mono max-w-xs"
-                    />
+                    />}
+                    {isCapToggle && <span className="text-xs text-muted-foreground">{current === 1 ? "Hard block enabled" : "Warning only"}</span>}
                     {dirty && <span className="text-xs text-warning">modified</span>}
                   </div>
                 </div>

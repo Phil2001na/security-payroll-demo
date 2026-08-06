@@ -10,6 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { AccessDenied } from "@/components/access-denied";
 import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
+import { fetchHourCaps } from "@/lib/hour-caps";
+import {
+  validateRoster, VIOLATION_LABEL, MIN_OFF_DAYS_PER_PERIOD,
+  type RosterViolation, type RosterShift,
+} from "@/lib/roster-rules";
 import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -721,14 +726,24 @@ function SchedulePage() {
             // 4. Cheapest guard for this specific shift (cost optimisation)
             const aCost = estimateShiftCost(
               a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${a.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS, a.ordinarily_works_sundays,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS,
             );
             const bCost = estimateShiftCost(
               b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${b.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS, b.ordinarily_works_sundays,
+              shiftPayRule, kind === "night", SCHED_CONSTANTS,
             );
             if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
-            // 5. Load-balance tie-break
+            // 5. Keep each guard's work in blocks (#11): among guards who cost the same,
+            //    prefer one who already works the day before or after. Work that runs in
+            //    blocks leaves rest days that fall together, which is the only way to get
+            //    paired off days out of a coverage-driven fill. Placed after cost on
+            //    purpose — pairing is a preference and must never raise the wage bill.
+            const adjacent = (id: string) =>
+              (empKindByDate.has(`${id}|${isoDateAdd(wd.date, -1)}`) ? 1 : 0) +
+              (empKindByDate.has(`${id}|${isoDateAdd(wd.date, 1)}`) ? 1 : 0);
+            const aAdj = adjacent(a.id), bAdj = adjacent(b.id);
+            if (aAdj !== bAdj) return bAdj - aAdj;
+            // 6. Load-balance tie-break
             return (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) - (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0);
           });
           let assigned = 0;
@@ -813,6 +828,35 @@ function SchedulePage() {
   );
   const shortfallPreview = fillPlanPreview.shortfalls;
   const qualityWarningPreview = fillPlanPreview.qualityWarnings;
+
+  // ── Roster rules (#9/#11) ────────────────────────────────────────────────
+  // Judged over the whole generate range — off-day minimums and monthly caps are
+  // period rules and mean nothing measured a week at a time. The assignments query
+  // already widens to cover this range, so no extra fetch.
+  const { data: hourCaps } = useQuery({
+    queryKey: ["hour-caps", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: fetchHourCaps,
+  });
+
+  const rosterViolations = useMemo<RosterViolation[]>(() => {
+    if (!genFrom || !genTo || !employees || !weekAssignments) return [];
+    return validateRoster({
+      start: genFrom,
+      end: genTo,
+      assignments: weekAssignments as RosterShift[],
+      employees,
+      isWorkingShift: (id) => {
+        const st = shiftTypeById.get(id);
+        return !!st && !st.is_leave && st.default_hours > 0;
+      },
+      siteName: (id) => sites?.find((s) => s.id === id)?.name ?? "another site",
+      monthlyHourCap: hourCaps?.monthlyHours,
+    });
+  }, [genFrom, genTo, employees, weekAssignments, shiftTypeById, sites, hourCaps]);
+
+  const ruleBreaches = rosterViolations.filter((v) => v.severity === "warn");
+  const rulePreferences = rosterViolations.filter((v) => v.severity === "info");
 
   // ── Generate schedule for a custom date range (all sites) ────────────────
   async function generateSchedule() {
@@ -1132,7 +1176,6 @@ function SchedulePage() {
         const ordHrs = empOrdHrs.get(emp.id) ?? 0;
         const shiftCost = estimateShiftCost(
           emp.hourly_rate, st.default_hours, ordHrs, payRule, st.period === "night", SCHED_CONSTANTS,
-          emp.ordinarily_works_sundays,
         );
         estimatedWeeklyCost = round2(estimatedWeeklyCost + shiftCost);
         if (payRule === "standard") empOrdHrs.set(emp.id, ordHrs + st.default_hours);
@@ -1356,6 +1399,42 @@ function SchedulePage() {
                 </div>
               );
             })}
+          </div>
+        </Card>
+      )}
+
+      {/* Roster rules over the whole generate range (#9/#11): rest days, pairing,
+          monthly hours. Reported rather than blocked — a single off day is sometimes the
+          least-bad answer on a short-staffed site, and the person rostering decides. */}
+      {rosterViolations.length > 0 && (
+        <Card className={cn(ruleBreaches.length > 0 ? "border-warning/40 bg-warning/5" : "border-muted")}>
+          <div className="p-3 flex items-center gap-2 border-b border-warning/20">
+            <ListChecks className={cn("h-4 w-4", ruleBreaches.length > 0 ? "text-warning" : "text-muted-foreground")} />
+            <div className="text-sm font-semibold">
+              Roster rules · {genFrom} — {genTo}
+              <span className="font-normal text-muted-foreground">
+                {" · "}{ruleBreaches.length} rule{ruleBreaches.length === 1 ? "" : "s"} broken
+                {rulePreferences.length > 0 && `, ${rulePreferences.length} preference${rulePreferences.length === 1 ? "" : "s"} unmet`}
+              </span>
+            </div>
+          </div>
+          <div className="p-3 space-y-1 max-h-56 overflow-y-auto text-xs">
+            {[...ruleBreaches, ...rulePreferences].map((v, i) => (
+              <div key={i} className="flex items-start justify-between gap-3">
+                <span className="font-medium min-w-[180px]">{v.employeeName}</span>
+                <span className="flex-1 text-muted-foreground">{v.message}</span>
+                <Badge
+                  variant={v.severity === "warn" ? "destructive" : "secondary"}
+                  className="text-[10px] h-5 shrink-0"
+                >
+                  {VIOLATION_LABEL[v.kind]}
+                </Badge>
+              </div>
+            ))}
+          </div>
+          <div className="px-3 pb-3 text-[11px] text-muted-foreground">
+            Minimum {MIN_OFF_DAYS_PER_PERIOD} off days per period; off days should fall in consecutive
+            pairs where coverage allows. The 60-hour weekly cap is enforced separately and blocks saving.
           </div>
         </Card>
       )}

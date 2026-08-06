@@ -1,71 +1,47 @@
 # How leave is calculated
 
-This system earns annual leave from **days an officer actually works**, not from a number
-chosen at onboarding. Security schedules are irregular — people work more or fewer days than
-any fixed plan — so leave is derived from real, approved attendance. Nobody is favoured for
-working more or less.
+Leave is measured in **scheduled working days**, not generic calendar weekdays. A request range can include Sundays, public holidays and rest days; only dates on which the employee had a published working assignment consume leave. Multiple assignments on one date consume one leave day but create one relief requirement per shift.
 
-## The rule
+## Annual leave
 
-> **1 leave day is earned for every 12 days actually worked.**
+The statutory floor is four ordinary work weeks per 12-month annual cycle:
 
-Each time a payroll period is finalized, every active officer is credited:
+| Ordinary work pattern | Annual entitlement |
+| --------------------- | -----------------: |
+| 6 days/week           |    24 working days |
+| 5 days/week           |    20 working days |
+| 4 days/week           |    16 working days |
+| 3 days/week           |    12 working days |
+| 2 days/week           |     8 working days |
+| 1 day/week            |     4 working days |
 
+The system accrues an exact daily fraction of that cycle entitlement in each finalized payroll period:
+
+```text
+daily accrual = ordinary days/week × 4 ÷ actual days in that employee's 12-month cycle
+period accrual = sum of the daily accruals through the employee's last working day
 ```
-days accrued this period = (approved work days in the period) / 12
-```
 
-A "work day" is **one distinct calendar date** on which the officer has an **approved** shift
-log for real work. It does not matter whether it was a day shift, night shift, Sunday, or
-public holiday — each counts as one worked day. The following do **not** count:
+Legitimate absence therefore does not reduce annual-leave entitlement. `days_per_week` is the employee's ordinary pattern and must be maintained accurately. A cycle record preserves the applicable dates and four-week entitlement. Each `(employee, pay period)` accrues at most once.
 
-- Off-days (`pay_rule = off`)
-- Leave shift types (the leave you take doesn't earn more leave)
-- Attendance that isn't **approved** yet — `pending`, `submitted` (awaiting payroll approval),
-  `no_show`, `suspended_unpaid`, and `replaced_by_other` are all excluded
+## Sick leave
 
-> Note: a double shift still counts as **one** worked day, because accrual is counted in days,
-> not hours.
+- The sick cycle is 36 months from commencement/previous cycle.
+- Five-day pattern: 30 working days; six-day pattern: 36; other patterns are pro rata at six days per ordinary weekly day.
+- During the first year, one day is earned per 26 approved worked days. The entitlement is topped up as qualifying days accumulate.
+- Unused sick balance expires at cycle end and the expiry is recorded in the immutable ledger.
+- Medical evidence defaults to the third consecutive charged workday, reflecting absence for more than two consecutive days.
 
-## Why 1 in 12
+## Compassionate leave
 
-This is the Namibian Labour Act s.23 entitlement (≈ 4 weeks of leave per 12-month cycle),
-re-expressed as a per-day rate so it works for any schedule:
+Five fully paid working days are granted per 12-month cycle. Unused days expire at cycle end. The reason/evidence must support death or serious illness in the statutory family relationship; approval remains an HR responsibility.
 
-- A full working year is about **52 weeks**, of which roughly **4 weeks are taken as leave**,
-  leaving about **48 weeks actually worked**.
-- The entitlement is **4 weeks** of leave for those **48 weeks** of work.
-- That ratio is `4 ÷ 48 = 1⁄12`, **independent of how many days per week the officer works**.
+## Maternity and unpaid leave
 
-Worked examples over a full year:
+Maternity is tracked separately, requires six months' continuous service and at least 12 consecutive weeks, and preserves the statutory absence/coverage workflow. Employer-funded pay defaults to zero pending the employee's Social Security benefit and any contractual top-up, but an administrator can configure a 0–100% employer-paid portion. Unpaid leave is fixed at zero pay. Both retain original planned hours for absence reporting and transport proration; maternity also persists its paid-hour portion so historical payslips reconcile.
 
-| Officer works            | Days worked / yr | Leave earned (÷12) |
-| ------------------------ | ---------------- | ------------------ |
-| 6 days/week consistently | ~288             | ~24 days           |
-| 5 days/week consistently | ~240             | ~20 days           |
-| Irregular / variable     | whatever it is   | exactly that ÷ 12  |
+## Payroll and audit
 
-So the steady 6-day worker lands near the statutory 24 days and the 5-day worker near 20 —
-automatically — while an officer with an uneven schedule simply gets exactly what they earned.
+Paid leave hours equal original planned hours multiplied by the policy's paid percentage. Annual, sick and compassionate leave are fixed at the statutory 100% pay floor; maternity can carry a contractual employer-paid portion; unpaid leave is always zero. All five absence categories persist separately in `payroll_runs` and print separately on payslips. Annual/sick/compassionate usage, entitlement, accrual, adjustment, reversal and expiry entries are retained in the immutable `leave_ledger`; `leave_balances` is the current projection.
 
-## What it means in practice
-
-- **No onboarding guess.** The "Typical days / week" field on an officer's profile is a
-  scheduling guide only. It has **no effect** on leave. You can change it freely.
-- **Self-correcting and fair.** Work more days, earn more leave; work fewer, earn less — in
-  direct proportion. Two officers are treated identically per day worked.
-- **Only approved work counts.** Leave reflects attendance that payroll has approved, so it
-  can't be inflated by unapproved or no-show entries.
-- **Idempotent.** Each (officer, pay period) accrues once. Re-finalizing a period does not
-  double-credit leave.
-
-## Where it lives in the code
-
-- **Accrual logic:** `public.finalize_payroll_period(p_period)` — runs when payroll finalizes a
-  period. Migration: `supabase/migrations/20260628120000_leave_accrual_from_worked_days.sql`.
-- **Ledger:** `public.leave_accruals` — one row per (employee, pay period), the audit trail of
-  what was accrued and when. Its `unique (employee_id, pay_period_id)` guarantees idempotency.
-- **Running balance:** `public.leave_balances.annual_days` — the officer's current leave
-  balance, shown on the employee profile's **Leave** card.
-- **Attendance source:** `public.shift_logs` (status `approved`) joined to `public.shift_types`
-  (to identify real work vs. off/leave).
+The implementing migration is `supabase/migrations/20260803181750_leave_management_module.sql`. Execute `LEAVE_UAT.md` in a disposable database before deployment.

@@ -5,6 +5,7 @@ import {
   Users,
   MapPin,
   CalendarDays,
+  CalendarOff,
   ClipboardList,
   ClipboardCheck,
   Calculator,
@@ -61,7 +62,7 @@ const NAV: NavItem[] = [
     to: "/employees",
     label: "Employees",
     icon: Users,
-    roles: ["admin", "operations", "supervisor", "payroll"],
+    roles: ["admin", "operations", "supervisor", "payroll", "security_supervisor"],
   },
   {
     to: "/clients",
@@ -86,6 +87,12 @@ const NAV: NavItem[] = [
     to: "/attendance",
     label: "Attendance",
     icon: ClipboardList,
+    roles: ["admin", "operations", "supervisor", "payroll", "security_supervisor"],
+  },
+  {
+    to: "/leave",
+    label: "Leave",
+    icon: CalendarOff,
     roles: ["admin", "operations", "supervisor", "payroll", "security_supervisor"],
   },
   {
@@ -128,13 +135,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const canUseAi = isCeo || role === "admin";
   const isAdmin = role === "admin" && !isCeo;
 
-  // Security supervisors are an attendance-only role — they see nothing else.
+  // Security supervisors handle daily muster and can submit leave for guards at their
+  // assigned sites; they cannot approve leave or assign relief coverage.
   const attendanceOnly = role === "security_supervisor";
   const canSeeAccounting = !attendanceOnly && (role === "admin" || role === "accountant" || isCeo);
   const canSeeInvoices = !attendanceOnly && (role === "admin" || role === "accountant");
 
   const visibleNav = NAV.filter((item) => {
-    if (attendanceOnly) return item.to === "/attendance";
+    if (attendanceOnly) return item.to === "/attendance" || item.to === "/leave";
     if (!item.roles) return true;
     if (isCeo) return item.ceoVisible === true;
     return role ? item.roles.includes(role) : false;

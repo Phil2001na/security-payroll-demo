@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security Payroll Demo — Fix Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #0C911C;
+      --green-light: #e8f7ea;
+      --green-mid: #c3e8c8;
+      --dark: #0c0c0c;
+      --medium: #6e6969;
+      --light: #f8f4f4;
+      --border: #eee;
+      --white: #fff;
+      --danger: #ff5252;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--light);
+      color: var(--dark);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo-dot {
+      width: 36px; height: 36px;
+      background: var(--green);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-dot svg { width: 20px; height: 20px; fill: white; }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header p  { font-size: 13px; color: var(--medium); margin-top: 2px; }
+
+    .progress-pill {
+      background: var(--green-light);
+      border: 1.5px solid var(--green-mid);
+      color: var(--green);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 6px 16px;
+      border-radius: 20px;
+    }
+    .progress-bar-wrap {
+      background: #e0e0e0;
+      border-radius: 4px;
+      height: 6px;
+      width: 200px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      background: var(--green);
+      height: 100%;
+      border-radius: 4px;
+      transition: width .3s ease;
+    }
+    .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .export-btn {
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      letter-spacing: .01em;
+    }
+    .export-btn:hover { opacity: .82; }
+
+    main { max-width: 780px; margin: 0 auto; padding: 32px 20px 80px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--medium);
+      margin: 0 0 14px;
+    }
+
+    /* ── Card shell ── */
+    .card {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .card:hover { border-color: #d0d0d0; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+    .card.resolved { border-color: var(--green-mid); background: var(--green-light); }
+    .card.failed   { border-color: #ffc8c8; background: #fff5f5; }
+
+    .card-inner {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 18px 20px;
+    }
+
+    /* ── Tick / Fail buttons ── */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .tick-btn, .fail-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: 2px solid #d0d0d0;
+      background: var(--white);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .tick-btn:hover { border-color: var(--green); background: var(--green-light); }
+    .resolved .tick-btn { background: var(--green); border-color: var(--green); }
+    .tick-btn svg { display: none; }
+    .resolved .tick-btn svg { display: block; }
+    .fail-btn:hover { border-color: var(--danger); background: #fff0f0; }
+    .failed .fail-btn { background: var(--danger); border-color: var(--danger); }
+    .fail-btn svg { display: none; }
+    .failed .fail-btn svg { display: block; }
+
+    /* ── Card body ── */
+    .card-body { flex: 1; min-width: 0; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .issue-badge {
+      font-size: 11px; font-weight: 700;
+      background: var(--light);
+      border: 1px solid #e0e0e0;
+      color: var(--medium);
+      padding: 2px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .resolved .issue-badge { background: var(--green-mid); border-color: var(--green-mid); color: var(--green); }
+    .failed   .issue-badge { background: #ffeaea; border-color: #ffc8c8; color: var(--danger); }
+
+    .priority-badge {
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .priority-badge.easy   { background: #e8f7ea; color: #0C911C; }
+    .priority-badge.medium { background: #fff8e1; color: #e6a800; }
+    .priority-badge.hard   { background: #ffeaea; color: #cc3333; }
+
+    .card-title {
+      font-size: 15px; font-weight: 700; line-height: 1.3;
+      margin-bottom: 8px;
+    }
+    .resolved .card-title { text-decoration: line-through; color: var(--medium); }
+
+    /* ── Bug description ── */
+    .card-bug {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.55;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      background: #f8f4f4;
+      border-radius: 8px;
+      border-left: 3px solid #d8d0d0;
+    }
+    .resolved .card-bug { color: var(--medium); background: transparent; border-left-color: var(--green-mid); }
+    .failed   .card-bug { border-left-color: #ffc8c8; }
+
+    /* ── "How it was built" note (optional per issue) ── */
+    .card-note {
+      font-size: 12.5px;
+      color: #3d6b44;
+      line-height: 1.55;
+      margin: -6px 0 14px;
+      padding: 9px 12px;
+      background: var(--green-light);
+      border-radius: 8px;
+      border-left: 3px solid var(--green-mid);
+    }
+    .card-note strong { color: var(--green); }
+    .resolved .card-note { opacity: .65; }
+
+    /* ── "Recommended approach" note for items not built yet ── */
+    .card-plan {
+      font-size: 12.5px;
+      color: #6b5a2e;
+      line-height: 1.55;
+      margin: -6px 0 14px;
+      padding: 9px 12px;
+      background: #fff8e1;
+      border-radius: 8px;
+      border-left: 3px solid #ffd980;
+    }
+    .card-plan strong { color: #a37800; }
+
+    /* ── "Round 2 audit" note — what an independent browser pass actually found ── */
+    .card-audit {
+      font-size: 12.5px;
+      color: #1d5c73;
+      line-height: 1.55;
+      margin: -6px 0 14px;
+      padding: 9px 12px;
+      background: #eaf6fb;
+      border-radius: 8px;
+      border-left: 3px solid #a9d9ea;
+    }
+    .card-audit strong { color: #1478a3; }
+
+    /* ── Verify section ── */
+    .verify-section {
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fafafa;
+      margin-bottom: 12px;
+    }
+    .resolved .verify-section { background: transparent; border-color: var(--green-mid); }
+    .failed   .verify-section { background: transparent; border-color: #ffc8c8; }
+
+    .verify-title {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--medium);
+      margin-bottom: 8px;
+    }
+    .verify-steps {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.65;
+      padding-left: 18px;
+      margin-bottom: 12px;
+    }
+    .verify-steps li { margin-bottom: 3px; }
+    .resolved .verify-steps { color: var(--medium); }
+
+    .result-row { display: flex; flex-direction: column; gap: 6px; }
+    .result-pass, .result-fail {
+      font-size: 12px; font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 8px;
+      line-height: 1.45;
+    }
+    .result-pass { background: var(--green-light); color: #0a7016; border: 1px solid var(--green-mid); }
+    .result-fail { background: #fff0f0; color: #b83030; border: 1px solid #ffc8c8; }
+    .resolved .result-pass { opacity: .6; }
+    .resolved .result-fail { opacity: .4; }
+
+    /* ── State label ── */
+    .state-label {
+      font-size: 11px; font-weight: 700;
+      color: var(--medium);
+      margin-top: 10px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .state-label .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #d0d0d0;
+      flex-shrink: 0;
+    }
+    .resolved .state-label .dot { background: var(--green); }
+    .resolved .state-label { color: var(--green); }
+    .failed   .state-label .dot { background: var(--danger); }
+    .failed   .state-label { color: var(--danger); }
+
+    /* ── Failure note (shown only when failed) ── */
+    .fail-note {
+      display: none;
+      width: 100%;
+      margin-top: 8px;
+      border: 1.5px solid #ffcccc;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 64px;
+      outline: none;
+      color: var(--dark);
+      background: white;
+      line-height: 1.5;
+    }
+    .fail-note:focus { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,82,82,.1); }
+    .failed .fail-note { display: block; }
+
+    /* ── Comment section (always available) ── */
+    .comment-section {
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .comment-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--medium);
+      cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+      transition: color .15s;
+      line-height: 1;
+    }
+    .comment-btn:hover { color: var(--green); }
+    .comment-btn.has-comment { color: var(--green); }
+    .card-comment {
+      display: none;
+      width: 100%;
+      margin-top: 8px;
+      border: 1.5px solid #d8d8d8;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 60px;
+      outline: none;
+      color: var(--dark);
+      background: white;
+      line-height: 1.5;
+    }
+    .card-comment.open { display: block; }
+    .card-comment:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(12,145,28,.1); }
+
+    /* ── Reset button ── */
+    .reset-all {
+      display: block;
+      margin: 32px auto 0;
+      background: none;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 10px 24px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--medium);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .reset-all:hover { border-color: var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-dot">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    </div>
+    <div>
+      <h1>Security Payroll Demo — Fix Tracker</h1>
+      <p>Round 7 — 10 pass, 3 partial, 2 untested, 1 not built. #6's management-exclusion bug and #14's invoice-payments trigger bug both fixed and re-verified live; #7 enforcement decided and applied (still needs the hard-block itself observed); #8 deferred (supervisor test login); #3 (leave module) still needs its own browser pass; #13 not built.</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="progress-pill" id="progress-pill">0 / 0 passed</div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+    <button class="export-btn" onclick="exportMd()">⬇ Export to .md</button>
+  </div>
+</header>
+
+<main>
+  <p class="section-title">Outstanding fixes</p>
+  <div id="cards"></div>
+  <button class="reset-all" onclick="resetAll()">Reset all to pending</button>
+</main>
+
+<script>
+  /* ============================================================
+   * CONFIG — the /fix-tracker skill regenerates the two blocks below.
+   * Everything under "ENGINE" is generic and should not need editing.
+   * ============================================================ */
+  const PROJECT = 'Security Payroll Demo';
+
+  // ISSUES — one object per fix to verify.
+  // UX/UI fields → SHOWN in the page (plain English, NO code, tester-facing):
+  //   title       — short name of the thing being verified
+  //   bug         — what's wrong, described as a user sees it (behaviour, not code)
+  //   steps[]     — exact things to do: "Open X", "Tap Y", "Look at Z"
+  //   pass        — the green-light outcome to expect if the fix worked
+  //   fail        — the red-light outcome that means it's still broken
+  //   priority / priorityLabel — 'easy' | 'medium' | 'hard' + a short label
+  //   note        — OPTIONAL: how it was actually built, and why that differs from the
+  //                 original idea in the issue. Shown as a green callout under the bug.
+  //   plan        — OPTIONAL (not-yet-built items): the recommended implementation once
+  //                 you've thought it through as an architect, especially where it differs
+  //                 from the literal request. Shown as an amber callout.
+  //   verdict     — OPTIONAL, written by /verify-tracker after it drives the browser itself:
+  //                 'pass' | 'fail' | 'partial' | 'untested'. Seeds this card's ✓/✕ button
+  //                 so the progress pill reflects an automated audit without Philip having to
+  //                 click anything — but ONLY as a default. The moment Philip clicks ✓/✕
+  //                 himself, his mark is sticky and a later verdict here will never overwrite
+  //                 it (see seedFromVerdicts). 'partial'/'untested' seed as pending — only a
+  //                 clean 'pass' or a clean 'fail' is confident enough to auto-tick.
+  // Code fields → written ONLY into the exported .md for Claude, NEVER shown in the UI:
+  //   location    — file · symbol · line
+  //   fix         — what to change in the code
+  const ISSUES = [
+  {
+    id: 1,
+    priority: 'easy', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Supervisor flags a guard, payroll sees it before finalizing',
+    bug: "A supervisor could catch a guard sleeping on duty with nowhere to record it, and payroll had no way to see a guard had been flagged — you had to dig through line items to notice a deduction was there.",
+    note: "The tracker's original idea was a badge on the payroll row driven by the deduction amount. That only solved half of it: the field supervisors who witness these offences (role \"Supervisor\") had no way to record one at all — the Disciplinary page was closed to them. So the fix covers the whole chain instead: the supervisor flags the offence from the guard's row on the Attendance muster (where they already work, no extra page to learn), and payroll gets the badge on the payroll row. Building it off the disciplinary record rather than the deduction amount also means warnings with no money attached still show up — which is most of them.",
+    audit: "Round 2 browser audit, confirmed live: filed an offence as Supervisor from the muster row, then saw the badge and full tooltip (offence, date, recorder, pay-effect) on Payroll's payroll row for that guard. Screenshots in the verification deck.",
+    steps: [
+      "Log in as a Supervisor, open Attendance, and find any guard on today's roster",
+      "Click the shield icon on that guard's row, pick an offence (e.g. Sleeping on duty), write what happened, and save",
+      "Log in as Payroll, open Payroll, and pick the pay period containing that date",
+      "Look at that guard's row in the payroll table (don't open anything else yet), then hover the flag badge"
+    ],
+    pass: "The supervisor can file the offence from the muster row; payroll then sees a warning badge on that guard's payroll row, and hovering it shows the offence, the date, who recorded it and whether it affects pay",
+    fail: "The supervisor has no way to record the offence, or payroll's row shows no badge for a guard who was flagged in that period",
+    location: 'src/routes/_app.attendance.tsx (flag dialog) + src/routes/_app.payroll.tsx (DisciplinaryFlag) + src/lib/disciplinary.ts',
+    fix: 'Done: supervisor-scoped insert into disciplinary_actions from the muster row; payroll queries actions dated inside the period and renders a hover badge per employee.'
+  },
+  {
+    id: 2,
+    priority: 'easy', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Disciplinary history per guard',
+    bug: "There was a Disciplinary page, but no way to see one guard's full history in one place — past warnings, incidents and outcomes.",
+    note: "Built as described, with one addition: each entry names the person who recorded it and shows where it sits in the sign-off chain. Without that, a history list can't answer the question you actually ask it — \"who says so, and was this ever agreed?\"",
+    audit: "Round 2 browser audit, confirmed live: the guard's Disciplinary history card shows offence, level, site, date and recorder exactly as specified. Only one record existed on the guard tested, so newest-first ordering across multiple records wasn't exercised — worth a glance next time a guard has 2+ entries, but not treated as open.",
+    steps: [
+      "Open Employees and click into any guard who has had a disciplinary record",
+      "Scroll to the \"Disciplinary history\" card",
+      "Check the entries are newest first and each shows date, offence, action taken and who recorded it"
+    ],
+    pass: "The guard's profile shows every disciplinary record for that guard, newest first, with date, site, offence, action, any fine/suspension, and the name of whoever recorded it",
+    fail: "No disciplinary history section on the profile, or it's missing records that appear on the Disciplinary page",
+    location: 'src/routes/_app.employees.$employeeId.tsx · DisciplinaryHistoryCard',
+    fix: 'Done: disciplinary_actions scoped by employee_id, rendered as a timeline with recorder name resolved from profiles.'
+  },
+  {
+    id: 4,
+    priority: 'medium', priorityLabel: 'Verified — round 4 audit ✓', verdict: 'pass',
+    title: 'Dismissal with a required reason',
+    bug: "There was no way to dismiss a guard, and nothing forcing a reason to be recorded when it happened.",
+    note: "The original idea was a \"Dismiss\" button for supervisors that flips the guard inactive. Built differently on purpose: a supervisor now *recommends* a dismissal, and it takes two more people to make it real — verify, then confirm — with confirmation being the step that actually ends the employment. A one-click supervisor dismissal would have created legal exposure rather than tracked it (Namibian labour law wants a valid reason AND a fair procedure on record). The reason is mandatory at the database level, not just in the form, so it can't be bypassed. Same workflow also covers resignations — see #5.",
+    audit: "Round 4: the Round 2 finding was a real bug, not a missing account — EXIT_RECORDERS (and the Employees list page + nav item) checked the old, dormant \"supervisor\" role string instead of \"security_supervisor\", so the entire Employment Exit card silently disappeared for the real Supervisor login. Fixed all three spots. Re-ran the full chain live: empty-reason save blocked; Supervisor recorded a dismissal; Payroll verified (recorder had no Verify button on reload); a third distinct Admin/CEO login confirmed it, flipping the guard's status to Terminated; a second attempt with the same recorder showed no Verify button for themselves, confirming the same-person block. All three steps done by three different people, exactly as designed.",
+    steps: [
+      "As a Supervisor, open a guard's profile and use \"Record exit\" → type Dismissal, then try to save with the reason box empty",
+      "Fill in a reason, notice date and last working day, and save",
+      "Log in as a different user (Payroll or Admin) and click Verify on that record",
+      "Log in as a third user (Admin) and click Confirm",
+      "Check the guard's status at the top of their profile, then try the whole thing again using the same person for two of the steps"
+    ],
+    pass: "Saving without a reason is blocked; the exit moves Recorded → Verified → Confirmed; only on Confirm does the guard become Terminated; and the system refuses to let the same person do two of the three steps",
+    fail: "Dismissal saves without a reason, one person can push it all the way through, or the guard is terminated before anyone confirms",
+    location: 'supabase/migrations/20260719140000_... (employment_exits) + src/routes/_app.employees.$employeeId.tsx · EmploymentExitCard',
+    fix: 'Done: employment_exits table with mandatory reason, RLS limiting supervisors to recommending a dismissal, and verify/confirm RPCs that set employees.status = terminated.'
+  },
+  {
+    id: 5,
+    priority: 'medium', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Resignation protocol',
+    bug: "No formal way to record a guard resigning — no notice tracking, no last working day, no final-pay trigger.",
+    note: "Rather than a separate resignation feature, this shares the exit workflow built for #4 — same form, same record, different type. A resignation and a dismissal are the same event (employment ends) needing the same facts, so splitting them would have meant two half-workflows to keep in sync. Resignations are deliberately lighter on sign-off: they don't need the middle verification step, just someone other than the person who recorded it to confirm.",
+    audit: "Round 2 browser audit, confirmed live end-to-end: form asked for notice date/last day/reason, recorder had no Confirm button, a second different person got a direct Confirm (no Verify step), and confirming flipped the record to Confirmed and the employee to Terminated.",
+    steps: [
+      "Open a guard's profile and click \"Record exit\"",
+      "Choose Resignation and check it asks for notice date, last working day and reason",
+      "Save it, then have a second person confirm it",
+      "Try to confirm it yourself as the person who recorded it"
+    ],
+    pass: "Resignation records notice date, last working day and reason; a second person can confirm it directly (no separate verify step); the recorder cannot confirm their own",
+    fail: "No resignation option, it doesn't capture the dates or reason, or the same person can record and confirm it",
+    location: 'supabase/migrations/20260719140000_... + src/routes/_app.employees.$employeeId.tsx · EmploymentExitCard',
+    fix: 'Done: exit_type = resignation on employment_exits; confirm_employment_exit skips the verification requirement for resignations but still enforces a different confirmer.'
+  },
+  {
+    id: 12,
+    priority: 'hard', priorityLabel: 'Verify — chain confirmed, payroll-effect leg still open', verdict: 'partial',
+    title: 'Disciplinary actions need three people: record, verify, confirm',
+    bug: "A disciplinary action could be created and finalized by one person, with nothing stopping them acting alone.",
+    note: "Built as specified, plus one consequence worth knowing: an action now has no effect on pay until it is confirmed. Previously a fine hit the payslip the moment it was typed in. Fines and unpaid suspensions filed today therefore sit out of the payroll run until the chain is complete, and the payroll flag says so in plain words. Records that already existed were marked confirmed during the upgrade, so nothing already filed changed value.",
+    steps: [
+      "Open Disciplinary and record a new action with a fine as one user",
+      "Run payroll for that period as Payroll and check whether the fine is deducted yet",
+      "Log in as a second user and click Verify on that action; try clicking Verify as the person who recorded it first",
+      "Log in as a third user and click Confirm; try confirming as the person who verified it",
+      "Re-run payroll and check the fine now applies"
+    ],
+    pass: "The action moves Recorded → Verified → Confirmed, each step by a different person, the system refuses when the same person tries two steps, and the fine only reaches payroll once confirmed",
+    fail: "One person can finalize the action, the same person can do two steps, or an unconfirmed fine is deducted from a payslip",
+    location: 'supabase/migrations/20260719140000_... (status/verified_by/confirmed_by + RPCs) + src/routes/_app.disciplinary.tsx',
+    fix: 'Done: approval chain on disciplinary_actions with check constraints and security-definer RPCs; payroll now filters to status = confirmed.',
+    audit: "Round 4: the account-coverage worry from Round 2 turned out to be unfounded — this tenant has three separate admin/payroll-role logins (an admin, a CEO account, and a payroll account), enough to walk the whole chain as three genuinely different people without needing supervisors here (they're deliberately kept off this page, per #1). Recorded a N$250 fine as one admin login, verified as Payroll (recorder had no Verify button on reload), confirmed as a separate CEO login (verifier had no Confirm button on reload) — DB confirms status=confirmed with three distinct created_by/verified_by/confirmed_by ids. Not yet confirmed: whether the fine is actually excluded from payroll while unconfirmed and included afterward — this test tenant's open UAT period has no confirmed attendance yet, so Run Payroll computes N$0 regardless of the fine. That's a data-precondition gap (needs a period with confirmed attendance), not a finding about this card.",
+  },
+  {
+    id: 15,
+    priority: 'easy', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Marking a guard not present now asks why',
+    bug: "Marking a guard absent was a single click with no record of why — payroll saw a zero-hour shift and no explanation.",
+    note: "Not on the original list — it came out of #4. Sending a guard home for a shift is the supervisor-level action that was actually missing, as opposed to ending someone's employment. The reason list also feeds the repeat-offender prompt below.",
+    steps: [
+      "Open Attendance and click the ✕ on any guard's row",
+      "Try to save with \"Other (specify)\" selected and the text box empty",
+      "Pick a reason (or type one), save, and look under the guard's name on the row",
+      "Confirm attendance, then reopen the day"
+    ],
+    pass: "A dialog appears with a reason list and a free-text box; \"Other\" requires text; the chosen reason shows in red on the row and is still there after confirming",
+    fail: "The ✕ marks the guard absent with no dialog, or the reason isn't visible on the row afterwards",
+    location: 'src/routes/_app.attendance.tsx · absence dialog + src/lib/disciplinary.ts · ABSENCE_REASONS',
+    fix: 'Done: reason dialog on no_show, written to shift_logs.notes and surfaced on the row.',
+    audit: "Round 2 browser audit, confirmed live: \"Other\" with empty text blocked the save with a toast; picking a reason and saving showed it in red under the guard's name immediately."
+  },
+  {
+    id: 16,
+    priority: 'easy', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Repeat absences prompt a warning',
+    bug: "A guard could rack up unexcused absences all month without anyone connecting them into a disciplinary case.",
+    note: "Deliberately a prompt, not an automatic warning. A warning is something the guard has to be told about and can respond to — auto-filing them would fill the record with warnings nobody ever served, which is exactly what gets thrown out when a dismissal is challenged. So the system counts and nudges; a person still signs it.",
+    steps: [
+      "Mark the same guard absent (unexcused — e.g. \"No-show, no contact\") on two different days in the same pay period",
+      "Open Attendance on a day that guard is rostered and look under their name",
+      "Click the prompt that appears",
+      "Separately, mark a guard absent twice with \"Called in sick\" and check no prompt appears for them"
+    ],
+    pass: "A \"2 unexcused absences this period — flag?\" prompt appears on the row, and clicking it opens the offence dialog already filled in with AWOL and the dates; sick/compassionate absences don't trigger it",
+    fail: "No prompt appears after repeated unexcused absences, it counts sick days, or it files a warning on its own without asking",
+    location: 'src/routes/_app.attendance.tsx · unexcusedByEmp / flagAwol',
+    fix: 'Done: counts unexcused no_show shift_logs in the open period, opens the flag dialog prefilled at 2+.',
+    audit: "Round 2 browser audit, confirmed live: after 2 unexcused absences the row showed the \"2 unexcused absences this period — flag?\" prompt, and clicking it opened the offence dialog pre-filled with AWOL and both dates. The sick-leave exclusion wasn't independently re-confirmed live this round, though it was observed in an earlier pass."
+  },
+  {
+    id: 3,
+    priority: 'hard', priorityLabel: 'Migration now live on remote — browser UAT still outstanding', verdict: 'untested',
+    title: 'Leave management from request through payroll and relief coverage',
+    bug: "Sick leave gets paid for every day including Sunday, and leave days aren't being counted correctly against a guard's balance.",
+    plan: "Philip chose the complete module. Built manager submission plus one independent approval; scheduled-working-day charging; private evidence; statutory cycles and policy controls; immutable entitlement/accrual/usage/reversal ledger; roster leave conversion; one relief requirement per vacated shift; assignment/waiver; cancellation restoration; employee history; reports; and separate annual/sick/compassionate/maternity/unpaid payroll and payslip detail. Annual, sick and compassionate balances are enforced against their statutory entitlements by default. Since this card was first written, a second developer (Codex) hardened it further: one independent leave approval enforced, statutory paid-leave floors, 12-week maternity duration, emergency retrospective submissions, and immutable ledger corrections — plus fixed two runtime defects an isolated-database test run exposed (cancellation restoration was blocked by its own approved-leave guard, and payroll finalization had an ambiguous SQL variable/alias).",
+    note: "`npm run verify:leave` now passes (payroll logic, migration static checks, and PGlite-based isolated PostgreSQL integration checks covering RPC/trigger/RLS/roster/relief/payroll/accrual/lock behavior) — this is real automated coverage, not just a build claim. What it does NOT cover: Supabase Storage (leave evidence uploads), concurrency, or anything that only shows up in the rendered browser UI. Round 6: applied the migration to the live tenant (nakvdkkezgdqxytygtqp) — it needed three compatibility fixes the local PGlite tests couldn't have caught, because this project's remote schema has diverged from its migration history (see this project's own CLAUDE.md): a missing unique constraint on shift_types(tenant_id, code) the migration's upsert assumed existed, a current_site_ids() function referenced by 3 new RLS policies that was never live (real site-scoping here is profiles.assigned_site_ids, done in the frontend), and a write_audit_event() trigger function used by 4 new audit triggers that also never existed live. All three were added as thin compatibility shims, not new logic. Did not get to the actual browser flow (submit/approve/relief/payroll) this round — ran out of tooling time after the schema fixes.",
+    steps: [
+      "Open Leave, submit a request for a guard whose roster is published, then sign in as a different Admin/Operations/Payroll user and approve it",
+      "Confirm only rostered working dates reduce an enforced balance, the original shifts become typed leave, and one open coverage row appears per vacated shift",
+      "Assign a relief guard, run payroll and confirm the payslip separates worked, annual/sick/compassionate/maternity/unpaid hours; then test cancellation before attendance",
+      "Run the complete 39-case LEAVE_UAT.md matrix in a disposable database"
+    ],
+    pass: "Request, independent approval, scheduled-day drawdown, relief, payroll, cancellation and audit all reconcile without a third leave approval",
+    fail: "Any balance/roster/payroll mismatch, unauthorized cross-site access, double charge/log, or leave approval without a published working roster",
+    location: 'src/routes/_app.leave.tsx + src/lib/payroll-engine.ts + src/lib/payslip-pdf.ts + supabase/migrations/20260803181750_leave_management_module.sql',
+    fix: 'Built locally. Apply migrations only in a disposable environment first, then execute LEAVE_UAT.md; no remote database change has been made.'
+  },
+  {
+    id: 6,
+    priority: 'medium', priorityLabel: 'Verified — round 7 audit ✓', verdict: 'pass',
+    title: 'Transport allowance prorates with days actually worked',
+    bug: "Transport was paid as the same flat amount whether a guard worked their whole roster or missed half of it.",
+    note: "Two corrections came out of building this. First, the UAT called it a \"transport deduction\" — it isn't; transport is an allowance added to gross and excluded from tax, so the fix is to pay less of it, not to deduct something. Second, my own plan said to divide by the guard's days_per_week pattern, and testing it against the live July period proved that wrong: guards get off days, so a full month is about 22 worked days against a 6-day pattern's 25.7, and the pattern basis would have docked roughly 14% (N$50 a month) from every guard with perfect attendance. It now divides by the days the guard was actually rostered, so full attendance keeps the full allowance and only genuine absence reduces it. Where there's no roster for the period the full allowance stands — without a roster there's nothing to judge attendance against. Management is excluded (monthly salary, no shift logs). PAYE is unaffected, because transport is subtracted from taxable income anyway; SSC moves slightly since it's a percentage of gross.",
+    steps: [
+      "Open Payroll, pick an open period, and click Run Payroll",
+      "Find a guard who worked every day they were rostered and check their transport is the full amount",
+      "Find a guard who was absent for some rostered shifts (the payroll row will carry a \"Transport prorated\" warning) and check the amount is reduced in proportion",
+      "Download that guard's payslip and check the transport line reads e.g. \"Transport allowance (20/22 days)\"",
+      "Check a management employee still receives their full transport"
+    ],
+    pass: "Full-attendance guards get the full allowance; a guard who worked 20 of 22 rostered days gets 20/22 of it, with the basis shown on the payslip and a warning on the payroll row; management is unaffected",
+    fail: "Everyone gets the same flat amount, or a guard with perfect attendance has their transport reduced",
+    location: 'src/lib/payroll-engine.ts · countWorkedDays / transport proration + src/routes/_app.payroll.tsx (rosteredDays) + src/lib/payslip-pdf.ts',
+    fix: 'Done: transport = allowance × min(1, worked days / rostered days), computed from approved shift logs against schedule_assignments; basis surfaced on the payslip and as a compliance warning.',
+    audit: "Round 7: fixed and re-verified live. The management exclusion was keyed off a compensation-basis flag (category='management' AND monthly_salary>0) that happens to never fire in this tenant, since every management employee is actually paid via hourly_rate. Fix decoupled the transport exclusion into its own category-only check, leaving how management pay is calculated untouched (so nothing about their normal pay changed). Re-ran payroll live: the same two management employees (EMP017, EMP023) that were wrongly prorated in Round 6 now keep the full N$350 transport with no proration warning, while an officer (EMP050) in the same run is still correctly prorated to N$15.91 for 1 of 22 rostered days — proration and exclusion both working side by side in one payroll run."
+  },
+  {
+    id: 7,
+    priority: 'medium', priorityLabel: 'Enforcement now live — hard-block itself not yet exercised', verdict: 'partial',
+    title: 'Monthly hour cap (240h) — now enforced, hard-block not yet directly observed',
+    bug: "Guards could be rostered and clocked past 240 hours a month with nothing anywhere saying so.",
+    note: "Built, but deliberately not switched on, and you need to decide the last step. The cap is now measured in one place and shown on the muster (a \"Mth total\" column that turns amber at 90% and red past the cap), with a banner before Confirm naming any guard the pending marks would push over. The hard stop is written as a database trigger — same approach as the existing 12h daily cap, so it holds regardless of which screen writes — but it ships **disabled**, because the live data says switching it on would break their current rostering: July 2026 already has 9 guards rostered over 240h (max 276h) and June had 20 (max 264h). A 6-day × 12h pattern is roughly 264h+, so 240 caps a guard at about 20 shifts a month. Enforcing that is a real operational change — fewer shifts per guard, more guards needed — and that's the client's decision, not a default. Flip `monthly_cap_enforced` to 1 in payroll_constants when they've agreed. The 20h overtime cap is *not* built: overtime is derived weekly by the payroll engine and isn't stored per shift, so warning on it belongs on the payroll run, not the muster — call it separately if you want it.",
+    steps: [
+      "Open Attendance and look at the new \"Mth total\" column for each guard",
+      "Find a guard near the cap — the figure should be amber from 216h and red past 240h",
+      "Mark enough guards present to push someone past 240h and look above the Confirm bar",
+      "Check the banner names the guard and their projected total, and that confirming still works (warning mode)"
+    ],
+    pass: "Monthly hours show per guard and colour as they approach the cap; a banner names anyone the pending marks would push over, and says whether confirming is blocked or allowed",
+    fail: "No monthly figure on the muster, or a guard sails past 240h with nothing said",
+    location: 'src/lib/hour-caps.ts + src/routes/_app.attendance.tsx + supabase/migrations/20260719180000_monthly_hour_caps.sql (applied)',
+    fix: 'Done. Migration applied Round 6; monthly_cap_enforced flipped to 1 for Apex Shield Security Round 7 per Philip\'s decision. Overtime cap deferred — needs the payroll run, not the muster.',
+    audit: "Round 7: Philip decided — enforce it now, but keep it a per-tenant switch rather than a hard default, since this specific client wants strict enforcement (other future clients on this product may not). It already was one: `monthly_cap_enforced` is a payroll_constants row scoped to Apex Shield Security's tenant_id only, confirmed via the trigger's own definition (it reads the flag per-tenant before deciding to warn vs. block). Flipped it to 1 for Apex Shield Security only — DogForce Security Service (the other tenant sharing this Supabase project) is untouched. Checked live rostering data before flipping: the current open period (August 2026) has 0 guards over 240h, so this doesn't immediately block anything already scheduled — July's 9 and June's 20 over-cap guards are historical months and won't get new inserts. What's still unconfirmed: actually pushing a guard over the cap through the app and watching the hard block fire — the highest-hours guard in August is currently at 180h, so proving the block live would mean building out ~60h of additional real shifts first. The colour-coded Mth total column and pre-Confirm banner were confirmed live back in Round 2 and haven't changed."
+  },
+  {
+    id: 8,
+    priority: 'easy', priorityLabel: 'Mostly verified — one detail unchecked', verdict: 'partial',
+    title: 'Day and night shifts confirmed separately on the muster',
+    bug: "A guard's day shift and night shift get confirmed together in one action, so you can't tell which one was actually checked.",
+    note: "Built as a view change only — no schema change and no second confirmation record. Attendance was already stored per assignment and every shift type already carries a day/night period, so the fix was to stop the screen flattening them: the Daily Muster now renders a \"Day shift\" card and a \"Night shift\" card, each with its own expected/present/absent/replaced/unmarked line, its own \"Mark all present\", its own Discard, and its own Confirm button that writes only that section's rows. The single sticky \"Confirm attendance\" bar is gone. This deviates from the original idea of recording a separate day/night confirmation: that would have duplicated state the shift log already holds and then needed reconciling with it. Anything not explicitly a night shift type (day, half day, Sunday, leave, public holiday) sits in the Day section.",
+    steps: [
+      "Open Attendance for a date where the same site has both a day and a night shift",
+      "Check the muster is split into a Day shift card and a Night shift card, each with its own counts across the top",
+      "Mark a guard present in the Day shift card and press Confirm day shift",
+      "Check the Night shift card still shows its own pending changes and its own Confirm night shift button, and that pressing it later saves only the night rows"
+    ],
+    pass: "Day and night are confirmed independently — confirming one leaves the other pending, and each section shows its own present/absent totals",
+    fail: "One button confirms everything, or confirming the day shift also marks the night shift done",
+    location: 'src/routes/_app.attendance.tsx — grouping and the Confirm attendance bar (shift_types.period already carries day/night)',
+    fix: 'Group visible assignments by shift_types.period, render a confirm action + stats per group, and scope the pending-changes save to that group.',
+    audit: "Round 2 browser audit confirmed the split layout — separate Day shift and Night shift sections, each with its own present/absent/replaced counts. What wasn't independently re-proven this round is confirming one section while the other stays pending — the screenshot on hand shows the layout, not the two buttons mid-use. Round 7: attempted this — payroll@apexshield.demo can't mark attendance at all (the muster silently no-ops for that role), and the supervisor test account's password needed resetting again but browser sign-in couldn't be completed this round. Deferred at Philip's own call (\"skip it for now\") rather than blocked — pick back up once the supervisor login works."
+  },
+  {
+    id: 9,
+    priority: 'hard', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Roster rules: 10 days off minimum, off days paired, caps respected',
+    bug: "The scheduler doesn't enforce rest: guards can end up with fewer than 10 off days in a period, and the off days they do get are scattered as single days.",
+    note: "Built as one rule set (src/lib/roster-rules.ts) covering this card, #11 and the roster half of #7, judged over the whole generate range rather than a week at a time — off-day minimums and monthly caps mean nothing measured weekly. A \"Roster rules\" panel on Schedule names each guard, what they broke and by how much: under 10 off days, over the monthly hour cap, and off days that fell as singles. Deviation from the original idea: it reports rather than blocks. Live data is the reason — in the open period 23 of 32 rostered guards already have fewer than 10 off days (min 8), because a 6-day pattern over a 31-day period simply doesn't leave 10. Blocking would have made the roster unsaveable on day one; the same call as the 240h cap in #7. The 60-hour weekly cap is untouched and still hard-blocks saving.",
+    steps: [
+      "Open Schedule and check the generate range at the top covers a full pay period",
+      "Look for the \"Roster rules\" panel above the grid",
+      "Check it names guards with fewer than 10 off days in the period, and how many they have",
+      "Check the same panel also lists anyone rostered over the monthly hour cap"
+    ],
+    pass: "The panel flags any roster leaving a guard under 10 off days, naming the guard and the count, and reports the other rules broken by that same roster in one place",
+    fail: "A guard can be rostered with fewer than 10 off days with no warning, or the warning doesn't say who or why",
+    location: 'src/routes/_app.schedule.tsx — new roster validator module',
+    fix: 'Build validateRoster(period) returning typed violations (off-days, pairing, hour caps, coverage); wire it to both roster generation and the save/publish path. Covers #9, #11 and the roster half of #7.',
+    audit: "Round 2 browser audit, confirmed live: Schedule's \"Roster rules\" panel read \"23 rules broken, 9 preferences unmet\" and named guards individually, e.g. \"Amukoto, Ndapewa — 8 off days in this period — the minimum is 10.\" Reports rather than blocks, as intended."
+  },
+  {
+    id: 11,
+    priority: 'hard', priorityLabel: 'Verified — round 2 audit ✓', verdict: 'pass',
+    title: 'Off days given as consecutive pairs where the roster allows',
+    bug: "Off days are handed out one at a time, so a guard can get four separate single days off instead of two proper rest breaks.",
+    note: "Same rule set as #9, and treated as a preference rather than a rule, as agreed. Two halves: the generator now prefers, among guards who cost exactly the same, whoever already works the day before or after — work that runs in blocks leaves rest that falls together, which is the only way to get pairs out of a coverage-driven fill. It sits after cost in the ordering on purpose, so pairing can never raise the wage bill. The \"Roster rules\" panel then reports any off day that still landed as a single, with the reason: the dates either side the guard is rostered and at which site. Current live roster for the open period: 137 paired rest blocks against 9 single off days across 32 guards, so this is reporting the exceptions, not a rebuild.",
+    steps: [
+      "Open Schedule with the generate range covering a full period",
+      "In the \"Roster rules\" panel, look for entries tagged \"Off days not paired\"",
+      "Check each one names the guard, the date the single off day fell on, and the site they were rostered at either side",
+      "Sample a few guards in the grid and check most of their off days come as consecutive pairs"
+    ],
+    pass: "Most guards' off days come as consecutive 2-day blocks, and any single off days are reported with a reason rather than happening silently",
+    fail: "Off days are scattered singles with no attempt to pair them, or no explanation where pairing failed",
+    location: 'src/routes/_app.schedule.tsx — roster generation, same validator as #9',
+    fix: 'Score consecutive off-day pairs in the generator; report unpaired off days as an informational violation with the blocking constraint named.',
+    audit: "Round 2 browser audit, confirmed live: the same Roster rules panel lists \"Off days not paired\" entries individually, e.g. \"Amutenya, Frieda — 1 off day fell as a single instead of a pair: 21 May (rostered either side at City of Windhoek Civic Centre)\" — 9 such exceptions against a much larger set of paired off-days."
+  },
+  {
+    id: 10,
+    priority: 'medium', priorityLabel: 'Built further — payslip lines still need a browser check', verdict: 'untested',
+    title: 'Sunday pay: 1.5x by contract, 2x for replacement call-ins',
+    note: "Corrected 24 July after you confirmed the rule: the employment contract already commits every guard to the 1.5× agreed rate, so 1.5× is simply what a rostered Sunday pays — no per-guard flag involved. 2× applies only when the guard was called in to replace someone marked absent, using the is_replacement flag the Attendance replacement flow already sets, and shows on the payslip as its own \"Sunday call-in\" line. Public holidays are deliberately untouched: 2× for everyone, rostered or not, because the contractual agreement covers Sundays only. The earlier 20 July build was wrong — it gave 1.5× only to the 9 flagged guards — and has been replaced. THIS ONE MOVES MONEY: on live data 2,556 Sunday hours across 58 guards drop from 2× to 1.5× — about N$23,000 less over 24 May–19 Jul, roughly N$11–12k a month. Already-finalized periods are untouched. Left as-is on purpose: payroll_runs has no call-in column, so a finalized run stores one combined Sunday total and a reprint shows a single Sunday line at its effective rate. The employees.ordinarily_works_sundays column still exists but nothing reads it for pay — see \"SAAS building notes for this software.md\" for how to reverse this for a future client.",
+    bug: "Sunday shifts should pay 1.5x under the contract everyone signs, and 2x only when the guard was called in to replace an absentee. Public holidays stay at 2x.",
+    steps: [
+      "Open Payroll for a period containing a Sunday and open any guard's payslip — check the Sunday line reads 1.5x, for a guard picked at random rather than a specific one",
+      "Open a second guard's payslip from the same period and confirm it also reads 1.5x (the rate no longer depends on the individual)",
+      "On Attendance, mark a guard absent on a Sunday and use \"Find replacement\" so another guard covers that shift, then mark the reliever present and confirm the shift",
+      "Re-run payroll for that period and open the reliever's payslip — the cover Sunday should be a separate \"Sunday call-in\" line at 2x",
+      "Open a payslip covering a public holiday and check that line still reads 2x",
+      "Open a guard's profile and check \"Agreements & preferences\" states the contract rate rather than offering a Yes/No choice"
+    ],
+    pass: "Every rostered Sunday pays 1.5x regardless of who worked it; a Sunday picked up as cover for an absentee pays 2x on its own payslip line; public holidays pay 2x throughout",
+    fail: "Some guards' Sundays still pay 2x, a replacement Sunday is paid at the same rate as a rostered one, or a public holiday drops to 1.5x",
+    location: 'src/lib/payroll-engine.ts · calculateNetPay + bucketiseLogs + estimateShiftCost; src/lib/payslip-pdf.ts; src/routes/_app.payroll.tsx',
+    fix: 'Done: sunday_amount uses sunday_agreed_multiplier unconditionally; the is_replacement flag routes cover hours into a sunday_callin bucket paid at the default multiplier. public_holiday_amount is unchanged at the 2x default.',
+    audit: "Round 2 browser audit confirmed the profile side live: \"Agreements & preferences\" now shows the Sunday/holiday rate as fixed contract text — \"1.5× by contract (2× when called in as a replacement)\" — not a per-guard toggle. The payslip side (an actual Sunday line at 1.5×, and a separate 2× \"Sunday call-in\" line for a replacement) wasn't re-checked this round before tooling gave out. Since then, a second developer (Codex) added a dedicated sunday_callin_hours/sunday_callin_amount pair so a replacement Sunday now prints as its own payslip line instead of being folded into one combined Sunday total — worth re-checking that this line actually appears, separately, next time payroll runs for a period with a Sunday replacement. Round 4 also fixed a stale bug in the same area: the Payroll page's own subtitle still read \"Sunday/PH 2×\" for everyone, contradicting the 1.5×/2×/2× rule this card describes — corrected to name all three rates. This card still moves real money on live data — worth a direct payslip check before you present the payroll numbers, not just the profile text and subtitle."
+  },
+  {
+    id: 13,
+    priority: 'hard', priorityLabel: 'Not built — needs scoping',
+    title: 'Patrol logging',
+    bug: "There's nowhere to log or review patrols — rounds, checkpoints, times — so there's no evidence a site was actually walked.",
+    plan: "Worth being honest about what this is for before building it: a patrol log exists to prove to the client that their site was walked, which means its value is entirely in whether the data can be trusted. A screen where a supervisor types in patrol times after the fact proves nothing and will quietly stop being filled in. The parts worth building now are the ones that hold either way: checkpoints defined per site, and patrol rounds as timestamped visits to those checkpoints. Design the round record so a scan (QR sticker at the checkpoint, read on a phone) can create it later without reshaping the data — that's the version clients actually pay for. Also the only item on this list that's phone-first rather than desk-first, which makes it a different build to everything else here; worth confirming the client wants it enough to justify that before starting.",
+    steps: [
+      "Look for a Patrol section in the navigation",
+      "Define a couple of checkpoints on a site",
+      "Log a patrol round against them and check guard, site, checkpoint and time are all recorded",
+      "Review the site's patrol history for a date range"
+    ],
+    pass: "Checkpoints can be set per site, rounds can be logged against them, and a site's patrol history is reviewable by date",
+    fail: "No patrol section exists, or rounds can be logged without tying to a site and checkpoint",
+    location: 'New: site_checkpoints + patrol_rounds tables and src/routes/_app.patrols.tsx',
+    fix: 'Build checkpoints per site and timestamped patrol visits, with the visit record shaped so a scanned checkpoint id can populate it later. Confirm scope/appetite with the client first.'
+  },
+  {
+    id: 14,
+    priority: 'medium', priorityLabel: 'Verified — round 7 audit ✓', verdict: 'pass',
+    title: 'Client statements',
+    bug: "You can see a client's invoices one at a time, but there's no statement rolling them up to send the client.",
+    note: "Built as a report over existing data, not a module: a document icon on each row in Clients opens a statement for a date range (defaults to the last three months) showing opening balance, every invoice and payment in date order with a running balance, closing balance, and aging (current / 30 / 60 / 90+). \"Download PDF\" produces it. Deliberately NOT generated through the AI assistant as the original note suggested — the figures come from src/lib/statements.ts and the PDF from the same deterministic jsPDF path as payslips, because a client will check this against their own books. Checked against live data: City of Windhoek Civic Centre closes at N$71,732.00, exactly its outstanding issued total, split N$8,372.00 at 30–60 days and N$63,360.00 at 90+.",
+    steps: [
+      "Open Clients and click the document icon on a client with several invoices and at least one paid one",
+      "Set the date range to cover them",
+      "Check it shows an opening balance, each invoice and payment in date order, and a closing balance that matches that client's outstanding total",
+      "Check the aging row (current / 30 / 60 / 90+) adds up to the outstanding total, then press Download PDF and check the document matches the screen",
+      "Find an invoice that's only been part-paid and check the statement shows the partial receipt as its own line, with the invoice still open for the remaining balance"
+    ],
+    pass: "A statement can be generated per client and period, with opening/closing balances that reconcile to the ledger, transactions (including partial payments) in date order, an aging summary, and a shareable PDF",
+    fail: "No statement exists, its closing balance doesn't match the client's actual outstanding amount, or a partial payment doesn't reduce the invoice's outstanding balance correctly",
+    location: 'src/routes/_app.clients.tsx + src/lib/statements.ts + src/lib/statement-pdf.ts + supabase/migrations/20260803153900_rest_payroll_detail_and_partial_payments.sql',
+    fix: 'Query invoices + payments per client over a date range, compute opening/closing balances and aging buckets from the ledger, render with the existing PDF builder — not via erp-brain. A second developer (Codex) has since added a receipt-level payments table so an invoice can be settled across multiple partial payments instead of only a single all-or-nothing "paid" flip — this replaces the earlier limitation noted below.',
+    audit: "Round 7: found and fixed a real regression before confirming this as a full pass. Opening/closing balances and aging matched this card's own reference numbers exactly. But recording a payment against an open invoice failed outright with a 400: sync_invoice_payment_status() (added by Round 6's migration) assigned bare 'paid'/'issued' string literals to the invoices.status enum column inside a CASE expression that Postgres resolves as plain text — it had never fired successfully since the migration went live, so every payment ever recorded through Client Statements would have failed. Fixed with an explicit cast (migration 20260806013000) and re-verified live end to end: recorded a N$3,000 partial payment against an N$8,372 invoice — it now shows as its own dated line, the 60-day aging bucket dropped to exactly N$5,372 (the remaining balance), and the closing balance reconciled to the new outstanding total."
+  }
+];
+
+  /* ===================== ENGINE (generic) ===================== */
+  const slug         = PROJECT.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const STORAGE_KEY  = 'fixtracker:' + slug + ':state';
+  const NOTES_KEY    = 'fixtracker:' + slug + ':notes';
+  const COMMENTS_KEY = 'fixtracker:' + slug + ':comments';
+  const TOTAL        = ISSUES.length;
+  const IDS          = ISSUES.map(i => i.id);
+  const BY_ID        = Object.fromEntries(ISSUES.map(i => [i.id, i]));
+
+  const TICK_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+  const X_SVG    = '<svg viewBox="0 0 24 24" width="14" height="14" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+  const MSG_SVG  = '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      // Migrate legacy plain-number entries (pre-verdict-seeding format) to {v, auto}.
+      Object.keys(raw).forEach(id => { if (typeof raw[id] === 'number') raw[id] = { v: raw[id], auto: false }; });
+      return raw;
+    } catch { return {}; }
+  }
+  function save(s)        { localStorage.setItem(STORAGE_KEY,  JSON.stringify(s)); }
+  function loadNotes()    { try { return JSON.parse(localStorage.getItem(NOTES_KEY)    || '{}'); } catch { return {}; } }
+  function saveNotes(n)   { localStorage.setItem(NOTES_KEY,    JSON.stringify(n)); }
+  function loadComments() { try { return JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}'); } catch { return {}; } }
+  function saveComments(c){ localStorage.setItem(COMMENTS_KEY, JSON.stringify(c)); }
+
+  // Seed a card's ✓/✕ state from its `verdict` field, unless Philip has already marked it
+  // himself (auto: false). Re-applying this each load lets a later /verify-tracker run update
+  // an auto-seeded mark without ever clobbering Philip's own click.
+  function verdictToV(v) { return v === 'pass' ? 1 : v === 'fail' ? 2 : 0; }
+  function seedFromVerdicts(state) {
+    let changed = false;
+    ISSUES.forEach(it => {
+      if (!it.verdict) return;
+      const seeded = verdictToV(it.verdict);
+      const entry = state[it.id];
+      if (!entry || entry.auto) {
+        if (!entry || entry.v !== seeded || entry.auto !== true) {
+          state[it.id] = { v: seeded, auto: true };
+          changed = true;
+        }
+      }
+    });
+    if (changed) save(state);
+    return state;
+  }
+
+  function buildCards() {
+    document.getElementById('cards').innerHTML = ISSUES.map(it => `
+      <div class="card" id="card-${it.id}">
+        <div class="card-inner">
+          <div class="btn-group">
+            <button class="tick-btn" onclick="togglePass(${JSON.stringify(it.id)})" title="Mark passed">${TICK_SVG}</button>
+            <button class="fail-btn" onclick="markFail(${JSON.stringify(it.id)})" title="Mark failed">${X_SVG}</button>
+          </div>
+          <div class="card-body">
+            <div class="card-top">
+              <span class="issue-badge">Issue #${esc(it.id)}</span>
+              <span class="priority-badge ${it.priority || 'medium'}">${esc(it.priorityLabel || it.priority)}</span>
+            </div>
+            <div class="card-title">${esc(it.title)}</div>
+            <div class="card-bug">${esc(it.bug)}</div>
+            ${it.note ? `<div class="card-note"><strong>How it was built:</strong> ${esc(it.note)}</div>` : ''}
+            ${it.plan ? `<div class="card-plan"><strong>Recommended approach:</strong> ${esc(it.plan)}</div>` : ''}
+            ${it.audit ? `<div class="card-audit"><strong>Round 2 audit:</strong> ${esc(it.audit)}</div>` : ''}
+            <div class="verify-section">
+              <div class="verify-title">How to verify</div>
+              <ol class="verify-steps">${(it.steps || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+              <div class="result-row">
+                <div class="result-pass">✅ Green light: ${esc(it.pass)}</div>
+                <div class="result-fail">❌ Red light: ${esc(it.fail)}</div>
+              </div>
+            </div>
+            <div class="state-label"><span class="dot"></span><span class="label-text">Pending</span></div>
+            <textarea class="fail-note" id="note-${it.id}" oninput="saveNote(${JSON.stringify(it.id)}, this.value)" placeholder="What did you see instead? Be specific — e.g. 'panel still on left', 'file picker didn't open'…"></textarea>
+            <div class="comment-section">
+              <button class="comment-btn" id="comment-btn-${it.id}" onclick="toggleComment(${JSON.stringify(it.id)})">${MSG_SVG}<span class="btn-label">Add comment</span></button>
+              <textarea class="card-comment" id="comment-${it.id}" oninput="saveComment(${JSON.stringify(it.id)}, this.value)" placeholder="Leave a comment about this fix…"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  function togglePass(id) {
+    const s = load();
+    const cur = s[id]?.v ?? 0;
+    s[id] = { v: cur === 1 ? 0 : 1, auto: false };
+    save(s); render(s);
+  }
+
+  function markFail(id) {
+    const s = load();
+    const cur = s[id]?.v ?? 0;
+    s[id] = { v: cur === 2 ? 0 : 2, auto: false };
+    save(s); render(s);
+    if (s[id].v === 2) setTimeout(() => document.getElementById('note-' + id)?.focus(), 50);
+  }
+
+  function saveNote(id, text)    { const n = loadNotes();    n[id] = text; saveNotes(n); }
+
+  function saveComment(id, text) {
+    const c = loadComments();
+    c[id] = text;
+    saveComments(c);
+    const btn = document.getElementById('comment-btn-' + id);
+    if (btn) btn.classList.toggle('has-comment', text.trim().length > 0);
+  }
+
+  function toggleComment(id) {
+    const ta  = document.getElementById('comment-' + id);
+    const btn = document.getElementById('comment-btn-' + id);
+    if (!ta || !btn) return;
+    const isOpen = ta.classList.toggle('open');
+    const lbl = btn.querySelector('.btn-label');
+    lbl.textContent = isOpen ? 'Hide comment' : (ta.value.trim() ? 'Edit comment' : 'Add comment');
+    if (isOpen) ta.focus();
+  }
+
+  function resetAll() { if (!confirm('Reset all items back to pending?')) return; save({}); render({}); }
+
+  function render(state) {
+    const notes = loadNotes();
+    let resolved = 0, failed = 0;
+    IDS.forEach(id => {
+      const card  = document.getElementById('card-' + id);
+      const label = card.querySelector('.label-text');
+      const note  = document.getElementById('note-' + id);
+      const entry = state[id];
+      const s     = entry?.v ?? 0;
+      const auto  = !!entry?.auto;
+      const autoTag = auto ? ' — auto (Claude verified, not yet clicked by you)' : '';
+      card.classList.remove('resolved', 'failed');
+      if (s === 1)      { card.classList.add('resolved'); label.textContent = 'Passed ✓' + autoTag; resolved++; }
+      else if (s === 2) { card.classList.add('failed');   label.textContent = 'Failed ✕' + autoTag; failed++; if (note && notes[id]) note.value = notes[id]; }
+      else              { label.textContent = 'Pending'; }
+    });
+    const pct = TOTAL ? Math.round((resolved / TOTAL) * 100) : 0;
+    document.getElementById('progress-pill').textContent =
+      resolved + ' / ' + TOTAL + ' passed' + (failed ? '  ·  ' + failed + ' failed' : '');
+    document.getElementById('progress-bar').style.width = pct + '%';
+  }
+
+  function buildMd() {
+    const state    = load();
+    const notes    = loadNotes();
+    const comments = loadComments();
+    const stamp    = new Date().toLocaleString();
+    const icon = (s) => s === 1 ? '✅' : s === 2 ? '❌' : '⏳';
+    const text = (s) => s === 1 ? 'Passed' : s === 2 ? 'Failed' : 'Pending';
+    const vOf = (id) => state[id]?.v ?? 0;
+    const resolved = IDS.filter(id => vOf(id) === 1).length;
+    const failed   = IDS.filter(id => vOf(id) === 2).length;
+    const pending  = TOTAL - resolved - failed;
+
+    let md = `# ${PROJECT} — Fix Tracker (test results)\n`;
+    md += `_Exported by Philip: ${stamp}_\n\n`;
+    md += `> **For Claude:** Philip's testing handoff. Work the ❌ Failed items first — read his note `;
+    md += `under each, fix the code at the listed location, then re-run \`/fix-tracker\` to regenerate `;
+    md += `tracker.html for the next round (failed items carry forward, passed items drop off). `;
+    md += `⏳ Pending = untested. ✅ Passed = done, leave it.\n\n`;
+    md += `## Summary\n- ✅ Passed: ${resolved} / ${TOTAL}\n- ❌ Failed: ${failed} / ${TOTAL}\n- ⏳ Pending: ${pending} / ${TOTAL}\n\n---\n\n`;
+
+    const order = [...IDS].sort((a, b) => {
+      const rank = (s) => s === 2 ? 0 : s === 0 ? 1 : 2;
+      return rank(vOf(a)) - rank(vOf(b));
+    });
+    order.forEach(id => {
+      const s       = vOf(id);
+      const auto    = !!state[id]?.auto;
+      const it      = BY_ID[id] || {};
+      const note    = (notes[id]    ?? '').trim();
+      const comment = (comments[id] ?? '').trim();
+      md += `## ${icon(s)} Issue #${id} — ${it.title || ''}\n`;
+      md += `**Status:** ${text(s)}${auto ? ' (auto-seeded from a Claude verify pass — not yet personally clicked by Philip)' : ''}\n`;
+      md += `**Location:** \`${it.location || ''}\`\n`;
+      md += `\n**The bug (UX):** ${it.bug || ''}\n`;
+      md += `\n**Fix to apply:** ${it.fix || ''}\n`;
+      if (it.note) md += `\n**How it was built:** ${it.note}\n`;
+      if (it.audit) md += `\n**Round 2 audit:** ${it.audit}\n`;
+      if (note)    md += `\n**Philip's failure note:** ${note}\n`;
+      if (comment) md += `\n**Philip's comment:** ${comment}\n`;
+      md += '\n';
+    });
+    return md;
+  }
+
+  async function exportMd() {
+    const md = buildMd();
+    const ts = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const fname = `${slug}-round-${ts}.md`;
+
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: fname,
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+        });
+        const w = await handle.createWritable();
+        await w.write(md);
+        await w.close();
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // init
+  buildCards();
+  const _initNotes    = loadNotes();
+  const _initComments = loadComments();
+  IDS.forEach(id => {
+    const noteEl = document.getElementById('note-' + id);
+    if (noteEl && _initNotes[id]) noteEl.value = _initNotes[id];
+
+    const commentEl  = document.getElementById('comment-' + id);
+    const commentBtn = document.getElementById('comment-btn-' + id);
+    if (commentEl && _initComments[id]) {
+      commentEl.value = _initComments[id];
+      commentEl.classList.add('open');
+      commentBtn.classList.add('has-comment');
+      commentBtn.querySelector('.btn-label').textContent = 'Edit comment';
+    }
+  });
+  render(seedFromVerdicts(load()));
+</script>
+</body>
+</html>
