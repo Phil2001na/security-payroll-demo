@@ -1,6 +1,31 @@
 # Updates
 
+## 2026-08-07
+
+### 10:15 - round 2 loop: #3 leave module closed out, tracker → 13 pass / 1 partial / 1 untested / 1 not built
+- Completed the full leave-module UAT: submitted a real sick-leave request (Nakale, Maria · EMP111, 2026-08-07) as payroll@apexshield.demo, approved it as a different user (ceo@apexshield.demo) — balance drew down exactly 1.00 sick day, her rostered shift converted to leave, and a single relief-coverage row was created for the vacated Night Shift.
+- Assigning a reliever to that coverage row failed every time with a generic "Failed" toast. Root-caused via Postgres logs: `assign_leave_cover()` (from the leave module migration) calls `employee_week_hours()` and `has_ps_exemption()`, both defined in an earlier migration (`20260426162519_...sql`) that never actually ran against the live database — same class of schema-drift bug as the #14 invoice-status fix from last round. The table those functions depend on (`ps_exemptions`) already existed live with the right columns, so this was two missing helper functions, not new logic.
+- Fixed with new migration `20260807003500_fix_missing_leave_cover_helper_functions.sql` (recreates both functions exactly as originally authored), applied live after Philip's go-ahead. Re-verified in the browser: relief guard (Amunyela, Shilongo · EMP112) assigned successfully, coverage row status → `assigned`.
+- Re-ran payroll for the period: `payroll_runs` now shows `normal_hours`/`sick_leave_hours` as separate columns for EMP111 (24/12), gross and net reconciled correctly.
+- Cancelled the leave request before any real attendance was confirmed: balance restored to 1.00, the leave-marker attendance row removed, her original roster shift came back, and the reliever's now-orphaned cover assignment for that date was cleanly deleted — no double-booking left behind.
+- tracker.html #3 → `pass`. Not independently re-checked: cross-tenant/site RLS on leave data, and that approving against an unpublished roster is actually blocked (the UI warns it correctly but wasn't pushed through an approval attempt). The full 39-case `LEAVE_UAT.md` matrix remains optional deeper coverage for a disposable database.
+- Dev server (`bun run dev`) died mid-session when the machine slept; restarted it in the background — no code was lost, just needed a fresh `npm run dev` process.
+- Remaining: #10 (Sunday call-in payslip line) handed to Philip to check by hand; #7 stays partial (hard-block enforcement applied, firing not yet observed); #13 still needs scope.
+
 ## 2026-08-06
+
+### 16:00 - round 2 loop: #8 and #12 both closed out, round 8 tally 12 pass / 1 partial / 2 untested / 1 not built
+- #12 resolved fully: it was tooling flakiness blocking the Confirm click, not a real bug — Philip clicked it himself and it persisted immediately (`confirmed_by` set, `status='confirmed'`). Re-ran payroll as payroll@apexshield.demo (had to retry that click too — the first attempt silently didn't fire, confirmed via a stale `generated_at` timestamp in `payroll_runs`) and the fine now shows correctly: Fines column $300.00, net dropped by exactly $300. The "Fines column shows $0 even when deducted" thing I flagged as a possible separate display bug in the last entry wasn't real either — same stale-run artifact, not a bug once payroll was actually re-run. tracker.html #12 → `pass`.
+- #8 resolved too: Philip confirmed it directly by signing in as supervisor himself. Also independently re-proven live while building #12's attendance test data — confirming the Day shift card left the Night shift card's counts at 0/pending until confirmed separately, exactly matching the pass criterion. tracker.html #8 → `pass`.
+- Round 8 tally: 12 pass, 1 partial (#7 — enforcement applied, hard-block itself still not observed firing), 2 untested (#3 leave module, #10 Sunday call-in line), 1 not built (#13). Header bumped.
+- Browser tooling was unreliable most of this session (tab ids churning, extension losing page access repeatedly, clicks silently not registering at least twice) — worth flagging as a recurring cost on this project's UAT rounds, not unique to this one.
+
+### 02:20 - round 2 loop: #12 attendance precondition fixed, disciplinary chain mostly walked, browser tooling died mid-Confirm
+- #7's admin-settings switch already existed (`monthly_cap_enforced` renders as a real Switch in `_app.admin.settings.tsx`, not a raw number) — no build needed, just confirmed live.
+- #12's data-precondition gap fixed for real: the open pay period had zero attendance rows (discovered `attendance_logs` is an unused/empty legacy table — the app actually writes to `shift_logs`). Marked and confirmed real attendance for 2026-08-06 (14 records) via the browser: supervisor login marks/confirms (lands as `submitted`), payroll approves via `/approvals` (moves to `approved`) — a real two-step workflow, not a bug.
+- Recorded a new $300 test fine against EMP070, ran payroll: confirmed the fine correctly does NOT reduce net pay while unconfirmed. Verified as a second distinct user (CEO) — confirmed the self-block (no Confirm button shown for the verifier's own row). Attempting Confirm as a third distinct user (demo@payroll.dev) did not persist after two clicks (still `status='verified'`, `confirmed_by` null) — the Chrome extension then lost page access entirely right after, so it's unclear yet whether that's a real bug or the tooling already failing silently during those clicks.
+- Not marking anything fail/pass on #12 yet — needs a clean retry of the Confirm step once tooling is back. Full state logged to the scratch progress file for a clean resume.
+- Retry after the 10-min wait: browser tooling came back partially (could create tabs/navigate/click) but degraded again within 1-2 calls each time. Confirmed via console capture that one clean Confirm click produced no error and no visible network call, and via SQL that the row's `updated_at` never changed across 4 attempts spanning ~2 hours — but couldn't fully rule out the click never actually landing given how unstable the tooling was throughout. Leaving #12 at `partial` rather than guessing; asked Philip whether to keep retrying automatically or have him try the one click by hand.
 
 ### 01:15 - loop iteration 4 continued: #14 bug fixed and re-verified, round 7 wrapped up
 - Fixed the invoice_payments trigger bug with a new migration (`20260806013000_fix_invoice_payment_status_cast.sql`) casting the CASE literals to `invoice_status` explicitly, applied to the live tenant.
@@ -54,6 +79,12 @@
 - `EXIT_RECORDERS` in `src/routes/_app.employees.$employeeId.tsx` listed the old, dormant `"supervisor"` role string (pre-2026-06-29 rename) instead of `"security_supervisor"`, which is what real Supervisor accounts carry. The whole Employment Exit card returns `null` when `canRecord` is false, so it silently disappeared for the Supervisor login — not disabled, just absent, exactly what the Round 2 tracker audit flagged on #4/#12.
 - Added `"security_supervisor"` to the list (matching the sibling `DISCIPLINARY_VIEWERS` array four lines below, which already had both). Queried the live Apex Shield tenant to confirm the fix is actually testable: no `operations`-role accounts exist here, but the chain now works with what's there — Supervisor (`security_supervisor`) records, Payroll verifies, an Admin/CEO account confirms.
 - #12 needed no code change — the tenant already has three distinct admin/payroll-role logins (`ceo@apexshield.demo`, `demo@payroll.dev`, `payroll@apexshield.demo`, plus Philip's own account) to walk record→verify→confirm as three different people; Round 2's audit hadn't tried that combination.
+
+## 2026-08-07
+
+### 18:00 - Sunday replacement payroll UAT
+- Verified the live local UAT path: a rostered Sunday payslip showed 1.5x for EMP035 and EMP111; a Sunday absence was covered by EMP108, confirmed, and rerun by the payroll role.
+- EMP108's downloaded payslip shows a separate `Sunday call-in (2x)` line for 12.00 hours at $38.00/$456.00, alongside a zero-hour rostered Sunday line.
 
 ## 2026-08-04
 
