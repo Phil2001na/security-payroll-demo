@@ -1,5 +1,11 @@
 # Updates
 
+## 2026-08-08
+
+### 09:00 - client UAT walkthrough
+- Added `CLIENT_UAT_WALKTHROUGH.md`: a client-ready account of every original July UAT requirement, its implementation, verified evidence, demo sequence, and the remaining patrol/monthly-cap decisions.
+- Reconciled the walkthrough against the later UAT and update history so it reflects the verified Sunday call-in, leave, disciplinary and partial-payment work rather than the older tracker wording alone.
+
 ## 2026-08-07
 
 ### 10:15 - round 2 loop: #3 leave module closed out, tracker → 13 pass / 1 partial / 1 untested / 1 not built
