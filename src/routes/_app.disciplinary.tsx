@@ -18,6 +18,17 @@ import { Plus, ShieldAlert, AlertTriangle } from "lucide-react";
 import { formatNAD, formatDate } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
 import { AccessDenied } from "@/components/access-denied";
+import { fetchRecorderProfiles, recordedByLabel, OFFENCES } from "@/lib/disciplinary";
+import {
+  APPROVAL_LABELS, approvalBadgeClass, canVerify, canConfirm,
+  VERIFIER_ROLES_DISCIPLINARY, CONFIRMER_ROLES_DISCIPLINARY, type ApprovalStatus,
+} from "@/lib/approvals";
+
+// The approval chain as the shared helpers expect it (the page's rows carry the recorder's
+// *profile* on `recorded_by`, while the chain rules work off user ids).
+function chainOf(a: any) {
+  return { status: a.status as ApprovalStatus, recorded_by: a.created_by, verified_by: a.verified_by };
+}
 
 export const Route = createFileRoute("/_app/disciplinary")({
   component: DisciplinaryPage,
@@ -27,18 +38,14 @@ type ActionType =
   | "verbal_warning" | "written_warning" | "final_warning"
   | "unpaid_suspension" | "fine_with_ca" | "dismissal";
 
-const OFFENCES = [
-  "Sleeping on duty", "Late arrival", "Absent without leave",
-  "Unprofessional conduct", "Uniform violation", "Insubordination",
-  "Theft / dishonesty", "Neglect of duty", "Other",
-];
-
 function DisciplinaryPage() {
   const { profile } = useAuth();
   const role = profile?.role;
   if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
     return <AccessDenied message="Disciplinary records are restricted to operations and payroll staff." />;
   }
+  // Field supervisors (security_supervisor) don't come here — they flag offences straight
+  // from the muster row on Attendance, and only ever file warnings.
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -68,9 +75,14 @@ function DisciplinaryPage() {
       const { data, error } = await supabase
         .from("disciplinary_actions")
         .select("*, employees(id,employee_code,first_names,surname,display_name), sites:incident_site_id(name)")
+        .order("status")
         .order("incident_date", { ascending: false });
       if (error) throw error;
-      return data;
+      const recorders = await fetchRecorderProfiles((data ?? []).map((d: any) => d.created_by));
+      return (data ?? []).map((d: any) => ({
+        ...d,
+        recorded_by: d.created_by ? recorders.get(d.created_by) ?? null : null,
+      }));
     },
   });
 
@@ -114,6 +126,23 @@ function DisciplinaryPage() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  // record → verify → confirm (tracker #12). Three different people; the RPCs enforce it,
+  // the buttons below just avoid offering an action that would be rejected.
+  const stepMut = useMutation({
+    mutationFn: async ({ id, step }: { id: string; step: "verify" | "confirm" }) => {
+      const fn = step === "verify" ? "verify_disciplinary_action" : "confirm_disciplinary_action";
+      const { error } = await supabase.rpc(fn, { p_action: id });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      toast.success(v.step === "verify" ? "Action verified" : "Action confirmed — it can now affect payroll");
+      qc.invalidateQueries({ queryKey: ["disciplinary"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const awaitingSignoff = (actions ?? []).filter((a: any) => a.status !== "confirmed" && a.status !== "cancelled");
 
   const finesWithoutCA = (actions ?? []).filter(
     (a) => a.action_type === "fine_with_ca" && !a.collective_agreement_reference?.trim() && Number(a.fine_amount || 0) > 0,
@@ -234,6 +263,17 @@ function DisciplinaryPage() {
         </Dialog>
       </div>
 
+      {awaitingSignoff.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+          <ShieldAlert className="h-4 w-4 text-warning mt-0.5" />
+          <div>
+            <strong>{awaitingSignoff.length} action(s) awaiting sign-off</strong> — every action has to be
+            recorded, verified and confirmed by three different people. Fines and unpaid suspensions
+            only reach payroll once confirmed.
+          </div>
+        </div>
+      )}
+
       {finesWithoutCA.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">
           <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
@@ -254,6 +294,8 @@ function DisciplinaryPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>Offence</TableHead>
                 <TableHead>Site</TableHead>
+                <TableHead>Recorded by</TableHead>
+                <TableHead>Sign-off</TableHead>
                 <TableHead className="text-right">Fine</TableHead>
                 <TableHead className="text-right">Susp. hrs</TableHead>
                 <TableHead>CA Ref</TableHead>
@@ -262,7 +304,7 @@ function DisciplinaryPage() {
             <TableBody>
               {!actions?.length ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No actions recorded.</TableCell>
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">No actions recorded.</TableCell>
                 </TableRow>
               ) : actions.map((a: any) => {
                 const isFine = a.action_type === "fine_with_ca";
@@ -283,6 +325,32 @@ function DisciplinaryPage() {
                     </TableCell>
                     <TableCell>{a.offence_code}</TableCell>
                     <TableCell className="text-xs">{a.sites?.name ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{recordedByLabel(a.recorded_by)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className={`text-[10px] ${approvalBadgeClass(a.status)}`}>
+                          {APPROVAL_LABELS[a.status as ApprovalStatus]}
+                        </Badge>
+                        {canVerify(chainOf(a), profile?.id, role, VERIFIER_ROLES_DISCIPLINARY) && (
+                          <Button
+                            size="sm" variant="outline" className="h-6 px-2 text-[11px]"
+                            disabled={stepMut.isPending}
+                            onClick={() => stepMut.mutate({ id: a.id, step: "verify" })}
+                          >
+                            Verify
+                          </Button>
+                        )}
+                        {canConfirm(chainOf(a), profile?.id, role, CONFIRMER_ROLES_DISCIPLINARY) && (
+                          <Button
+                            size="sm" className="h-6 px-2 text-[11px]"
+                            disabled={stepMut.isPending}
+                            onClick={() => stepMut.mutate({ id: a.id, step: "confirm" })}
+                          >
+                            Confirm
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">{isFine ? formatNAD(Number(a.fine_amount || 0)) : "—"}</TableCell>
                     <TableCell className="text-right">{a.action_type === "unpaid_suspension" ? (a.suspension_hours ?? 0) : "—"}</TableCell>
                     <TableCell>

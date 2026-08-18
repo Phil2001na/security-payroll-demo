@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Briefcase, Plus, Loader2, Pencil, MapPin, Mail, Phone, Search } from "lucide-react";
+import { Briefcase, Plus, Loader2, Pencil, MapPin, Mail, Phone, Search, FileText } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { buildStatement, type StatementInvoice, type StatementPayment } from "@/lib/statements";
+import { buildStatementPDF } from "@/lib/statement-pdf";
+import { formatNAD } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/clients")({
   component: ClientsPage,
@@ -231,8 +234,176 @@ function EditClientDialog({ client, open, onOpenChange }: {
   );
 }
 
+function StatementDialog({ client, open, onOpenChange }: {
+  client: Client; open: boolean; onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const threeMonthsBack = new Date(Date.now() - 92 * 86400000).toISOString().slice(0, 10);
+  const [start, setStart] = useState(threeMonthsBack);
+  const [end, setEnd] = useState(today);
+  const [paymentInvoiceId, setPaymentInvoiceId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+
+  // Every AR invoice for this client, not just the ones in range — the opening balance is
+  // whatever was outstanding before the period started, so it needs the history.
+  const { data: statementData, isLoading } = useQuery<{ invoices: StatementInvoice[]; payments: StatementPayment[] }>({
+    queryKey: ["client-statement-invoices", client.id],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, tenant_id, invoice_number, invoice_date, due_date, total, status, paid_at")
+        .eq("client_id", client.id)
+        .eq("type", "AR")
+        .order("invoice_date");
+      if (error) throw error;
+      const invoices = (data ?? []) as StatementInvoice[];
+      const ids = invoices.map((i) => i.id);
+      if (!ids.length) return { invoices, payments: [] };
+      const { data: payments, error: paymentError } = await supabase.from("invoice_payments")
+        .select("invoice_id, received_at, amount, reference").in("invoice_id", ids).order("received_at");
+      if (paymentError) throw paymentError;
+      return { invoices, payments: (payments ?? []) as StatementPayment[] };
+    },
+  });
+
+  const statement = useMemo(() => buildStatement({ invoices: statementData?.invoices ?? [], payments: statementData?.payments ?? [], start, end }), [statementData, start, end]);
+  const recordPayment = useMutation({
+    mutationFn: async () => {
+      const invoice = statementData?.invoices.find((i) => i.id === paymentInvoiceId);
+      const amount = Number(paymentAmount);
+      if (!invoice || !Number.isFinite(amount) || amount <= 0) throw new Error("Choose an invoice and enter a payment amount");
+      const { error } = await supabase.from("invoice_payments").insert({ invoice_id: invoice.id, tenant_id: invoice.tenant_id, amount });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Payment recorded"); setPaymentAmount(""); setPaymentInvoiceId(""); void qc.invalidateQueries({ queryKey: ["client-statement-invoices", client.id] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not record payment"),
+  });
+
+  const { data: tenant } = useQuery({
+    queryKey: ["tenant-name"],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase.from("tenants").select("name").limit(1).maybeSingle();
+      return data;
+    },
+  });
+
+  function download() {
+    const doc = buildStatementPDF({
+      statement,
+      tenantName: tenant?.name ?? "Statement",
+      client,
+    });
+    doc.save(`statement-${client.name.replace(/[^\w]+/g, "-").toLowerCase()}-${start}-to-${end}.pdf`);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Statement — {client.name}</DialogTitle>
+          <DialogDescription>
+            Opening balance, invoices and payments in date order, closing balance and aging —
+            computed from the invoice ledger.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label>From</Label>
+            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="font-mono w-[160px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>To</Label>
+            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="font-mono w-[160px]" />
+          </div>
+        </div>
+
+        <div className="rounded-md border p-3 flex flex-wrap items-end gap-2">
+          <div className="space-y-1"><Label>Record payment against invoice</Label><select className="h-9 rounded-md border bg-background px-2 text-sm" value={paymentInvoiceId} onChange={(e) => setPaymentInvoiceId(e.target.value)}><option value="">Choose invoice</option>{(statementData?.invoices ?? []).filter((i) => i.status !== "void" && i.status !== "draft").map((i) => <option key={i.id} value={i.id}>{i.invoice_number ?? i.id.slice(0, 8)} · {formatNAD(i.total)}</option>)}</select></div>
+          <div className="space-y-1"><Label>Amount received</Label><Input className="w-36" type="number" min="0.01" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} /></div>
+          <Button size="sm" onClick={() => recordPayment.mutate()} disabled={recordPayment.isPending}>Record payment</Button>
+        </div>
+
+        {isLoading ? (
+          <Skeleton className="h-40" />
+        ) : (
+          <>
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Detail</TableHead>
+                    <TableHead className="text-right">Debit</TableHead>
+                    <TableHead className="text-right">Credit</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-muted/20">
+                    <TableCell colSpan={5} className="font-medium">Opening balance</TableCell>
+                    <TableCell className="text-right font-mono font-medium">{formatNAD(statement.openingBalance)}</TableCell>
+                  </TableRow>
+                  {statement.lines.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                        No invoices or payments in this range.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {statement.lines.map((l, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="font-mono text-xs">{l.date}</TableCell>
+                      <TableCell className="font-mono text-xs">{l.reference}</TableCell>
+                      <TableCell className="text-sm">{l.kind === "invoice" ? "Invoice" : "Payment received"}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{l.debit ? formatNAD(l.debit) : ""}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{l.credit ? formatNAD(l.credit) : ""}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{formatNAD(l.balance)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/20">
+                    <TableCell colSpan={5} className="font-semibold">Closing balance</TableCell>
+                    <TableCell className="text-right font-mono font-semibold">{formatNAD(statement.closingBalance)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 text-center">
+              {([
+                ["Current", statement.aging.current],
+                ["30 days", statement.aging.d30],
+                ["60 days", statement.aging.d60],
+                ["90+ days", statement.aging.d90],
+                ["Outstanding", statement.agingTotal],
+              ] as const).map(([label, amount], i) => (
+                <div key={label} className={`rounded-lg border p-2 ${i === 4 ? "bg-muted/40" : ""}`}>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+                  <div className="font-mono text-sm font-semibold">{formatNAD(amount)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button onClick={download} disabled={isLoading}>
+            <FileText className="mr-2 h-4 w-4" /> Download PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ClientRow({ client, canManage }: { client: Client; canManage: boolean }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
   return (
     <TableRow className={!client.active ? "opacity-60" : undefined}>
       <TableCell className="py-3">
@@ -265,7 +436,11 @@ function ClientRow({ client, canManage }: { client: Client; canManage: boolean }
       <TableCell className="py-3">
         <Badge variant={client.active ? "default" : "outline"}>{client.active ? "Active" : "Inactive"}</Badge>
       </TableCell>
-      <TableCell className="py-3 text-right">
+      <TableCell className="py-3 text-right whitespace-nowrap">
+        <Button size="sm" variant="ghost" onClick={() => setStatementOpen(true)} title="Statement of account">
+          <FileText className="h-3.5 w-3.5" />
+        </Button>
+        {statementOpen && <StatementDialog client={client} open={statementOpen} onOpenChange={setStatementOpen} />}
         {canManage && (
           <>
             <Button size="sm" variant="ghost" onClick={() => setEditOpen(true)}>
