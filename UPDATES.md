@@ -2,6 +2,10 @@
 
 ## 2026-08-19
 
+### 03:10 - public demo sign-in button added
+- Added a "View live demo" button to the left brand panel of the sign-in page that signs straight into the existing seeded `demo@payroll.dev` admin account (Apex Shield Security demo tenant), for sharing the app with prospects (e.g. 4Sight Namibia) without needing credentials.
+- Replaced the old `import.meta.env.DEV`-gated bypass button with this one so it also works in production builds; the demo account is isolated in the pre-existing seed tenant and has no access to the real client (DogForce) tenant's data.
+
 ### 02:45 - single package-manager lockfile established
 - Declared Bun 1.3.14 as the project package manager, updated the leave verification script to use Bun, and removed the stale tracked npm lockfile.
 - Added `package-lock.json` to ignores so installs and audit results remain reproducible from the Bun lockfile only.

@@ -55,24 +55,16 @@ function AuthPage() {
     }
   };
 
-  const handleDevBypass = async () => {
+  const handleDemoLogin = async () => {
     setSubmitting(true);
     try {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: "demo@payroll.dev",
         password: "Demo1234!",
       });
-      if (!signInErr) return;
-      const { error: signUpErr } = await supabase.auth.signUp({
-        email: "demo@payroll.dev",
-        password: "Demo1234!",
-        options: { data: { full_name: "Demo User" } },
-      });
-      if (signUpErr) throw signUpErr;
-      await supabase.auth.signInWithPassword({ email: "demo@payroll.dev", password: "Demo1234!" });
+      if (error) throw error;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Dev login failed");
-    } finally {
+      toast.error(err instanceof Error ? err.message : "Demo login failed");
       setSubmitting(false);
     }
   };
@@ -137,8 +129,20 @@ function AuthPage() {
             ))}
           </div>
         </div>
-        <div className="relative z-10 text-xs text-sidebar-foreground/50">
-          © {new Date().getFullYear()} Demo Payroll System
+        <div className="relative z-10 space-y-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onClick={handleDemoLogin}
+            disabled={submitting}
+          >
+            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+            View live demo
+          </Button>
+          <div className="text-xs text-sidebar-foreground/50">
+            © {new Date().getFullYear()} Demo Payroll System
+          </div>
         </div>
       </div>
 
@@ -200,13 +204,6 @@ function AuthPage() {
             </svg>
             Google
           </Button>
-
-          {import.meta.env.DEV && (
-            <Button type="button" variant="secondary" className="w-full" onClick={handleDevBypass} disabled={submitting}>
-              <Zap className="mr-2 h-4 w-4" />
-              Dev — enter as demo user
-            </Button>
-          )}
         </div>
       </div>
     </div>
