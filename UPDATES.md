@@ -1,5 +1,11 @@
 # Updates
 
+## 2026-08-20
+
+### 00:15 - demo account now sees every module
+- Root cause: `demo@payroll.dev` had `role: admin` but also `is_ceo_executive: true`; the nav filter special-cases CEOs to show only `ceoVisible`-flagged items (just "Clients"), overriding the normal role-based nav and hiding most operational modules.
+- Fixed by setting `is_ceo_executive = false` on the demo profile (Apex Shield demo tenant only, no code change) — `role: admin` now drives full nav visibility as intended.
+
 ## 2026-08-19
 
 ### 03:10 - public demo sign-in button added
