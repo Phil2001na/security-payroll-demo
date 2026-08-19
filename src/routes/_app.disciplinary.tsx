@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ function chainOf(a: any) {
 }
 
 export const Route = createFileRoute("/_app/disciplinary")({
+  validateSearch: z.object({ employee: z.string().optional() }),
   component: DisciplinaryPage,
 });
 
@@ -93,6 +95,16 @@ function DisciplinaryPage() {
     fine_amount: "", collective_agreement_reference: "",
     suspension_hours: "",
   });
+
+  // Deep link from an employee's profile ("Log new incident") — preselect them and
+  // open the form straight away instead of dropping onto the bare tenant-wide page.
+  const { employee: employeeParam } = useSearch({ from: "/_app/disciplinary" });
+  useEffect(() => {
+    if (employeeParam && employees?.some((e) => e.id === employeeParam)) {
+      setForm((f) => ({ ...f, employee_id: employeeParam }));
+      setOpen(true);
+    }
+  }, [employeeParam, employees]);
 
   const createMut = useMutation({
     mutationFn: async () => {

@@ -703,7 +703,9 @@ function DisciplinaryHistoryCard({ employeeId }: { employeeId: string }) {
           )}
         </CardTitle>
         <Button size="sm" variant="outline" asChild>
-          <Link to="/disciplinary">Open disciplinary</Link>
+          <Link to="/disciplinary" search={{ employee: employeeId }}>
+            Log new incident
+          </Link>
         </Button>
       </CardHeader>
       <CardContent className="text-sm">
