@@ -83,6 +83,8 @@ function AttendancePage() {
   const qc = useQueryClient();
   const [date, setDate] = useState(() => fmtIso(new Date()));
   const [siteFilter, setSiteFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "present" | "absent" | "replaced">("all");
+  const [sortBy, setSortBy] = useState<"name" | "needs_marking" | "weekly_hours" | "monthly_hours">("name");
   const [search, setSearch] = useState("");
   // Pending status changes by assignment.id
   const [pending, setPending] = useState<Record<string, { status: ShiftLog["status"]; notes?: string }>>({});
@@ -317,12 +319,28 @@ function AttendancePage() {
     return (sites ?? []).filter((s) => allowedSiteIds.includes(s.id));
   }, [sites, isSecuritySupervisor, allowedSiteIds]);
 
-  // Filter assignments by site + search
+  // Filter assignments by site, attendance state and search, while retaining site and
+  // Day/Night groupings so supervisors can work through one operational queue at a time.
   const visibleAssignments = useMemo(() => {
     let list = (assignments ?? []).slice();
+    const weekHours = new Map<string, number>();
+    (weekAssignments ?? []).forEach((assignment) => {
+      weekHours.set(
+        assignment.employee_id,
+        (weekHours.get(assignment.employee_id) ?? 0) + Number(assignment.planned_hours),
+      );
+    });
     // Security supervisors are scoped to their assigned sites (DB RLS is tenant-wide).
     if (isSecuritySupervisor) list = list.filter((a) => allowedSiteIds.includes(a.site_id));
     if (siteFilter !== "all") list = list.filter((a) => a.site_id === siteFilter);
+    if (statusFilter !== "all") {
+      list = list.filter((a) => {
+        const status = effectiveStatus(a);
+        if (statusFilter === "pending") return status === "pending";
+        if (statusFilter === "present") return status === "approved" || status === "submitted";
+        return statusFilter === "absent" ? status === "no_show" : status === "replaced_by_other";
+      });
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((a) => {
@@ -333,17 +351,30 @@ function AttendancePage() {
           e.employee_code.toLowerCase().includes(q);
       });
     }
-    // Group by site, then sort by surname
+    // Group by site, then apply the chosen operational sort inside each site.
     list.sort((a, b) => {
       const sa = siteById.get(a.site_id)?.name ?? "";
       const sb = siteById.get(b.site_id)?.name ?? "";
       if (sa !== sb) return sa.localeCompare(sb);
       const ea = empById.get(a.employee_id);
       const eb = empById.get(b.employee_id);
+      if (sortBy === "needs_marking") {
+        const rank = (assignment: Assignment) => effectiveStatus(assignment) === "pending" ? 0 : 1;
+        const diff = rank(a) - rank(b);
+        if (diff !== 0) return diff;
+      }
+      if (sortBy === "weekly_hours") {
+        const diff = (weekHours.get(b.employee_id) ?? 0) - (weekHours.get(a.employee_id) ?? 0);
+        if (diff !== 0) return diff;
+      }
+      if (sortBy === "monthly_hours") {
+        const diff = (monthHoursByEmp?.get(b.employee_id) ?? 0) - (monthHoursByEmp?.get(a.employee_id) ?? 0);
+        if (diff !== 0) return diff;
+      }
       return (ea?.surname ?? "").localeCompare(eb?.surname ?? "");
     });
     return list;
-  }, [assignments, siteFilter, search, empById, siteById, isSecuritySupervisor, allowedSiteIds]);
+  }, [assignments, weekAssignments, siteFilter, statusFilter, sortBy, search, empById, siteById, isSecuritySupervisor, allowedSiteIds, pending, logByAssignment, monthHoursByEmp]);
 
   // Weekly hours per employee (planned, from assignments)
   const weekHoursByEmp = useMemo(() => {
@@ -845,6 +876,25 @@ function AttendancePage() {
             <SelectContent>
               <SelectItem value="all">All sites</SelectItem>
               {scopedSites.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="pending">Needs marking</SelectItem>
+              <SelectItem value="present">Present</SelectItem>
+              <SelectItem value="absent">Absent</SelectItem>
+              <SelectItem value="replaced">Replaced</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+            <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Sort: guard name</SelectItem>
+              <SelectItem value="needs_marking">Sort: needs marking</SelectItem>
+              <SelectItem value="weekly_hours">Sort: weekly hours</SelectItem>
+              <SelectItem value="monthly_hours">Sort: monthly hours</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -401,7 +401,7 @@ function EmployeeDetailPage() {
 // workflow, because they're the same event with different triggers. Recording is separate
 // from confirming: a dismissal must also be verified by a second person before a third can
 // confirm it, which is what actually ends the employment (Labour Act fair-procedure).
-const EXIT_RECORDERS = ["admin", "operations", "supervisor", "payroll", "security_supervisor"];
+const EXIT_RECORDERS = ["admin", "operations", "supervisor", "payroll"];
 
 function EmploymentExitCard({
   employeeId,
@@ -518,9 +518,10 @@ function EmploymentExitCard({
               <DialogHeader>
                 <DialogTitle>Record an employment exit</DialogTitle>
                 <DialogDescription>
-                  This does not end the employment on its own. A dismissal must be verified by a
-                  second person and confirmed by a third; a resignation needs one other person to
-                  confirm it.
+                  This does not end employment on its own. For a dismissal, Payroll or Operations
+                  records it, a different Operations, Payroll, or Admin user verifies it, then a
+                  third Operations or Admin user confirms it. Confirmation is when the guard
+                  becomes terminated.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3">

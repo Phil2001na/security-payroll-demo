@@ -1,6 +1,5 @@
 // Demo Payroll System Engine — Gross-to-Net Calculator
 // Implements Labour Act + Income Tax calculations using live payroll_constants.
-import { supabase } from "@/integrations/supabase/client";
 
 // Round to cents. All monetary components are rounded before summing so that
 // stored gross/deductions/net are exact 2dp values and net === gross - deductions.
@@ -175,50 +174,6 @@ export type PayslipCalc = PayslipBuckets & {
 
 // ---------- Constants fetch ----------
 
-export async function fetchPayrollConstants(): Promise<{
-  constants: PayrollConstants;
-  brackets: PayeBracket[];
-}> {
-  const [{ data: constRows, error: cErr }, { data: bracketRows, error: bErr }] = await Promise.all([
-    supabase.from("payroll_constants").select("key,value"),
-    supabase
-      .from("paye_brackets")
-      .select("lower_bound,upper_bound,base_tax,marginal_rate")
-      .order("lower_bound"),
-  ]);
-  if (cErr) throw cErr;
-  if (bErr) throw bErr;
-
-  const map = new Map<string, number>();
-  (constRows ?? []).forEach((r) => map.set(r.key, Number(r.value)));
-
-  const constants: PayrollConstants = {
-    ssc_rate: map.get("ssc_employee_rate") ?? map.get("ssc_rate") ?? 0.009,
-    ssc_max_deduction: map.get("ssc_max_deduction") ?? 99,
-    tax_free_threshold:
-      map.get("tax_free_threshold_annual") ?? map.get("tax_free_threshold") ?? 100_000,
-    min_wage_security: map.get("min_wage_security") ?? 16.0,
-    // VET levy: 1% when ANNUAL payroll > N$1,000,000 (spec also references N$83,333 monthly ≈ same)
-    vet_threshold: map.get("vet_levy_monthly_threshold") ?? 83_333,
-    vet_rate: map.get("vet_levy_rate") ?? map.get("vet_rate") ?? 0.01,
-    night_premium_rate: map.get("night_premium_rate") ?? 0.06,
-    overtime_multiplier: map.get("overtime_multiplier") ?? 1.5,
-    sunday_multiplier: map.get("sunday_default_multiplier") ?? map.get("sunday_multiplier") ?? 2.0,
-    sunday_agreed_multiplier: map.get("sunday_agreed_multiplier") ?? 1.5,
-    public_holiday_multiplier: map.get("public_holiday_multiplier") ?? 2.0,
-    weekly_ordinary_cap: map.get("weekly_ordinary_cap") ?? 60,
-    periods_per_year: map.get("periods_per_year") ?? 12,
-  };
-
-  const brackets: PayeBracket[] = (bracketRows ?? []).map((b) => ({
-    lower_bound: Number(b.lower_bound),
-    upper_bound: b.upper_bound == null ? null : Number(b.upper_bound),
-    base_tax: Number(b.base_tax),
-    marginal_rate: Number(b.marginal_rate),
-  }));
-
-  return { constants, brackets };
-}
 
 // ---------- PAYE — annualise → tax → divide back to the period ----------
 // periodsPerYear lets non-monthly cycles annualise correctly (12 for monthly).

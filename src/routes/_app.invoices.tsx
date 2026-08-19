@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Receipt, Plus, Download, ChevronDown, ChevronRight, Loader2, Paperclip,
-  Send, CheckCircle, XCircle, AlertCircle, Trash2, FilePlus2, Building2, ExternalLink,
+  Send, XCircle, AlertCircle, Trash2, FilePlus2, Building2, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -733,11 +733,6 @@ function InvoiceRow({ invoice, canAdmin, canVoid }: { invoice: Invoice; canAdmin
                   <Send className="mr-2 h-3.5 w-3.5" /> {isAR ? "Issue invoice" : "Approve bill"}
                 </DropdownMenuItem>
               )}
-              {invoice.status === "issued" && canAdmin && (
-                <DropdownMenuItem onClick={() => updateStatus.mutate({ status: "paid", paid_at: new Date().toISOString() })}>
-                  <CheckCircle className="mr-2 h-3.5 w-3.5" /> Mark as paid
-                </DropdownMenuItem>
-              )}
               <DropdownMenuItem onClick={onDownload} disabled={downloading}>
                 {downloading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
                 Download PDF
@@ -777,10 +772,11 @@ function InvoicesPage() {
   const canAdmin = role === "admin" || role === "accountant";
   const canGenerate = role === "admin" || role === "operations" || role === "accountant";
   const canVoid = role === "admin" || role === "accountant";
+  const hasInvoiceAccess = canAdmin || canGenerate;
 
   const { data: tenant = null } = useQuery<TenantBilling | null>({
     queryKey: ["tenant-billing-meta"],
-    enabled: !!profile?.tenant_id,
+    enabled: !!profile?.tenant_id && hasInvoiceAccess,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tenants").select("id, default_tax_rate, invoice_due_days").limit(1).maybeSingle();
@@ -791,7 +787,7 @@ function InvoicesPage() {
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ["invoices", profile?.tenant_id, docType],
-    enabled: !!profile?.tenant_id,
+    enabled: !!profile?.tenant_id && hasInvoiceAccess,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")

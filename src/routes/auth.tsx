@@ -24,6 +24,11 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = useSearch({ from: "/auth" });
+  // TanStack resolves internal routes, but keep user-provided search state on a
+  // strict internal-path allowlist as defense in depth.
+  const safeRedirect = redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
+    ? redirectTo
+    : "/dashboard";
   const { session, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +36,9 @@ function AuthPage() {
 
   useEffect(() => {
     if (!loading && session) {
-      void navigate({ to: redirectTo ?? "/dashboard" });
+      void navigate({ to: safeRedirect });
     }
-  }, [session, loading, navigate, redirectTo]);
+  }, [session, loading, navigate, safeRedirect]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();

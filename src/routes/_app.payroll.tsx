@@ -25,7 +25,6 @@ import { Download, FileText, Lock, Play, AlertTriangle, ShieldAlert } from "luci
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import {
   calculateNetPay,
-  fetchPayrollConstants,
   calcVETLevy,
   weekKeyOf,
   round2,
@@ -36,6 +35,7 @@ import {
   type DisciplinaryRow,
   type ShiftLogRow,
 } from "@/lib/payroll-engine";
+import { fetchPayrollConstants } from "@/lib/payroll-data";
 import type { Tables } from "@/integrations/supabase/types";
 import { buildABSACsv, buildPayslipPDF } from "@/lib/payslip-pdf";
 import { formatNAD, formatDate } from "@/lib/format";
@@ -129,7 +129,7 @@ function downloadBlob(data: Blob | string, filename: string, mime = "text/csv") 
 function PayrollPage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  const hasPayrollAccess = !role || role === "admin" || role === "operations" || role === "payroll";
+  const hasPayrollAccess = role === "admin" || role === "operations" || role === "payroll";
   // Running/finalizing a payroll run is restricted to the payroll role only (separation of
   // duties) — admin/operations can view this page but can't trigger either action.
   const canRunPayroll = role === "payroll";
@@ -141,6 +141,7 @@ function PayrollPage() {
 
   const { data: periods } = useQuery({
     queryKey: ["pay_periods"],
+    enabled: hasPayrollAccess,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pay_periods")
@@ -164,7 +165,7 @@ function PayrollPage() {
   // its numbers are sitting in the DB.
   const { data: existingRuns } = useQuery({
     queryKey: ["payroll_runs", periodId],
-    enabled: !!periodId,
+    enabled: hasPayrollAccess && !!periodId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payroll_runs")
@@ -187,7 +188,7 @@ function PayrollPage() {
   // Finalize & Lock, not buried in the Disciplinary page.
   const { data: periodFlags } = useQuery({
     queryKey: ["payroll-disciplinary", periodId],
-    enabled: !!period,
+    enabled: hasPayrollAccess && !!period,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("disciplinary_actions")
@@ -224,6 +225,7 @@ function PayrollPage() {
 
   const { data: tenant } = useQuery({
     queryKey: ["tenant"],
+    enabled: hasPayrollAccess,
     queryFn: async () => {
       const { data } = await supabase.from("tenants").select("*").limit(1).maybeSingle();
       return data;
@@ -234,6 +236,18 @@ function PayrollPage() {
     if (!period) return;
     setRunning(true);
     try {
+      // Source data, calculation, and draft persistence all run server-side.
+      // The browser receives the resulting display model only.
+      const { data, error } = await supabase.functions.invoke("run-payroll", {
+        body: { periodId: period.id },
+      });
+      if (error) throw error;
+      const result = data as { calculations?: PayslipCalc[]; error?: string };
+      if (!result.calculations) throw new Error(result.error ?? "Payroll run failed");
+      setCalcs(result.calculations);
+      toast.success(`Payroll computed for ${result.calculations.length} employees`);
+      return;
+
       const { constants, brackets } = await fetchPayrollConstants();
       setConstants(constants);
 

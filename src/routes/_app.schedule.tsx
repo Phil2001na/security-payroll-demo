@@ -2,9 +2,26 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarDays, ChevronLeft, ChevronRight, Save, AlertTriangle,
-  Loader2, Search, ShieldCheck, Eraser, Users, Wand2, Plus, X,
-  Clock, Sparkles, ListChecks, CalendarRange, DollarSign, Printer, Undo2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  AlertTriangle,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Eraser,
+  Users,
+  Wand2,
+  Plus,
+  X,
+  Clock,
+  Sparkles,
+  ListChecks,
+  CalendarRange,
+  DollarSign,
+  Printer,
+  Undo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -12,8 +29,11 @@ import { AccessDenied } from "@/components/access-denied";
 import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
 import { fetchHourCaps } from "@/lib/hour-caps";
 import {
-  validateRoster, VIOLATION_LABEL, MIN_OFF_DAYS_PER_PERIOD,
-  type RosterViolation, type RosterShift,
+  validateRoster,
+  VIOLATION_LABEL,
+  MIN_OFF_DAYS_PER_PERIOD,
+  type RosterViolation,
+  type RosterShift,
 } from "@/lib/roster-rules";
 import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
@@ -24,10 +44,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,10 +77,19 @@ type ShiftType = {
   is_leave: boolean;
 };
 type LiteracyGrade = "A+" | "A" | "B" | "C" | "D";
-type Site = { id: string; name: string; code: string | null; required_guard_grade: LiteracyGrade | null };
+type Site = {
+  id: string;
+  name: string;
+  code: string | null;
+  required_guard_grade: LiteracyGrade | null;
+};
 type Employee = {
-  id: string; employee_code: string; surname: string; first_names: string;
-  home_site_id: string | null; status: string;
+  id: string;
+  employee_code: string;
+  surname: string;
+  first_names: string;
+  home_site_id: string | null;
+  status: string;
   preferred_shift: "day" | "night" | "both";
   hourly_rate: number;
   literacy_grade: LiteracyGrade | null;
@@ -65,7 +103,13 @@ type Assignment = {
   shift_type_id: string;
   planned_hours: number;
 };
-type PSExemption = { id: string; employee_id: string; effective_from: string; effective_to: string; reference: string };
+type PSExemption = {
+  id: string;
+  employee_id: string;
+  effective_from: string;
+  effective_to: string;
+  reference: string;
+};
 type SiteRequirement = {
   site_id: string;
   day_of_week: number;
@@ -79,14 +123,17 @@ const MAX_WORKING_DAYS_PER_WEEK = 6; // guarantees at least 1 full rest day per 
 
 // Best→worst literacy grade. Ungraded employees (null) rank as worst (D-equivalent)
 // so they stay assignable — never excluded, just least-preferred on grade fit.
-const GRADE_RANK: Record<LiteracyGrade, number> = { "A+": 0, "A": 1, "B": 2, "C": 3, "D": 4 };
+const GRADE_RANK: Record<LiteracyGrade, number> = { "A+": 0, A: 1, B: 2, C: 3, D: 4 };
 function gradeRank(grade: LiteracyGrade | null): number {
   return grade ? GRADE_RANK[grade] : GRADE_RANK["D"];
 }
 // 0 = meets-or-exceeds the site's requirement (best); >0 = how many grade steps
 // below requirement (worse). A null requirement always yields 0, so grade has
 // zero influence on sort order for sites with no requirement set.
-function gradeFitScore(employeeGrade: LiteracyGrade | null, requiredGrade: LiteracyGrade | null): number {
+function gradeFitScore(
+  employeeGrade: LiteracyGrade | null,
+  requiredGrade: LiteracyGrade | null,
+): number {
   if (!requiredGrade) return 0;
   return Math.max(0, gradeRank(employeeGrade) - GRADE_RANK[requiredGrade]);
 }
@@ -111,16 +158,51 @@ function shiftKindOf(st: ShiftType | undefined | null): ShiftKind {
   if (p === "day" || p === "morning" || p === "full_day") return "day";
   return "other";
 }
-const KIND_STYLES: Record<ShiftKind, { block: string; label: string; pill: string; dot: string; border: string }> = {
-  day:    { block: "bg-amber-100 border-amber-300 hover:bg-amber-200/80",   label: "text-amber-800",   pill: "bg-amber-200 text-amber-900",   dot: "bg-amber-400",   border: "border-amber-300" },
-  night:  { block: "bg-indigo-100 border-indigo-300 hover:bg-indigo-200/80", label: "text-indigo-800", pill: "bg-indigo-200 text-indigo-900", dot: "bg-indigo-500",  border: "border-indigo-300" },
-  double: { block: "bg-emerald-100 border-emerald-300 hover:bg-emerald-200/80", label: "text-emerald-800", pill: "bg-emerald-200 text-emerald-900", dot: "bg-emerald-500", border: "border-emerald-300" },
-  leave:  { block: "bg-slate-100 border-slate-300 hover:bg-slate-200/80",   label: "text-slate-700",   pill: "bg-slate-200 text-slate-800",   dot: "bg-slate-400",   border: "border-slate-300" },
-  other:  { block: "bg-sky-100 border-sky-300 hover:bg-sky-200/80",         label: "text-sky-800",     pill: "bg-sky-200 text-sky-900",       dot: "bg-sky-400",     border: "border-sky-300" },
+const KIND_STYLES: Record<
+  ShiftKind,
+  { block: string; label: string; pill: string; dot: string; border: string }
+> = {
+  day: {
+    block: "bg-amber-100 border-amber-300 hover:bg-amber-200/80",
+    label: "text-amber-800",
+    pill: "bg-amber-200 text-amber-900",
+    dot: "bg-amber-400",
+    border: "border-amber-300",
+  },
+  night: {
+    block: "bg-indigo-100 border-indigo-300 hover:bg-indigo-200/80",
+    label: "text-indigo-800",
+    pill: "bg-indigo-200 text-indigo-900",
+    dot: "bg-indigo-500",
+    border: "border-indigo-300",
+  },
+  double: {
+    block: "bg-emerald-100 border-emerald-300 hover:bg-emerald-200/80",
+    label: "text-emerald-800",
+    pill: "bg-emerald-200 text-emerald-900",
+    dot: "bg-emerald-500",
+    border: "border-emerald-300",
+  },
+  leave: {
+    block: "bg-slate-100 border-slate-300 hover:bg-slate-200/80",
+    label: "text-slate-700",
+    pill: "bg-slate-200 text-slate-800",
+    dot: "bg-slate-400",
+    border: "border-slate-300",
+  },
+  other: {
+    block: "bg-sky-100 border-sky-300 hover:bg-sky-200/80",
+    label: "text-sky-800",
+    pill: "bg-sky-200 text-sky-900",
+    dot: "bg-sky-400",
+    border: "border-sky-300",
+  },
 };
 
 function fmtIso(d: Date) {
-  const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 function startOfWeek(d: Date) {
@@ -137,7 +219,11 @@ function isoWeekKey(d: Date) {
   return fmtIso(startOfWeek(d));
 }
 function sameDate(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 function parseIsoDate(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
@@ -175,8 +261,16 @@ function monthCalendarWeeks(monthAnchor: Date): Date[][] {
 function SchedulePage() {
   const { profile } = useAuth();
   const role = profile?.role;
-  if (role && role !== "admin" && role !== "operations" && role !== "supervisor" && role !== "payroll") {
-    return <AccessDenied message="Schedule access is restricted to payroll and operations staff." />;
+  if (
+    role &&
+    role !== "admin" &&
+    role !== "operations" &&
+    role !== "supervisor" &&
+    role !== "payroll"
+  ) {
+    return (
+      <AccessDenied message="Schedule access is restricted to payroll and operations staff." />
+    );
   }
   const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
@@ -189,7 +283,13 @@ function SchedulePage() {
   const [guardMonthEmpId, setGuardMonthEmpId] = useState<string | null>(null);
   const [guardMonthCursor, setGuardMonthCursor] = useState<Date>(() => new Date());
   const [customRequestDate, setCustomRequestDate] = useState<string | null>(null);
-  const [customRequest, setCustomRequest] = useState({ siteId: "", startTime: "23:00", endTime: "05:00", guardsNeeded: "1" });
+  const [customRequest, setCustomRequest] = useState({
+    siteId: "",
+    startTime: "23:00",
+    endTime: "05:00",
+    guardsNeeded: "1",
+    reason: "",
+  });
   const [customRequestRunning, setCustomRequestRunning] = useState(false);
   const [genFrom, setGenFrom] = useState<string>("");
   const [genTo, setGenTo] = useState<string>("");
@@ -198,7 +298,10 @@ function SchedulePage() {
   const [undoing, setUndoing] = useState(false);
   const defaultedRangeRef = useRef(false);
 
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const days = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
   const rangeStart = fmtIso(days[0]);
   const rangeEnd = fmtIso(days[6]);
   // Wider window for weekly hour/rest-day totals — covers the visible week + neighbouring
@@ -221,7 +324,10 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("sites").select("id, name, code, required_guard_grade").eq("active", true).order("name");
+        .from("sites")
+        .select("id, name, code, required_guard_grade")
+        .eq("active", true)
+        .order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -244,8 +350,12 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pay_periods").select("start_date, end_date, label")
-        .eq("status", "open").order("start_date", { ascending: false }).limit(1).maybeSingle();
+        .from("pay_periods")
+        .select("start_date, end_date, label")
+        .eq("status", "open")
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -268,8 +378,10 @@ function SchedulePage() {
     enabled: !!profile?.tenant_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("shift_types").select("id, code, label, default_hours, pay_rule, period, active, is_leave")
-        .eq("active", true).order("code");
+        .from("shift_types")
+        .select("id, code, label, default_hours, pay_rule, period, active, is_leave")
+        .eq("active", true)
+        .order("code");
       if (error) throw error;
       return (data ?? []) as ShiftType[];
     },
@@ -281,13 +393,18 @@ function SchedulePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category, hourly_rate, literacy_grade, ordinarily_works_sundays")
+        .select(
+          "id, employee_code, surname, first_names, home_site_id, status, preferred_shift, contract_signed_at, category, hourly_rate, literacy_grade, ordinarily_works_sundays",
+        )
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
       // Officers without a signed contract may not be rostered. Management
       // staff are salaried and don't appear here anyway, so filter on category=officer.
-      const list = (data ?? []) as (Employee & { contract_signed_at: string | null; category: string })[];
+      const list = (data ?? []) as (Employee & {
+        contract_signed_at: string | null;
+        category: string;
+      })[];
       return list as Employee[];
     },
   });
@@ -300,7 +417,8 @@ function SchedulePage() {
         .from("schedule_assignments")
         .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
         .eq("site_id", activeSiteId!)
-        .gte("date", rangeStart).lte("date", rangeEnd);
+        .gte("date", rangeStart)
+        .lte("date", rangeEnd);
       if (error) throw error;
       return data ?? [];
     },
@@ -314,7 +432,8 @@ function SchedulePage() {
       const { data, error } = await supabase
         .from("schedule_assignments")
         .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", fetchStart).lte("date", fetchEnd);
+        .gte("date", fetchStart)
+        .lte("date", fetchEnd);
       if (error) throw error;
       return data ?? [];
     },
@@ -332,7 +451,8 @@ function SchedulePage() {
         .from("schedule_assignments")
         .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
         .eq("employee_id", guardMonthEmpId!)
-        .gte("date", guardMonthFrom).lte("date", guardMonthTo);
+        .gte("date", guardMonthFrom)
+        .lte("date", guardMonthTo);
       if (error) throw error;
       return data ?? [];
     },
@@ -350,7 +470,8 @@ function SchedulePage() {
       const { data, error } = await supabase
         .from("ps_exemptions")
         .select("id, employee_id, effective_from, effective_to, reference")
-        .lte("effective_from", rangeEnd).gte("effective_to", rangeStart);
+        .lte("effective_from", rangeEnd)
+        .gte("effective_to", rangeStart);
       if (error) throw error;
       return data ?? [];
     },
@@ -391,15 +512,18 @@ function SchedulePage() {
   const siteEmployees = useMemo(() => {
     if (!employees || !activeSiteId) return [];
     const ids = new Set<string>();
-    employees.forEach((e) => { if (e.home_site_id === activeSiteId) ids.add(e.id); });
+    employees.forEach((e) => {
+      if (e.home_site_id === activeSiteId) ids.add(e.id);
+    });
     (assignments ?? []).forEach((a) => ids.add(a.employee_id));
     let list = employees.filter((e) => ids.has(e.id));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      list = list.filter((e) =>
-        e.surname.toLowerCase().includes(q) ||
-        e.first_names.toLowerCase().includes(q) ||
-        e.employee_code.toLowerCase().includes(q)
+      list = list.filter(
+        (e) =>
+          e.surname.toLowerCase().includes(q) ||
+          e.first_names.toLowerCase().includes(q) ||
+          e.employee_code.toLowerCase().includes(q),
       );
     }
     return list;
@@ -432,7 +556,10 @@ function SchedulePage() {
       const k = `${a.employee_id}|${a.date}`;
       if (editedKeys.has(k)) return;
       const wk = isoWeekKey(new Date(a.date));
-      totals.set(`${a.employee_id}|${wk}`, (totals.get(`${a.employee_id}|${wk}`) ?? 0) + Number(a.planned_hours));
+      totals.set(
+        `${a.employee_id}|${wk}`,
+        (totals.get(`${a.employee_id}|${wk}`) ?? 0) + Number(a.planned_hours),
+      );
     });
     Object.entries(edits).forEach(([k, sid]) => {
       const [empId, date] = k.split("|");
@@ -447,9 +574,11 @@ function SchedulePage() {
   const exemptionForWeek = (empId: string, wkStart: Date): PSExemption | null => {
     const wkS = fmtIso(wkStart);
     const wkE = fmtIso(addDays(wkStart, 6));
-    return (exemptions ?? []).find((x) =>
-      x.employee_id === empId && x.effective_from <= wkE && x.effective_to >= wkS
-    ) ?? null;
+    return (
+      (exemptions ?? []).find(
+        (x) => x.employee_id === empId && x.effective_from <= wkE && x.effective_to >= wkS,
+      ) ?? null
+    );
   };
 
   type Breach = { empId: string; weekKey: string; hours: number; covered: boolean };
@@ -470,6 +599,14 @@ function SchedulePage() {
   const canSave = dirtyCount > 0 && blocking.length === 0 && !saving;
 
   function setCell(empId: string, date: string, shiftId: string) {
+    if (shiftId) {
+      const shift = shiftTypeById.get(shiftId);
+      const issue = shift ? getManualShiftIssue(empId, date, shift) : "Selected shift is unavailable";
+      if (issue) {
+        toast.error(issue);
+        return;
+      }
+    }
     setEdits((prev) => {
       const next = { ...prev };
       const k = `${empId}|${date}`;
@@ -492,15 +629,26 @@ function SchedulePage() {
       for (const [k, shiftId] of Object.entries(edits)) {
         const [empId, date] = k.split("|");
         const existing = assignByKey.get(k);
-        if (!shiftId) { if (existing) deletes.push(existing.id); continue; }
+        if (!shiftId) {
+          if (existing) deletes.push(existing.id);
+          continue;
+        }
         const st = shiftTypeById.get(shiftId);
         if (!st) continue;
         if (existing) {
-          updates.push({ id: existing.id, shift_type_id: shiftId, planned_hours: st.default_hours });
+          updates.push({
+            id: existing.id,
+            shift_type_id: shiftId,
+            planned_hours: st.default_hours,
+          });
         } else {
           inserts.push({
-            tenant_id: profile.tenant_id, employee_id: empId, site_id: activeSiteId,
-            date, shift_type_id: shiftId, planned_hours: st.default_hours,
+            tenant_id: profile.tenant_id,
+            employee_id: empId,
+            site_id: activeSiteId,
+            date,
+            shift_type_id: shiftId,
+            planned_hours: st.default_hours,
           });
         }
       }
@@ -509,14 +657,17 @@ function SchedulePage() {
         if (error) throw error;
       }
       for (const u of updates) {
-        const { error } = await supabase.from("schedule_assignments")
+        const { error } = await supabase
+          .from("schedule_assignments")
           .update({ shift_type_id: u.shift_type_id, planned_hours: u.planned_hours })
           .eq("id", u.id);
         if (error) throw error;
       }
       if (inserts.length) {
         for (let i = 0; i < inserts.length; i += 200) {
-          const { error } = await supabase.from("schedule_assignments").insert(inserts.slice(i, i + 200));
+          const { error } = await supabase
+            .from("schedule_assignments")
+            .insert(inserts.slice(i, i + 200));
           if (error) throw error;
         }
       }
@@ -537,19 +688,41 @@ function SchedulePage() {
   // ── Auto-Fill (current visible week) ─────────────────────────────────────
   const autoShiftTypes = useMemo(() => {
     const st = shiftTypes ?? [];
-    const candidates = st.filter((s) =>
-      s.active && !s.is_leave && s.default_hours > 0 && s.pay_rule === "standard"
+    const candidates = st.filter(
+      (s) => s.active && !s.is_leave && s.default_hours > 0 && s.pay_rule === "standard",
     );
-    const findBy = (periods: string[]) => candidates.find((s) => periods.includes(s.period)) ?? null;
+    const findBy = (periods: string[]) =>
+      candidates.find((s) => periods.includes(s.period)) ?? null;
     const day = findBy(["day"]) ?? findBy(["full_day"]);
     const night = findBy(["night"]);
     return { day, night };
   }, [shiftTypes]);
 
   type FillPlan = {
-    shortfalls: { siteId: string; date: string; kind: "day" | "night"; required: number; have: number; short: number }[];
-    newAssignments: { employee_id: string; site_id: string; date: string; shift_type_id: string; planned_hours: number }[];
-    qualityWarnings: { siteId: string; date: string; kind: "day" | "night"; employeeId: string; employeeName: string; requiredGrade: LiteracyGrade; assignedGrade: string }[];
+    shortfalls: {
+      siteId: string;
+      date: string;
+      kind: "day" | "night";
+      required: number;
+      have: number;
+      short: number;
+    }[];
+    newAssignments: {
+      employee_id: string;
+      site_id: string;
+      date: string;
+      shift_type_id: string;
+      planned_hours: number;
+    }[];
+    qualityWarnings: {
+      siteId: string;
+      date: string;
+      kind: "day" | "night";
+      employeeId: string;
+      employeeName: string;
+      requiredGrade: LiteracyGrade;
+      assignedGrade: string;
+    }[];
     unassignable: number;
     preferenceOverrides: number;
   };
@@ -557,7 +730,13 @@ function SchedulePage() {
   // rangeDays may span multiple ISO weeks (e.g. a full generate range) — the 60h cap
   // is tracked per (employee, ISO week) pair so multi-week ranges reset correctly each week.
   function buildFillPlan(rangeDays: Date[]): FillPlan {
-    const plan: FillPlan = { shortfalls: [], newAssignments: [], qualityWarnings: [], unassignable: 0, preferenceOverrides: 0 };
+    const plan: FillPlan = {
+      shortfalls: [],
+      newAssignments: [],
+      qualityWarnings: [],
+      unassignable: 0,
+      preferenceOverrides: 0,
+    };
     if (!sites || !employees || !requirements || !weekAssignments) return plan;
     if (!autoShiftTypes.day && !autoShiftTypes.night) return plan;
 
@@ -654,34 +833,47 @@ function SchedulePage() {
       if (!sid) continue;
       const kind = effectiveKind(sid);
       if (!kind) continue;
-      coverage.set(`${a.site_id}|${a.date}|${kind}`, (coverage.get(`${a.site_id}|${a.date}|${kind}`) ?? 0) + 1);
+      coverage.set(
+        `${a.site_id}|${a.date}|${kind}`,
+        (coverage.get(`${a.site_id}|${a.date}|${kind}`) ?? 0) + 1,
+      );
     }
     for (const [k, sid] of Object.entries(edits)) {
       const [empId, date] = k.split("|");
       if (!planDateSet.has(date) || !sid) continue;
-      const existing = (weekAssignments ?? []).find((a) => a.employee_id === empId && a.date === date);
+      const existing = (weekAssignments ?? []).find(
+        (a) => a.employee_id === empId && a.date === date,
+      );
       if (existing) continue;
       const kind = effectiveKind(sid);
       if (!kind || !activeSiteId) continue;
-      coverage.set(`${activeSiteId}|${date}|${kind}`, (coverage.get(`${activeSiteId}|${date}|${kind}`) ?? 0) + 1);
+      coverage.set(
+        `${activeSiteId}|${date}|${kind}`,
+        (coverage.get(`${activeSiteId}|${date}|${kind}`) ?? 0) + 1,
+      );
     }
 
     for (const site of sites) {
       for (const wd of orderedDates) {
         for (const kind of ["day", "night"] as const) {
-          const req = requirements.find((r) =>
-            r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind
+          const req = requirements.find(
+            (r) => r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind,
           );
           const required = req?.quantity_required ?? 0;
           if (required === 0) continue;
           // A site/day/kind can pin its own shift template (e.g. a 6h half shift)
           // instead of the tenant's standard 12h Day/Night shift.
-          const stForKind = (req?.shift_type_id ? shiftTypeById.get(req.shift_type_id) : null)
-            ?? (kind === "day" ? autoShiftTypes.day : autoShiftTypes.night);
+          const stForKind =
+            (req?.shift_type_id ? shiftTypeById.get(req.shift_type_id) : null) ??
+            (kind === "day" ? autoShiftTypes.day : autoShiftTypes.night);
           if (!stForKind) continue;
           const isSunday = wd.dow === 0;
           const isPH = publicHolidayDates.has(wd.date);
-          const shiftPayRule = isPH ? "public_holiday_ordinary" : isSunday ? "sunday_default" : stForKind.pay_rule;
+          const shiftPayRule = isPH
+            ? "public_holiday_ordinary"
+            : isSunday
+              ? "sunday_default"
+              : stForKind.pay_rule;
           const ck = `${site.id}|${wd.date}|${kind}`;
           let have = coverage.get(ck) ?? 0;
           const needed = required - have;
@@ -692,73 +884,109 @@ function SchedulePage() {
           // preference-matching guards first, and only reach into off-preference
           // guards (day-preferred for a night slot, or vice versa) if that leaves
           // the slot genuinely short — so a shortage always beats an empty shift.
-          const buildPool = (requirePreference: boolean) => employees.filter((emp) => {
-            if (emp.status !== "active") return false;
-            if (requirePreference && emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
-            if (empDates.get(emp.id)?.has(wd.date)) return false;
-            const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
-            if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
-            // Weekly rest: keep at least 1 day off in every ISO week.
-            const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
-            if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
-            // Rest between shifts: a Night ending the morning of the next date leaves
-            // zero rest if that guard is then put on Day the same morning — block both
-            // directions of that crossover (only "both"-preference guards can hit this).
-            if (kind === "day" && empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, -1)}`) === "night") return false;
-            if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, 1)}`) === "day") return false;
-            return true;
-          });
-          const sortPool = (arr: typeof employees) => arr.sort((a, b) => {
-            // 1. Grade fit vs the site's requirement — quality-of-fit outranks cost
-            //    and logistics. 0 covers every candidate when the site has no
-            //    requirement, so this is a no-op tie for sites that don't opt in.
-            const aFit = gradeFitScore(a.literacy_grade, site.required_guard_grade);
-            const bFit = gradeFitScore(b.literacy_grade, site.required_guard_grade);
-            if (aFit !== bFit) return aFit - bFit;
-            // 2. Home site preference (logistics/familiarity)
-            const aHome = a.home_site_id === site.id ? 0 : 1;
-            const bHome = b.home_site_id === site.id ? 0 : 1;
-            if (aHome !== bHome) return aHome - bHome;
-            // 3. Shift preference specificity (avoids no-shows)
-            const aSpec = a.preferred_shift === kind ? 1 : 0;
-            const bSpec = b.preferred_shift === kind ? 1 : 0;
-            if (aSpec !== bSpec) return bSpec - aSpec;
-            // 4. Cheapest guard for this specific shift (cost optimisation)
-            const aCost = estimateShiftCost(
-              a.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${a.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS,
-            );
-            const bCost = estimateShiftCost(
-              b.hourly_rate, shiftHours, empWeekOrdinaryHours.get(`${b.id}|${wkKey}`) ?? 0,
-              shiftPayRule, kind === "night", SCHED_CONSTANTS,
-            );
-            if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
-            // 5. Keep each guard's work in blocks (#11): among guards who cost the same,
-            //    prefer one who already works the day before or after. Work that runs in
-            //    blocks leaves rest days that fall together, which is the only way to get
-            //    paired off days out of a coverage-driven fill. Placed after cost on
-            //    purpose — pairing is a preference and must never raise the wage bill.
-            const adjacent = (id: string) =>
-              (empKindByDate.has(`${id}|${isoDateAdd(wd.date, -1)}`) ? 1 : 0) +
-              (empKindByDate.has(`${id}|${isoDateAdd(wd.date, 1)}`) ? 1 : 0);
-            const aAdj = adjacent(a.id), bAdj = adjacent(b.id);
-            if (aAdj !== bAdj) return bAdj - aAdj;
-            // 6. Load-balance tie-break
-            return (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) - (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0);
-          });
+          const buildPool = (requirePreference: boolean) =>
+            employees.filter((emp) => {
+              if (emp.status !== "active") return false;
+              if (
+                requirePreference &&
+                emp.preferred_shift !== kind &&
+                emp.preferred_shift !== "both"
+              )
+                return false;
+              if (empDates.get(emp.id)?.has(wd.date)) return false;
+              const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
+              if (hrs + shiftHours > WEEKLY_HOUR_CAP) return false;
+              // Weekly rest: keep at least 1 day off in every ISO week.
+              const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
+              if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
+              // Rest between shifts: a Night ending the morning of the next date leaves
+              // zero rest if that guard is then put on Day the same morning — block both
+              // directions of that crossover (only "both"-preference guards can hit this).
+              if (
+                kind === "day" &&
+                empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, -1)}`) === "night"
+              )
+                return false;
+              if (
+                kind === "night" &&
+                empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, 1)}`) === "day"
+              )
+                return false;
+              return true;
+            });
+          const sortPool = (arr: typeof employees) =>
+            arr.sort((a, b) => {
+              // 1. Grade fit vs the site's requirement — quality-of-fit outranks cost
+              //    and logistics. 0 covers every candidate when the site has no
+              //    requirement, so this is a no-op tie for sites that don't opt in.
+              const aFit = gradeFitScore(a.literacy_grade, site.required_guard_grade);
+              const bFit = gradeFitScore(b.literacy_grade, site.required_guard_grade);
+              if (aFit !== bFit) return aFit - bFit;
+              // 2. Home site preference (logistics/familiarity)
+              const aHome = a.home_site_id === site.id ? 0 : 1;
+              const bHome = b.home_site_id === site.id ? 0 : 1;
+              if (aHome !== bHome) return aHome - bHome;
+              // 3. Shift preference specificity (avoids no-shows)
+              const aSpec = a.preferred_shift === kind ? 1 : 0;
+              const bSpec = b.preferred_shift === kind ? 1 : 0;
+              if (aSpec !== bSpec) return bSpec - aSpec;
+              // 4. Cheapest guard for this specific shift (cost optimisation)
+              const aCost = estimateShiftCost(
+                a.hourly_rate,
+                shiftHours,
+                empWeekOrdinaryHours.get(`${a.id}|${wkKey}`) ?? 0,
+                shiftPayRule,
+                kind === "night",
+                SCHED_CONSTANTS,
+              );
+              const bCost = estimateShiftCost(
+                b.hourly_rate,
+                shiftHours,
+                empWeekOrdinaryHours.get(`${b.id}|${wkKey}`) ?? 0,
+                shiftPayRule,
+                kind === "night",
+                SCHED_CONSTANTS,
+              );
+              if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
+              // 5. Keep each guard's work in blocks (#11): among guards who cost the same,
+              //    prefer one who already works the day before or after. Work that runs in
+              //    blocks leaves rest days that fall together, which is the only way to get
+              //    paired off days out of a coverage-driven fill. Placed after cost on
+              //    purpose — pairing is a preference and must never raise the wage bill.
+              const adjacent = (id: string) =>
+                (empKindByDate.has(`${id}|${isoDateAdd(wd.date, -1)}`) ? 1 : 0) +
+                (empKindByDate.has(`${id}|${isoDateAdd(wd.date, 1)}`) ? 1 : 0);
+              const aAdj = adjacent(a.id),
+                bAdj = adjacent(b.id);
+              if (aAdj !== bAdj) return bAdj - aAdj;
+              // 6. Load-balance tie-break
+              return (
+                (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) -
+                (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0)
+              );
+            });
           let assigned = 0;
           const assignFrom = (pool: typeof employees, offPreference: boolean) => {
             for (const emp of pool) {
               if (assigned >= needed) break;
               plan.newAssignments.push({
-                employee_id: emp.id, site_id: site.id, date: wd.date,
-                shift_type_id: stForKind.id, planned_hours: shiftHours,
+                employee_id: emp.id,
+                site_id: site.id,
+                date: wd.date,
+                shift_type_id: stForKind.id,
+                planned_hours: shiftHours,
               });
               if (offPreference) plan.preferenceOverrides++;
-              if (site.required_guard_grade && gradeRank(emp.literacy_grade) > GRADE_RANK[site.required_guard_grade]) {
+              if (
+                site.required_guard_grade &&
+                gradeRank(emp.literacy_grade) > GRADE_RANK[site.required_guard_grade]
+              ) {
                 plan.qualityWarnings.push({
-                  siteId: site.id, date: wd.date, kind,
-                  employeeId: emp.id, employeeName: `${emp.surname}, ${emp.first_names}`,
+                  siteId: site.id,
+                  date: wd.date,
+                  kind,
+                  employeeId: emp.id,
+                  employeeName: `${emp.surname}, ${emp.first_names}`,
                   requiredGrade: site.required_guard_grade,
                   assignedGrade: emp.literacy_grade ?? "Ungraded",
                 });
@@ -779,7 +1007,14 @@ function SchedulePage() {
           assignFrom(sortPool(buildPool(true)), false);
           if (assigned < needed) assignFrom(sortPool(buildPool(false)), true);
           if (assigned < needed) {
-            plan.shortfalls.push({ siteId: site.id, date: wd.date, kind, required, have, short: needed - assigned });
+            plan.shortfalls.push({
+              siteId: site.id,
+              date: wd.date,
+              kind,
+              required,
+              have,
+              short: needed - assigned,
+            });
             plan.unassignable += needed - assigned;
           }
         }
@@ -801,15 +1036,23 @@ function SchedulePage() {
       if (plan.newAssignments.length > 0) {
         const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
         for (let i = 0; i < rows.length; i += 200) {
-          const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+          const { error } = await supabase
+            .from("schedule_assignments")
+            .insert(rows.slice(i, i + 200));
           if (error) throw error;
         }
       }
-      const msg = `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned`
-        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "")
-        + (plan.preferenceOverrides > 0 ? ` · ${plan.preferenceOverrides} against shift preference` : "")
-        + (plan.qualityWarnings.length > 0 ? ` · ${plan.qualityWarnings.length} below-grade` : "");
-      if (plan.unassignable > 0 || plan.preferenceOverrides > 0 || plan.qualityWarnings.length > 0) toast.warning(msg);
+      const msg =
+        `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned` +
+        (plan.unassignable > 0
+          ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short`
+          : "") +
+        (plan.preferenceOverrides > 0
+          ? ` · ${plan.preferenceOverrides} against shift preference`
+          : "") +
+        (plan.qualityWarnings.length > 0 ? ` · ${plan.qualityWarnings.length} below-grade` : "");
+      if (plan.unassignable > 0 || plan.preferenceOverrides > 0 || plan.qualityWarnings.length > 0)
+        toast.warning(msg);
       else toast.success(msg);
       await Promise.all([
         refetchAssignments(),
@@ -822,9 +1065,21 @@ function SchedulePage() {
     }
   }
 
-  const fillPlanPreview = useMemo(() => buildFillPlan(days),
+  const fillPlanPreview = useMemo(
+    () => buildFillPlan(days),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [days, sites, employees, requirements, weekAssignments, edits, autoShiftTypes, shiftTypeById, activeSiteId, publicHolidayDates]
+    [
+      days,
+      sites,
+      employees,
+      requirements,
+      weekAssignments,
+      edits,
+      autoShiftTypes,
+      shiftTypeById,
+      activeSiteId,
+      publicHolidayDates,
+    ],
   );
   const shortfallPreview = fillPlanPreview.shortfalls;
   const qualityWarningPreview = fillPlanPreview.qualityWarnings;
@@ -861,27 +1116,45 @@ function SchedulePage() {
   // ── Generate schedule for a custom date range (all sites) ────────────────
   async function generateSchedule() {
     if (!profile?.tenant_id) return;
-    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
-    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    if (!genFrom || !genTo) {
+      toast.error("Pick a start and end date");
+      return;
+    }
+    if (genFrom > genTo) {
+      toast.error("Start date must be on or before the end date");
+      return;
+    }
     const rangeDays = rangeDaysBetween(genFrom, genTo);
-    if (rangeDays.length > 62) { toast.error("Range too large — generate at most ~2 months at a time"); return; }
+    if (rangeDays.length > 62) {
+      toast.error("Range too large — generate at most ~2 months at a time");
+      return;
+    }
     setGenerating(true);
     try {
       const plan = buildFillPlan(rangeDays);
       if (plan.newAssignments.length === 0) {
-        toast.info(plan.shortfalls.length > 0
-          ? "No eligible guards available to fill the gaps in this range."
-          : "Nothing to generate — requirements already met or none set for this range.");
+        toast.info(
+          plan.shortfalls.length > 0
+            ? "No eligible guards available to fill the gaps in this range."
+            : "Nothing to generate — requirements already met or none set for this range.",
+        );
         return;
       }
       const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
       for (let i = 0; i < rows.length; i += 200) {
-        const { error } = await supabase.from("schedule_assignments").insert(rows.slice(i, i + 200));
+        const { error } = await supabase
+          .from("schedule_assignments")
+          .insert(rows.slice(i, i + 200));
         if (error) throw error;
       }
-      const msg = `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}`
-        + (plan.unassignable > 0 ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short` : "")
-        + (plan.preferenceOverrides > 0 ? ` · ${plan.preferenceOverrides} against shift preference` : "");
+      const msg =
+        `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}` +
+        (plan.unassignable > 0
+          ? ` · ${plan.unassignable} slot${plan.unassignable === 1 ? "" : "s"} short`
+          : "") +
+        (plan.preferenceOverrides > 0
+          ? ` · ${plan.preferenceOverrides} against shift preference`
+          : "");
       if (plan.unassignable > 0 || plan.preferenceOverrides > 0) toast.warning(msg);
       else toast.success(msg);
       setWeekStart(startOfWeek(rangeDays[0]));
@@ -899,10 +1172,16 @@ function SchedulePage() {
   // ── Remove every shift in the selected date range (all sites) ────────────
   async function undoRange() {
     if (!profile?.tenant_id) return;
-    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
-    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    if (!genFrom || !genTo) {
+      toast.error("Pick a start and end date");
+      return;
+    }
+    if (genFrom > genTo) {
+      toast.error("Start date must be on or before the end date");
+      return;
+    }
     const ok = window.confirm(
-      `Remove ALL shifts from ${genFrom} to ${genTo} across every site?\n\nThis deletes every assignment in that range, including manually added or edited ones, and cannot be undone.`
+      `Remove ALL shifts from ${genFrom} to ${genTo} across every site?\n\nThis deletes every assignment in that range, including manually added or edited ones, and cannot be undone.`,
     );
     if (!ok) return;
     setUndoing(true);
@@ -918,11 +1197,12 @@ function SchedulePage() {
       if (checkError) throw checkError;
       if (loggedCount && loggedCount > 0) {
         toast.error(
-          `${loggedCount} shift${loggedCount === 1 ? "" : "s"} in this range already ${loggedCount === 1 ? "has" : "have"} attendance logged and can't be removed. Clear attendance for this period first, or narrow the date range.`
+          `${loggedCount} shift${loggedCount === 1 ? "" : "s"} in this range already ${loggedCount === 1 ? "has" : "have"} attendance logged and can't be removed. Clear attendance for this period first, or narrow the date range.`,
         );
         return;
       }
-      const { data, error } = await supabase.from("schedule_assignments")
+      const { data, error } = await supabase
+        .from("schedule_assignments")
         .delete()
         .eq("tenant_id", profile.tenant_id)
         .gte("date", genFrom)
@@ -931,13 +1211,19 @@ function SchedulePage() {
       if (error) throw error;
       const removed = data?.length ?? 0;
       if (removed === 0) toast.info("Nothing to remove in that range.");
-      else toast.success(`Removed ${removed} shift${removed === 1 ? "" : "s"} from ${genFrom} to ${genTo}`);
+      else
+        toast.success(
+          `Removed ${removed} shift${removed === 1 ? "" : "s"} from ${genFrom} to ${genTo}`,
+        );
       await Promise.all([
         refetchAssignments(),
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      const message = err && typeof err === "object" && "message" in err ? String((err as { message?: string }).message) : undefined;
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: string }).message)
+          : undefined;
       toast.error(message || "Remove failed");
     } finally {
       setUndoing(false);
@@ -948,7 +1234,7 @@ function SchedulePage() {
   function customRequestHours(startTime: string, endTime: string): number {
     const [sh, sm] = startTime.split(":").map(Number);
     const [eh, em] = endTime.split(":").map(Number);
-    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    let mins = eh * 60 + em - (sh * 60 + sm);
     if (mins <= 0) mins += 24 * 60; // window wraps past midnight
     return round2(mins / 60);
   }
@@ -959,9 +1245,16 @@ function SchedulePage() {
 
   async function submitCustomRequest() {
     if (!profile?.tenant_id || !customRequestDate) return;
-    const { siteId, startTime, endTime, guardsNeeded } = customRequest;
-    if (!siteId) { toast.error("Pick a site"); return; }
+    const { siteId, startTime, endTime, guardsNeeded, reason } = customRequest;
+    if (!siteId) {
+      toast.error("Pick a site");
+      return;
+    }
     const needed = Math.max(1, Math.floor(Number(guardsNeeded) || 0));
+    if (!reason.trim()) {
+      toast.error("Enter a reason for the additional coverage");
+      return;
+    }
     const hours = customRequestHours(startTime, endTime);
     if (!Number.isFinite(hours) || hours <= 0 || hours > 12) {
       toast.error("Custom shifts must be 12h or under — split a longer window into two requests.");
@@ -976,16 +1269,20 @@ function SchedulePage() {
       const code = `CUSTOM-${startTime.replace(":", "")}-${endTime.replace(":", "")}`;
       let shiftTypeId = (shiftTypes ?? []).find((s) => s.code === code)?.id;
       if (!shiftTypeId) {
-        const { data, error } = await supabase.from("shift_types").insert({
-          tenant_id: profile.tenant_id,
-          code,
-          label: `Custom ${startTime}–${endTime}`,
-          period: kind,
-          default_hours: hours,
-          pay_rule: "standard",
-          active: true,
-          is_leave: false,
-        }).select("id").single();
+        const { data, error } = await supabase
+          .from("shift_types")
+          .insert({
+            tenant_id: profile.tenant_id,
+            code,
+            label: `Custom ${startTime}–${endTime}`,
+            period: kind,
+            default_hours: hours,
+            pay_rule: "standard",
+            active: true,
+            is_leave: false,
+          })
+          .select("id")
+          .single();
         if (error) throw error;
         shiftTypeId = data.id;
         await qc.invalidateQueries({ queryKey: ["shift-types"] });
@@ -1001,7 +1298,8 @@ function SchedulePage() {
         const st = shiftTypeById.get(sid);
         if (!st) return null;
         if (st.period === "night") return "night";
-        if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
+        if (st.period === "day" || st.period === "full_day" || st.period === "morning")
+          return "day";
         return null;
       };
       const markWorked = (empId: string, d: string) => {
@@ -1033,31 +1331,50 @@ function SchedulePage() {
         empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
       });
 
-      const buildPool = (requirePreference: boolean) => (employees ?? []).filter((emp) => {
-        if (emp.status !== "active") return false;
-        if (requirePreference && emp.preferred_shift !== kind && emp.preferred_shift !== "both") return false;
-        if (busyToday.has(emp.id)) return false;
-        const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
-        if (hrs + hours > WEEKLY_HOUR_CAP) return false;
-        const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
-        if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
-        if (kind === "day" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, -1)}`) === "night") return false;
-        if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, 1)}`) === "day") return false;
-        return true;
-      });
+      const buildPool = (requirePreference: boolean) =>
+        (employees ?? []).filter((emp) => {
+          if (emp.status !== "active") return false;
+          if (requirePreference && emp.preferred_shift !== kind && emp.preferred_shift !== "both")
+            return false;
+          if (busyToday.has(emp.id)) return false;
+          const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
+          if (hrs + hours > WEEKLY_HOUR_CAP) return false;
+          const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
+          if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
+          if (kind === "day" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, -1)}`) === "night")
+            return false;
+          if (kind === "night" && empKindByDate.get(`${emp.id}|${isoDateAdd(date, 1)}`) === "day")
+            return false;
+          return true;
+        });
 
       const requiredGrade = sites?.find((s) => s.id === siteId)?.required_guard_grade ?? null;
-      const sortPool = (arr: NonNullable<typeof employees>) => arr.sort((a, b) => {
-        const aFit = gradeFitScore(a.literacy_grade, requiredGrade);
-        const bFit = gradeFitScore(b.literacy_grade, requiredGrade);
-        if (aFit !== bFit) return aFit - bFit;
-        const aHome = a.home_site_id === siteId ? 0 : 1;
-        const bHome = b.home_site_id === siteId ? 0 : 1;
-        if (aHome !== bHome) return aHome - bHome;
-        const aCost = estimateShiftCost(a.hourly_rate, hours, 0, "standard", kind === "night", SCHED_CONSTANTS);
-        const bCost = estimateShiftCost(b.hourly_rate, hours, 0, "standard", kind === "night", SCHED_CONSTANTS);
-        return aCost - bCost;
-      });
+      const sortPool = (arr: NonNullable<typeof employees>) =>
+        arr.sort((a, b) => {
+          const aFit = gradeFitScore(a.literacy_grade, requiredGrade);
+          const bFit = gradeFitScore(b.literacy_grade, requiredGrade);
+          if (aFit !== bFit) return aFit - bFit;
+          const aHome = a.home_site_id === siteId ? 0 : 1;
+          const bHome = b.home_site_id === siteId ? 0 : 1;
+          if (aHome !== bHome) return aHome - bHome;
+          const aCost = estimateShiftCost(
+            a.hourly_rate,
+            hours,
+            0,
+            "standard",
+            kind === "night",
+            SCHED_CONSTANTS,
+          );
+          const bCost = estimateShiftCost(
+            b.hourly_rate,
+            hours,
+            0,
+            "standard",
+            kind === "night",
+            SCHED_CONSTANTS,
+          );
+          return aCost - bCost;
+        });
 
       // Preference-matching guards first; only reach into off-preference guards
       // if that still leaves the request short (shortage overrides preference).
@@ -1065,24 +1382,37 @@ function SchedulePage() {
       let offPreferenceCount = 0;
       if (chosen.length < needed) {
         const chosenIds = new Set(chosen.map((e) => e.id));
-        const extra = sortPool(buildPool(false)).filter((e) => !chosenIds.has(e.id)).slice(0, needed - chosen.length);
+        const extra = sortPool(buildPool(false))
+          .filter((e) => !chosenIds.has(e.id))
+          .slice(0, needed - chosen.length);
         offPreferenceCount = extra.length;
         chosen.push(...extra);
       }
       if (chosen.length === 0) {
-        toast.warning("No eligible guards available for this window — check weekly hours and rest days.");
+        toast.warning(
+          "No eligible guards available for this window — check weekly hours and rest days.",
+        );
         return;
       }
       const rows = chosen.map((emp) => ({
-        tenant_id: profile.tenant_id, employee_id: emp.id, site_id: siteId,
-        date, shift_type_id: shiftTypeId!, planned_hours: hours,
+        tenant_id: profile.tenant_id,
+        employee_id: emp.id,
+        site_id: siteId,
+        date,
+        shift_type_id: shiftTypeId!,
+        planned_hours: hours,
+        notes: `Additional coverage: ${reason.trim()}`,
       }));
       const { error } = await supabase.from("schedule_assignments").insert(rows);
       if (error) throw error;
 
-      const msg = `Custom request: assigned ${chosen.length}/${needed} guard${needed === 1 ? "" : "s"} for ${date} ${startTime}–${endTime}`
-        + (offPreferenceCount > 0 ? ` · ${offPreferenceCount} against shift preference` : "");
-      if (chosen.length < needed || offPreferenceCount > 0) toast.warning(`${msg}${chosen.length < needed ? " — not enough eligible guards for the rest" : ""}`);
+      const msg =
+        `Custom request: assigned ${chosen.length}/${needed} guard${needed === 1 ? "" : "s"} for ${date} ${startTime}–${endTime}` +
+        (offPreferenceCount > 0 ? ` · ${offPreferenceCount} against shift preference` : "");
+      if (chosen.length < needed || offPreferenceCount > 0)
+        toast.warning(
+          `${msg}${chosen.length < needed ? " — not enough eligible guards for the rest" : ""}`,
+        );
       else toast.success(msg);
 
       setCustomRequestDate(null);
@@ -1099,21 +1429,34 @@ function SchedulePage() {
 
   // ── Print one duty-roster PDF page per guard for the chosen range ────────
   async function printSchedules() {
-    if (!genFrom || !genTo) { toast.error("Pick a start and end date"); return; }
-    if (genFrom > genTo) { toast.error("Start date must be on or before the end date"); return; }
+    if (!genFrom || !genTo) {
+      toast.error("Pick a start and end date");
+      return;
+    }
+    if (genFrom > genTo) {
+      toast.error("Start date must be on or before the end date");
+      return;
+    }
     setPrinting(true);
     try {
       const { data, error } = await supabase
         .from("schedule_assignments")
         .select("employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", genFrom).lte("date", genTo);
+        .gte("date", genFrom)
+        .lte("date", genTo);
       if (error) throw error;
       const rows = data ?? [];
-      if (rows.length === 0) { toast.info("No shifts scheduled in this range yet."); return; }
+      if (rows.length === 0) {
+        toast.info("No shifts scheduled in this range yet.");
+        return;
+      }
 
       const siteById = new Map((sites ?? []).map((s) => [s.id, s]));
       const empById = new Map((employees ?? []).map((e) => [e.id, e]));
-      const byEmp = new Map<string, { date: string; shiftLabel: string; shiftCode: string; hours: number; siteName: string }[]>();
+      const byEmp = new Map<
+        string,
+        { date: string; shiftLabel: string; shiftCode: string; hours: number; siteName: string }[]
+      >();
       for (const r of rows) {
         const st = shiftTypeById.get(r.shift_type_id);
         const site = siteById.get(r.site_id);
@@ -1132,11 +1475,17 @@ function SchedulePage() {
         .map((id) => empById.get(id))
         .filter((e): e is Employee => !!e)
         .sort((a, b) => a.surname.localeCompare(b.surname));
-      if (employeesWithShifts.length === 0) { toast.info("No matching active employees found for these shifts."); return; }
+      if (employeesWithShifts.length === 0) {
+        toast.info("No matching active employees found for these shifts.");
+        return;
+      }
 
       const pdf = buildScheduleSheetsPDF({
         employees: employeesWithShifts.map((e) => ({
-          id: e.id, employee_code: e.employee_code, surname: e.surname, first_names: e.first_names,
+          id: e.id,
+          employee_code: e.employee_code,
+          surname: e.surname,
+          first_names: e.first_names,
         })),
         assignmentsByEmployee: byEmp,
         rangeStart: genFrom,
@@ -1144,7 +1493,9 @@ function SchedulePage() {
         tenantName: tenant?.name ?? "Demo Payroll System",
       });
       pdf.save(`Guard_Schedules_${genFrom}_to_${genTo}.pdf`);
-      toast.success(`Printed ${employeesWithShifts.length} guard schedule${employeesWithShifts.length === 1 ? "" : "s"}`);
+      toast.success(
+        `Printed ${employeesWithShifts.length} guard schedule${employeesWithShifts.length === 1 ? "" : "s"}`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Print failed");
     } finally {
@@ -1158,7 +1509,7 @@ function SchedulePage() {
     let totalShifts = 0;
     let totalHours = 0;
     let estimatedWeeklyCost = 0;
-    const dayCounts = days.map(() => 0);
+    const coverageCounts = days.map(() => ({ day: 0, night: 0 }));
     const empOrdHrs = new Map<string, number>();
     siteEmployees.forEach((emp) => {
       days.forEach((d, i) => {
@@ -1169,19 +1520,29 @@ function SchedulePage() {
         if (!st) return;
         totalShifts += 1;
         totalHours += st.default_hours;
-        dayCounts[i] += 1;
+        const kind = shiftKindOf(st);
+        if (kind === "day" || kind === "night") coverageCounts[i][kind] += 1;
         const isSunday = d.getDay() === 0;
         const isPH = publicHolidayDates.has(date);
-        const payRule = isPH ? "public_holiday_ordinary" : isSunday ? "sunday_default" : st.pay_rule;
+        const payRule = isPH
+          ? "public_holiday_ordinary"
+          : isSunday
+            ? "sunday_default"
+            : st.pay_rule;
         const ordHrs = empOrdHrs.get(emp.id) ?? 0;
         const shiftCost = estimateShiftCost(
-          emp.hourly_rate, st.default_hours, ordHrs, payRule, st.period === "night", SCHED_CONSTANTS,
+          emp.hourly_rate,
+          st.default_hours,
+          ordHrs,
+          payRule,
+          st.period === "night",
+          SCHED_CONSTANTS,
         );
         estimatedWeeklyCost = round2(estimatedWeeklyCost + shiftCost);
         if (payRule === "standard") empOrdHrs.set(emp.id, ordHrs + st.default_hours);
       });
     });
-    return { totalShifts, totalHours, dayCounts, estimatedWeeklyCost };
+    return { totalShifts, totalHours, coverageCounts, estimatedWeeklyCost };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days, siteEmployees, edits, assignments, shiftTypeById, publicHolidayDates]);
 
@@ -1189,15 +1550,86 @@ function SchedulePage() {
   const activeSite = sites?.find((s) => s.id === activeSiteId) ?? null;
 
   // Modal cell context
-  const modalEmp = modal && employees ? employees.find((e) => e.id === modal.empId) ?? null : null;
+  const modalEmp =
+    modal && employees ? (employees.find((e) => e.id === modal.empId) ?? null) : null;
   const modalDate = modal ? new Date(modal.date) : null;
   const modalCurrentShiftId = modal ? effectiveShiftId(modal.empId, modal.date) : null;
 
-  const guardMonthEmp = guardMonthEmpId && employees
-    ? employees.find((e) => e.id === guardMonthEmpId) ?? null
-    : null;
-  const guardMonthLabel = guardMonthCursor.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  const guardMonthHours = (guardMonthAssignments ?? []).reduce((sum, a) => sum + Number(a.planned_hours), 0);
+  function getManualShiftIssue(empId: string, date: string, candidate: ShiftType): string | null {
+    const current = assignByKey.get(`${empId}|${date}`);
+    if (current?.shift_type_id === candidate.id) return null;
+
+    const candidateKind = shiftKindOf(candidate);
+    const candidateIsWorking = !candidate.is_leave && candidate.default_hours > 0;
+    if (candidateIsWorking && candidateKind !== "day" && candidateKind !== "night") {
+      return "Only standard Day or Night shifts can be rostered here";
+    }
+
+    const weekKey = isoWeekKey(new Date(date));
+    const workedDates = new Set<string>();
+    const kindByDate = new Map<string, ShiftKind>();
+    let weeklyHours = 0;
+
+    for (const assignment of weekAssignments ?? []) {
+      if (assignment.employee_id !== empId || assignment.id === current?.id) continue;
+      const pendingShiftId = edits[`${assignment.employee_id}|${assignment.date}`];
+      const shift = shiftTypeById.get(pendingShiftId ?? assignment.shift_type_id);
+      if (!shift || shift.is_leave || shift.default_hours <= 0) continue;
+
+      if (isoWeekKey(new Date(assignment.date)) === weekKey) {
+        weeklyHours += Number(assignment.planned_hours);
+        workedDates.add(assignment.date);
+      }
+      kindByDate.set(assignment.date, shiftKindOf(shift));
+
+      if (candidateIsWorking && assignment.date === date) {
+        return "Already rostered for another shift on this date";
+      }
+    }
+
+    for (const [key, shiftId] of Object.entries(edits)) {
+      const [editedEmpId, editedDate] = key.split("|");
+      if (editedEmpId !== empId || assignByKey.has(key) || !shiftId) continue;
+      const shift = shiftTypeById.get(shiftId);
+      if (!shift || shift.is_leave || shift.default_hours <= 0) continue;
+
+      if (isoWeekKey(new Date(editedDate)) === weekKey) {
+        weeklyHours += shift.default_hours;
+        workedDates.add(editedDate);
+      }
+      kindByDate.set(editedDate, shiftKindOf(shift));
+
+      if (candidateIsWorking && editedDate === date) {
+        return "Already rostered for another shift on this date";
+      }
+    }
+
+    if (!candidateIsWorking) return null;
+    if (weeklyHours + candidate.default_hours > WEEKLY_HOUR_CAP) {
+      return `Would exceed the ${WEEKLY_HOUR_CAP}-hour weekly cap`;
+    }
+    if (!workedDates.has(date) && workedDates.size >= MAX_WORKING_DAYS_PER_WEEK) {
+      return "Would remove the guard's required weekly rest day";
+    }
+    if (candidateKind === "day" && kindByDate.get(isoDateAdd(date, -1)) === "night") {
+      return "Night shift the previous day ends too close to this Day shift";
+    }
+    if (candidateKind === "night" && kindByDate.get(isoDateAdd(date, 1)) === "day") {
+      return "Day shift the next day starts too close to this Night shift";
+    }
+    return null;
+  }
+
+  const guardMonthEmp =
+    guardMonthEmpId && employees ? (employees.find((e) => e.id === guardMonthEmpId) ?? null) : null;
+  const guardMonthLabel = guardMonthCursor.toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+  const guardMonthHours = (guardMonthAssignments ?? []).reduce(
+    (sum, a) => sum + Number(a.planned_hours),
+    0,
+  );
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -1217,7 +1649,11 @@ function SchedulePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setWeekStart(addDays(weekStart, -7))}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setWeekStart(addDays(weekStart, -7))}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="font-mono text-sm font-semibold px-3 py-2 rounded-md border min-w-[200px] text-center">
@@ -1230,7 +1666,11 @@ function SchedulePage() {
             Today
           </Button>
           <Button onClick={save} disabled={!canSave}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Save Roster
           </Button>
         </div>
@@ -1239,32 +1679,68 @@ function SchedulePage() {
       {/* Custom date-range generate + print */}
       <Card className="p-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">From</label>
-          <Input type="date" value={genFrom} onChange={(e) => setGenFrom(e.target.value)} className="h-9 w-40" />
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            From
+          </label>
+          <Input
+            type="date"
+            value={genFrom}
+            onChange={(e) => setGenFrom(e.target.value)}
+            className="h-9 w-40"
+          />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">To</label>
-          <Input type="date" value={genTo} onChange={(e) => setGenTo(e.target.value)} className="h-9 w-40" />
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            To
+          </label>
+          <Input
+            type="date"
+            value={genTo}
+            onChange={(e) => setGenTo(e.target.value)}
+            className="h-9 w-40"
+          />
         </div>
-        <Button variant="outline" onClick={generateSchedule} disabled={generating || weekAssignmentsFetching}>
-          {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+        <Button
+          variant="outline"
+          onClick={generateSchedule}
+          disabled={generating || weekAssignmentsFetching}
+        >
+          {generating ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Wand2 className="h-4 w-4 mr-2" />
+          )}
           Generate schedule for range
         </Button>
         <Button
           variant="outline"
           onClick={undoRange}
           disabled={undoing || !genFrom || !genTo}
-          title={!genFrom || !genTo ? "Pick a date range first" : "Remove all shifts in the selected range"}
+          title={
+            !genFrom || !genTo
+              ? "Pick a date range first"
+              : "Remove all shifts in the selected range"
+          }
         >
-          {undoing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Undo2 className="h-4 w-4 mr-2" />}
+          {undoing ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Undo2 className="h-4 w-4 mr-2" />
+          )}
           Remove shifts in range
         </Button>
         <Button variant="outline" onClick={printSchedules} disabled={printing}>
-          {printing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
+          {printing ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Printer className="h-4 w-4 mr-2" />
+          )}
           Print guard schedules
         </Button>
         <p className="text-xs text-muted-foreground basis-full">
-          Generate fills gaps against site requirements across all sites for the chosen period. Remove deletes every shift in that same range, including manual edits. Print produces one duty-roster page per guard to hand out.
+          Generate fills gaps against site requirements across all sites for the chosen period.
+          Remove deletes every shift in that same range, including manual edits. Print produces one
+          duty-roster page per guard to hand out.
         </p>
       </Card>
 
@@ -1282,14 +1758,16 @@ function SchedulePage() {
                   "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
                   isActive
                     ? "border-accent text-accent-foreground bg-accent/10"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 {s.name}
-                <span className={cn(
-                  "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
-                  isActive ? "bg-accent/30" : "bg-muted"
-                )}>
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
+                    isActive ? "bg-accent/30" : "bg-muted",
+                  )}
+                >
                   {count} guards
                 </span>
               </button>
@@ -1311,30 +1789,55 @@ function SchedulePage() {
             />
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <Legend dot="bg-amber-400"   label="Day" />
-            <Legend dot="bg-indigo-500"  label="Night" />
+            <Legend dot="bg-amber-400" label="Day" />
+            <Legend dot="bg-indigo-500" label="Night" />
             <Legend dot="bg-emerald-500" label="Double" />
-            <Legend dot="bg-slate-400"   label="Leave" />
+            <Legend dot="bg-slate-400" label="Leave" />
             <Legend dot="" border label="Unassigned" />
           </div>
         </div>
         <Button
-          variant="outline" size="sm"
+          variant="outline"
+          size="sm"
           onClick={autoFillRoster}
           disabled={autoFilling || (!autoShiftTypes.day && !autoShiftTypes.night)}
-          title={(!autoShiftTypes.day && !autoShiftTypes.night) ? "Add a standard day/night shift template first" : "Auto-fill from site requirements"}
+          title={
+            !autoShiftTypes.day && !autoShiftTypes.night
+              ? "Add a standard day/night shift template first"
+              : "Auto-fill from site requirements"
+          }
         >
-          {autoFilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+          {autoFilling ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4 mr-2" />
+          )}
           Auto-fill this week
         </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatCard icon={<Users className="h-5 w-5" />} value={siteEmployees.length} label="Guards on site" />
-        <StatCard icon={<ListChecks className="h-5 w-5" />} value={stats.totalShifts} label="Shifts this week" />
-        <StatCard icon={<Clock className="h-5 w-5" />} value={`${stats.totalHours}h`} label="Total hours" />
-        <StatCard icon={<DollarSign className="h-5 w-5" />} value={formatNAD(stats.estimatedWeeklyCost)} label="Est. payroll cost" />
+        <StatCard
+          icon={<Users className="h-5 w-5" />}
+          value={siteEmployees.length}
+          label="Guards on site"
+        />
+        <StatCard
+          icon={<ListChecks className="h-5 w-5" />}
+          value={stats.totalShifts}
+          label="Shifts this week"
+        />
+        <StatCard
+          icon={<Clock className="h-5 w-5" />}
+          value={`${stats.totalHours}h`}
+          label="Total hours"
+        />
+        <StatCard
+          icon={<DollarSign className="h-5 w-5" />}
+          value={formatNAD(stats.estimatedWeeklyCost)}
+          label="Est. payroll cost"
+        />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" />}
           value={shortfallPreview.length === 0 ? "OK" : `${shortfallPreview.length} gaps`}
@@ -1349,7 +1852,9 @@ function SchedulePage() {
           <div className="p-3 flex items-center gap-2 border-b border-destructive/20">
             <AlertTriangle className="h-4 w-4 text-destructive" />
             <div className="text-sm font-semibold text-destructive">
-              {shortfallPreview.reduce((s, x) => s + x.short, 0)} guard-slot{shortfallPreview.reduce((s, x) => s + x.short, 0) === 1 ? "" : "s"} short — HR must resolve (no auto-OT)
+              {shortfallPreview.reduce((s, x) => s + x.short, 0)} guard-slot
+              {shortfallPreview.reduce((s, x) => s + x.short, 0) === 1 ? "" : "s"} short — HR must
+              resolve (no auto-OT)
             </div>
           </div>
           <div className="p-3 space-y-1 max-h-40 overflow-y-auto text-xs font-mono">
@@ -1360,8 +1865,14 @@ function SchedulePage() {
                 <div key={i} className="flex items-center justify-between">
                   <span>
                     <span className="font-semibold">{site?.name ?? s.siteId}</span>
-                    {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
-                    {" · "}<span className="uppercase">{s.kind}</span>
+                    {" · "}
+                    {d.toLocaleDateString("en-GB", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                    {" · "}
+                    <span className="uppercase">{s.kind}</span>
                   </span>
                   <span className="text-destructive font-bold">
                     {s.have}/{s.required} · short {s.short}
@@ -1378,7 +1889,8 @@ function SchedulePage() {
           <div className="p-3 flex items-center gap-2 border-b border-warning/20">
             <AlertTriangle className="h-4 w-4 text-warning" />
             <div className="text-sm font-semibold text-warning">
-              {qualityWarningPreview.length} shift{qualityWarningPreview.length === 1 ? "" : "s"} filled below required grade
+              {qualityWarningPreview.length} shift{qualityWarningPreview.length === 1 ? "" : "s"}{" "}
+              filled below required grade
             </div>
           </div>
           <div className="p-3 space-y-1 max-h-40 overflow-y-auto text-xs font-mono">
@@ -1389,9 +1901,16 @@ function SchedulePage() {
                 <div key={i} className="flex items-center justify-between">
                   <span>
                     <span className="font-semibold">{site?.name ?? w.siteId}</span>
-                    {" · "}{d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}
-                    {" · "}<span className="uppercase">{w.kind}</span>
-                    {" · "}{w.employeeName}
+                    {" · "}
+                    {d.toLocaleDateString("en-GB", {
+                      weekday: "short",
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                    {" · "}
+                    <span className="uppercase">{w.kind}</span>
+                    {" · "}
+                    {w.employeeName}
                   </span>
                   <span className="text-warning font-bold">
                     needs {w.requiredGrade}, got {w.assignedGrade}
@@ -1407,42 +1926,59 @@ function SchedulePage() {
           monthly hours. Reported rather than blocked — a single off day is sometimes the
           least-bad answer on a short-staffed site, and the person rostering decides. */}
       {rosterViolations.length > 0 && (
-        <Card className={cn(ruleBreaches.length > 0 ? "border-warning/40 bg-warning/5" : "border-muted")}>
-          <div className="p-3 flex items-center gap-2 border-b border-warning/20">
-            <ListChecks className={cn("h-4 w-4", ruleBreaches.length > 0 ? "text-warning" : "text-muted-foreground")} />
-            <div className="text-sm font-semibold">
-              Roster rules · {genFrom} — {genTo}
-              <span className="font-normal text-muted-foreground">
-                {" · "}{ruleBreaches.length} rule{ruleBreaches.length === 1 ? "" : "s"} broken
-                {rulePreferences.length > 0 && `, ${rulePreferences.length} preference${rulePreferences.length === 1 ? "" : "s"} unmet`}
-              </span>
-            </div>
-          </div>
-          <div className="p-3 space-y-1 max-h-56 overflow-y-auto text-xs">
-            {[...ruleBreaches, ...rulePreferences].map((v, i) => (
-              <div key={i} className="flex items-start justify-between gap-3">
-                <span className="font-medium min-w-[180px]">{v.employeeName}</span>
-                <span className="flex-1 text-muted-foreground">{v.message}</span>
-                <Badge
-                  variant={v.severity === "warn" ? "destructive" : "secondary"}
-                  className="text-[10px] h-5 shrink-0"
-                >
-                  {VIOLATION_LABEL[v.kind]}
-                </Badge>
+        <Card
+          className={cn(
+            ruleBreaches.length > 0 ? "border-warning/40 bg-warning/5" : "border-muted",
+          )}
+        >
+          <details>
+            <summary className="p-3 flex items-center gap-2 cursor-pointer">
+              <ListChecks
+                className={cn(
+                  "h-4 w-4",
+                  ruleBreaches.length > 0 ? "text-warning" : "text-muted-foreground",
+                )}
+              />
+              <div className="text-sm font-semibold">
+                Roster rules · {genFrom} — {genTo}
+                <span className="font-normal text-muted-foreground">
+                  {" · "}
+                  {ruleBreaches.length} rule{ruleBreaches.length === 1 ? "" : "s"} broken
+                  {rulePreferences.length > 0 &&
+                    `, ${rulePreferences.length} preference${rulePreferences.length === 1 ? "" : "s"} unmet`}
+                </span>
               </div>
-            ))}
-          </div>
-          <div className="px-3 pb-3 text-[11px] text-muted-foreground">
-            Minimum {MIN_OFF_DAYS_PER_PERIOD} off days per period; off days should fall in consecutive
-            pairs where coverage allows. The 60-hour weekly cap is enforced separately and blocks saving.
-          </div>
+            </summary>
+            <div className="p-3 space-y-1 max-h-56 overflow-y-auto text-xs">
+              {[...ruleBreaches, ...rulePreferences].map((v, i) => (
+                <div key={i} className="flex items-start justify-between gap-3">
+                  <span className="font-medium min-w-[180px]">{v.employeeName}</span>
+                  <span className="flex-1 text-muted-foreground">{v.message}</span>
+                  <Badge
+                    variant={v.severity === "warn" ? "destructive" : "secondary"}
+                    className="text-[10px] h-5 shrink-0"
+                  >
+                    {VIOLATION_LABEL[v.kind]}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+            <div className="hidden" aria-hidden="true">
+              Minimum {MIN_OFF_DAYS_PER_PERIOD} off days per period; off days should fall in
+              consecutive pairs where coverage allows. The 60-hour weekly cap is enforced separately
+              and blocks saving.
+            </div>
+          </details>
         </Card>
       )}
 
       {blocking.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Roster cannot be saved — {blocking.length} weekly cap breach{blocking.length === 1 ? "" : "es"}</AlertTitle>
+          <AlertTitle>
+            Roster cannot be saved — {blocking.length} weekly cap breach
+            {blocking.length === 1 ? "" : "es"}
+          </AlertTitle>
           <AlertDescription>
             One or more guards exceed the 60-hour weekly limit and have no PS exemption on file.
             File a PS exemption from the employee profile, or reduce hours.
@@ -1466,23 +2002,29 @@ function SchedulePage() {
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                   const isToday = sameDate(d, today);
                   return (
-                    <th key={fmtIso(d)} className={cn(
-                      "px-2 py-2 min-w-[120px] border-l text-center",
-                      isWeekend && "bg-muted/60"
-                    )}>
-                      <div className={cn(
-                        "text-[10px] uppercase font-semibold tracking-wider",
-                        isWeekend ? "text-muted-foreground/70" : "text-muted-foreground"
-                      )}>
+                    <th
+                      key={fmtIso(d)}
+                      className={cn(
+                        "px-2 py-2 min-w-[120px] border-l text-center",
+                        isWeekend && "bg-muted/60",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "text-[10px] uppercase font-semibold tracking-wider",
+                          isWeekend ? "text-muted-foreground/70" : "text-muted-foreground",
+                        )}
+                      >
                         {d.toLocaleDateString("en-GB", { weekday: "short" })}
                       </div>
                       <div className="mt-1 flex items-center justify-center">
                         <button
                           onClick={() => setCustomRequestDate(fmtIso(d))}
-                          title="Add a custom one-off guard request for this date"
+                          title="Add extra one-off coverage for this date"
                           className={cn(
                             "text-xl font-bold leading-none hover:text-accent transition-colors",
-                            isToday && "inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-foreground text-base hover:text-accent-foreground"
+                            isToday &&
+                              "inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-foreground text-base hover:text-accent-foreground",
                           )}
                         >
                           {d.getDate()}
@@ -1499,9 +2041,13 @@ function SchedulePage() {
             <tbody>
               {siteEmployees.length === 0 && (
                 <tr>
-                  <td colSpan={days.length + 2} className="text-center py-12 text-muted-foreground text-sm">
-                    No guards assigned to this site yet. Set <span className="font-mono">home_site</span> on employees,
-                    or use Auto-fill to pull guards in based on requirements.
+                  <td
+                    colSpan={days.length + 2}
+                    className="text-center py-12 text-muted-foreground text-sm"
+                  >
+                    No guards assigned to this site yet. Set{" "}
+                    <span className="font-mono">home_site</span> on employees, or use Auto-fill to
+                    pull guards in based on requirements.
                   </td>
                 </tr>
               )}
@@ -1514,7 +2060,10 @@ function SchedulePage() {
                   <tr key={emp.id} className="group hover:bg-muted/20">
                     <td className="px-4 py-2 sticky left-0 bg-card group-hover:bg-muted/20 border-t border-border/50 z-10">
                       <button
-                        onClick={() => { setGuardMonthCursor(startOfMonth(weekStart)); setGuardMonthEmpId(emp.id); }}
+                        onClick={() => {
+                          setGuardMonthCursor(startOfMonth(weekStart));
+                          setGuardMonthEmpId(emp.id);
+                        }}
                         className="font-semibold text-sm leading-tight hover:underline hover:text-accent text-left"
                         title="View this guard's full month"
                       >
@@ -1523,18 +2072,25 @@ function SchedulePage() {
                       <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
                         {emp.employee_code}
                         {emp.preferred_shift !== "both" && (
-                          <span className="ml-2 uppercase opacity-70">{emp.preferred_shift}-only</span>
+                          <span className="ml-2 uppercase opacity-70">
+                            {emp.preferred_shift}-only
+                          </span>
                         )}
                       </div>
                     </td>
                     <td className="px-2 py-2 text-center border-t border-border/50">
-                      <span className={cn(
-                        "inline-block text-xs font-bold px-2 py-1 rounded-md",
-                        blockedHere ? "bg-destructive/20 text-destructive"
-                          : overCap ? "bg-amber-100 text-amber-900"
-                          : wkHours > 48 ? "bg-amber-50 text-amber-800"
-                          : "bg-muted text-foreground"
-                      )}>
+                      <span
+                        className={cn(
+                          "inline-block text-xs font-bold px-2 py-1 rounded-md",
+                          blockedHere
+                            ? "bg-destructive/20 text-destructive"
+                            : overCap
+                              ? "bg-amber-100 text-amber-900"
+                              : wkHours > 48
+                                ? "bg-amber-50 text-amber-800"
+                                : "bg-muted text-foreground",
+                        )}
+                      >
                         {wkHours}h
                         {overCap && (
                           <span className="ml-1 text-[9px] uppercase">
@@ -1553,26 +2109,39 @@ function SchedulePage() {
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                       const dirty = k in edits;
                       return (
-                        <td key={date} className={cn(
-                          "p-1.5 border-t border-l border-border/50 align-middle",
-                          isWeekend && "bg-muted/30"
-                        )}>
+                        <td
+                          key={date}
+                          className={cn(
+                            "p-1.5 border-t border-l border-border/50 align-middle",
+                            isWeekend && "bg-muted/30",
+                          )}
+                        >
                           {st ? (
                             <button
                               onClick={() => setModal({ empId: emp.id, date })}
                               className={cn(
                                 "w-full min-h-[58px] rounded-lg border px-2 py-1.5 flex flex-col items-start justify-center gap-0.5 transition-all hover:shadow-md hover:-translate-y-0.5",
                                 styles.block,
-                                dirty && "ring-2 ring-amber-400 ring-offset-1"
+                                dirty && "ring-2 ring-amber-400 ring-offset-1",
                               )}
                             >
-                              <span className={cn("text-[9px] font-bold uppercase tracking-wider", styles.label)}>
+                              <span
+                                className={cn(
+                                  "text-[9px] font-bold uppercase tracking-wider",
+                                  styles.label,
+                                )}
+                              >
                                 {st.label.length > 14 ? st.code : st.label}
                               </span>
                               <span className="text-xs font-bold text-foreground font-mono">
                                 {st.default_hours}h
                               </span>
-                              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded", styles.pill)}>
+                              <span
+                                className={cn(
+                                  "text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                                  styles.pill,
+                                )}
+                              >
                                 {st.code}
                               </span>
                             </button>
@@ -1582,7 +2151,7 @@ function SchedulePage() {
                               className={cn(
                                 "group/cell w-full min-h-[58px] rounded-lg border-2 border-dashed flex items-center justify-center transition-all",
                                 "border-border hover:border-accent hover:bg-accent/5",
-                                dirty && "border-amber-400 bg-amber-50"
+                                dirty && "border-amber-400 bg-amber-50",
                               )}
                             >
                               <Plus className="h-4 w-4 text-muted-foreground/40 group-hover/cell:text-accent transition-colors" />
@@ -1605,26 +2174,37 @@ function SchedulePage() {
                   <td className="border-t-2 border-border" />
                   {days.map((d, i) => {
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    const count = stats.dayCounts[i];
-                    // Compute required-for-this-day across the active site only (display hint)
                     const dow = d.getDay();
-                    const req = (requirements ?? [])
-                      .filter((r) => r.site_id === activeSiteId && r.day_of_week === dow)
-                      .reduce((sum, r) => sum + r.quantity_required, 0);
-                    const short = req > 0 && count < req;
+                    const requirement = (kind: "day" | "night") =>
+                      (requirements ?? []).find(
+                        (r) =>
+                          r.site_id === activeSiteId &&
+                          r.day_of_week === dow &&
+                          r.shift_kind === kind,
+                      )?.quantity_required ?? 0;
+                    const coverage = stats.coverageCounts[i];
+                    const dayRequired = requirement("day");
+                    const nightRequired = requirement("night");
+                    const dayShort = dayRequired > 0 && coverage.day < dayRequired;
+                    const nightShort = nightRequired > 0 && coverage.night < nightRequired;
                     return (
-                      <td key={fmtIso(d)} className={cn(
-                        "px-2 py-3 border-t-2 border-l border-border text-center",
-                        isWeekend && "bg-muted/50"
-                      )}>
-                        <div className={cn(
-                          "text-2xl font-extrabold leading-none",
-                          short ? "text-destructive" : "text-foreground"
-                        )}>
-                          {count}{req > 0 && <span className="text-sm text-muted-foreground font-normal">/{req}</span>}
+                      <td
+                        key={fmtIso(d)}
+                        className={cn(
+                          "px-2 py-3 border-t-2 border-l border-border text-center",
+                          isWeekend && "bg-muted/50",
+                        )}
+                      >
+                        <div className="space-y-1 text-[11px] font-semibold">
+                          <div className={cn(dayShort ? "text-destructive" : "text-foreground")}>
+                            Day {coverage.day}/{dayRequired}
+                          </div>
+                          <div className={cn(nightShort ? "text-destructive" : "text-foreground")}>
+                            Night {coverage.night}/{nightRequired}
+                          </div>
                         </div>
                         <div className="text-[10px] text-muted-foreground font-medium mt-1">
-                          guards
+                          coverage
                         </div>
                       </td>
                     );
@@ -1640,13 +2220,19 @@ function SchedulePage() {
       <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-lg border bg-background/95 backdrop-blur p-4 shadow-lg">
         <div className="text-sm flex items-center gap-3 text-muted-foreground">
           <CalendarRange className="h-4 w-4" />
-          {dirtyCount === 0 ? "All changes saved" : `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`}
+          {dirtyCount === 0
+            ? "All changes saved"
+            : `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`}
           {blocking.length === 0 && dirtyCount > 0 && (
             <span className="flex items-center gap-1 text-success">
               <ShieldCheck className="h-3.5 w-3.5" /> Within weekly limits
             </span>
           )}
-          {activeSite && <span>· Site: <span className="font-semibold text-foreground">{activeSite.name}</span></span>}
+          {activeSite && (
+            <span>
+              · Site: <span className="font-semibold text-foreground">{activeSite.name}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {dirtyCount > 0 && (
@@ -1655,7 +2241,11 @@ function SchedulePage() {
             </Button>
           )}
           <Button onClick={save} disabled={!canSave}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Save roster
           </Button>
         </div>
@@ -1667,11 +2257,18 @@ function SchedulePage() {
           {modal && modalEmp && modalDate && (
             <>
               <DialogHeader>
-                <DialogTitle>{modalEmp.surname}, {modalEmp.first_names}</DialogTitle>
+                <DialogTitle>
+                  {modalEmp.surname}, {modalEmp.first_names}
+                </DialogTitle>
                 <DialogDescription>
                   <span className="font-mono">{modalEmp.employee_code}</span>
                   {" · "}
-                  {modalDate.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                  {modalDate.toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2 max-h-[50vh] overflow-y-auto">
@@ -1679,14 +2276,20 @@ function SchedulePage() {
                   const kind = shiftKindOf(st);
                   const styles = KIND_STYLES[kind];
                   const selected = modalCurrentShiftId === st.id;
+                  const issue = getManualShiftIssue(modal.empId, modal.date, st);
                   return (
                     <button
                       key={st.id}
-                      onClick={() => { setCell(modal.empId, modal.date, st.id); setModal(null); }}
+                      disabled={!!issue}
+                      onClick={() => {
+                        setCell(modal.empId, modal.date, st.id);
+                        setModal(null);
+                      }}
                       className={cn(
                         "w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all text-left",
                         styles.block,
-                        selected ? "ring-2 ring-accent ring-offset-1" : ""
+                        selected ? "ring-2 ring-accent ring-offset-1" : "",
+                        issue && "opacity-50 cursor-not-allowed hover:shadow-none",
                       )}
                     >
                       <div>
@@ -1694,6 +2297,7 @@ function SchedulePage() {
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {st.code} · {st.pay_rule}
                         </div>
+                        {issue && <div className="text-xs text-destructive mt-1">{issue}</div>}
                       </div>
                       <span className={cn("text-xs font-bold px-2 py-1 rounded-full", styles.pill)}>
                         {st.default_hours}h
@@ -1703,19 +2307,26 @@ function SchedulePage() {
                 })}
                 {modalCurrentShiftId && (
                   <button
-                    onClick={() => { setCell(modal.empId, modal.date, ""); setModal(null); }}
+                    onClick={() => {
+                      setCell(modal.empId, modal.date, "");
+                      setModal(null);
+                    }}
                     className="w-full flex items-center justify-between p-3 rounded-lg border-2 border-border bg-muted/30 hover:bg-muted/60 transition-all text-left"
                   >
                     <div>
                       <div className="text-sm font-bold text-muted-foreground">Clear shift</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">Remove this assignment</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Remove this assignment
+                      </div>
                     </div>
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setModal(null)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setModal(null)}>
+                  Cancel
+                </Button>
               </DialogFooter>
             </>
           )}
@@ -1730,18 +2341,31 @@ function SchedulePage() {
               <DialogHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <DialogTitle>{guardMonthEmp.surname}, {guardMonthEmp.first_names}</DialogTitle>
+                    <DialogTitle>
+                      {guardMonthEmp.surname}, {guardMonthEmp.first_names}
+                    </DialogTitle>
                     <DialogDescription>
                       <span className="font-mono">{guardMonthEmp.employee_code}</span>
-                      {" · "}{guardMonthFetching ? "loading…" : `${guardMonthHours}h posted this month`}
+                      {" · "}
+                      {guardMonthFetching ? "loading…" : `${guardMonthHours}h posted this month`}
                     </DialogDescription>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={() => setGuardMonthCursor((c) => addMonths(c, -1))}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setGuardMonthCursor((c) => addMonths(c, -1))}
+                    >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <div className="font-mono text-sm font-semibold min-w-[140px] text-center">{guardMonthLabel}</div>
-                    <Button variant="outline" size="icon" onClick={() => setGuardMonthCursor((c) => addMonths(c, 1))}>
+                    <div className="font-mono text-sm font-semibold min-w-[140px] text-center">
+                      {guardMonthLabel}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setGuardMonthCursor((c) => addMonths(c, 1))}
+                    >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -1749,7 +2373,10 @@ function SchedulePage() {
               </DialogHeader>
               <div className="grid grid-cols-7 gap-1.5">
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                  <div key={d} className="text-center text-[10px] uppercase font-semibold text-muted-foreground tracking-wider py-1">
+                  <div
+                    key={d}
+                    className="text-center text-[10px] uppercase font-semibold text-muted-foreground tracking-wider py-1"
+                  >
                     {d}
                   </div>
                 ))}
@@ -1769,16 +2396,25 @@ function SchedulePage() {
                         "min-h-[68px] rounded-lg border p-1.5 flex flex-col gap-0.5",
                         inMonth ? "border-border" : "border-transparent opacity-35",
                         isToday && "ring-2 ring-accent ring-offset-1",
-                        st && inMonth && styles.block
+                        st && inMonth && styles.block,
                       )}
                     >
-                      <span className="text-[10px] font-semibold text-muted-foreground">{d.getDate()}</span>
+                      <span className="text-[10px] font-semibold text-muted-foreground">
+                        {d.getDate()}
+                      </span>
                       {st && inMonth && (
                         <>
-                          <span className={cn("text-[10px] font-bold uppercase truncate", styles.label)}>
+                          <span
+                            className={cn("text-[10px] font-bold uppercase truncate", styles.label)}
+                          >
                             {site?.code ?? site?.name ?? "—"}
                           </span>
-                          <span className={cn("text-[10px] font-semibold px-1 py-0.5 rounded self-start", styles.pill)}>
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold px-1 py-0.5 rounded self-start",
+                              styles.pill,
+                            )}
+                          >
                             {st.code} · {st.default_hours}h
                           </span>
                         </>
@@ -1788,7 +2424,9 @@ function SchedulePage() {
                 })}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setGuardMonthEmpId(null)}>Close</Button>
+                <Button variant="outline" onClick={() => setGuardMonthEmpId(null)}>
+                  Close
+                </Button>
               </DialogFooter>
             </>
           )}
@@ -1801,9 +2439,16 @@ function SchedulePage() {
           {customRequestDate && (
             <>
               <DialogHeader>
-                <DialogTitle>Custom request</DialogTitle>
+                <DialogTitle>Add extra coverage</DialogTitle>
                 <DialogDescription>
-                  {new Date(customRequestDate).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                  Add a one-off shift outside the site's normal required Day/Night coverage for
+                  {" "}
+                  {new Date(customRequestDate).toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
                   {" · "}one-off coverage outside the normal Day/Night pattern — e.g. an event.
                 </DialogDescription>
               </DialogHeader>
@@ -1814,9 +2459,15 @@ function SchedulePage() {
                     value={customRequest.siteId}
                     onValueChange={(v) => setCustomRequest((p) => ({ ...p, siteId: v }))}
                   >
-                    <SelectTrigger><SelectValue placeholder="Select a site…" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a site…" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {(sites ?? []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      {(sites ?? []).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1826,7 +2477,9 @@ function SchedulePage() {
                     <Input
                       type="time"
                       value={customRequest.startTime}
-                      onChange={(e) => setCustomRequest((p) => ({ ...p, startTime: e.target.value }))}
+                      onChange={(e) =>
+                        setCustomRequest((p) => ({ ...p, startTime: e.target.value }))
+                      }
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1841,19 +2494,42 @@ function SchedulePage() {
                 <div className="space-y-1.5">
                   <Label>Guards needed *</Label>
                   <Input
-                    type="number" min={1} step={1}
+                    type="number"
+                    min={1}
+                    step={1}
                     value={customRequest.guardsNeeded}
-                    onChange={(e) => setCustomRequest((p) => ({ ...p, guardsNeeded: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomRequest((p) => ({ ...p, guardsNeeded: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Reason for extra coverage *</Label>
+                  <Input
+                    value={customRequest.reason}
+                    onChange={(e) => setCustomRequest((p) => ({ ...p, reason: e.target.value }))}
+                    placeholder="e.g. Event, incident response, VIP visit"
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {customRequestHours(customRequest.startTime, customRequest.endTime)}h shift · cheapest eligible guards are assigned automatically, respecting the 60h weekly cap and rest-day rules.
+                  {customRequestHours(customRequest.startTime, customRequest.endTime)}h shift ·
+                  cheapest eligible guards are assigned automatically, respecting the 60h weekly cap
+                  and rest-day rules.
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setCustomRequestDate(null)}>Cancel</Button>
-                <Button onClick={submitCustomRequest} disabled={customRequestRunning || !customRequest.siteId}>
-                  {customRequestRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                <Button variant="ghost" onClick={() => setCustomRequestDate(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={submitCustomRequest}
+                  disabled={customRequestRunning || !customRequest.siteId || !customRequest.reason.trim()}
+                >
+                  {customRequestRunning ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4 mr-2" />
+                  )}
                   Generate
                 </Button>
               </DialogFooter>
@@ -1865,23 +2541,39 @@ function SchedulePage() {
   );
 }
 
-function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: React.ReactNode; label: string; tone?: "success" | "destructive" }) {
+function StatCard({
+  icon,
+  value,
+  label,
+  tone,
+}: {
+  icon: React.ReactNode;
+  value: React.ReactNode;
+  label: string;
+  tone?: "success" | "destructive";
+}) {
   return (
     <Card className="p-4 flex items-center gap-3">
-      <div className={cn(
-        "h-10 w-10 rounded-lg flex items-center justify-center",
-        tone === "success" ? "bg-success/15 text-success"
-          : tone === "destructive" ? "bg-destructive/15 text-destructive"
-          : "bg-accent/15 text-accent-foreground"
-      )}>
+      <div
+        className={cn(
+          "h-10 w-10 rounded-lg flex items-center justify-center",
+          tone === "success"
+            ? "bg-success/15 text-success"
+            : tone === "destructive"
+              ? "bg-destructive/15 text-destructive"
+              : "bg-accent/15 text-accent-foreground",
+        )}
+      >
         {icon}
       </div>
       <div>
-        <div className={cn(
-          "text-2xl font-extrabold leading-none",
-          tone === "success" && "text-success",
-          tone === "destructive" && "text-destructive"
-        )}>
+        <div
+          className={cn(
+            "text-2xl font-extrabold leading-none",
+            tone === "success" && "text-success",
+            tone === "destructive" && "text-destructive",
+          )}
+        >
           {value}
         </div>
         <div className="text-xs text-muted-foreground font-medium mt-1">{label}</div>
@@ -1893,11 +2585,13 @@ function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: 
 function Legend({ dot, label, border }: { dot: string; label: string; border?: boolean }) {
   return (
     <span className="flex items-center gap-1.5 font-medium">
-      <span className={cn(
-        "w-2.5 h-2.5 rounded",
-        dot,
-        border && "border-2 border-dashed border-muted-foreground/40"
-      )} />
+      <span
+        className={cn(
+          "w-2.5 h-2.5 rounded",
+          dot,
+          border && "border-2 border-dashed border-muted-foreground/40",
+        )}
+      />
       {label}
     </span>
   );

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
   if (!startDate || !endDate) return json({ error: "startDate and endDate are required." }, 400);
   const issue = body?.issue === true;
   const payPeriodId = body?.payPeriodId ?? null;
+  if (!payPeriodId) return json({ error: "payPeriodId is required for idempotent billing." }, 400);
 
   // Approved shift hours in range, scoped to the caller's tenant.
   let query = admin
@@ -114,18 +115,16 @@ Deno.serve(async (req) => {
     const hours = Number(summary.totalHours.toFixed(2));
     if (hours <= 0 || summary.rate <= 0) continue;
 
-    // Idempotent: skip if a non-void invoice already exists for this site + period
-    if (payPeriodId) {
-      const { data: existing } = await admin
-        .from("invoices")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("site_id", resolvedSiteId)
-        .eq("pay_period_id", payPeriodId)
-        .neq("status", "void")
-        .maybeSingle();
-      if (existing) continue;
-    }
+    // Idempotent: skip if a non-void invoice already exists for this site + period.
+    const { data: existing } = await admin
+      .from("invoices")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("site_id", resolvedSiteId)
+      .eq("pay_period_id", payPeriodId)
+      .neq("status", "void")
+      .maybeSingle();
+    if (existing) continue;
 
     // Create as draft, attach the line item (a trigger derives invoice.total),
     // then optionally issue — which posts the correct total to the ledger.

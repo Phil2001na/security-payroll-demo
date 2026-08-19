@@ -1,5 +1,67 @@
 # Updates
 
+## 2026-08-19
+
+### 02:45 - single package-manager lockfile established
+- Declared Bun 1.3.14 as the project package manager, updated the leave verification script to use Bun, and removed the stale tracked npm lockfile.
+- Added `package-lock.json` to ignores so installs and audit results remain reproducible from the Bun lockfile only.
+
+### 02:35 - per-receipt invoice ledger posting prepared
+- Added a migration that posts every new invoice payment to cash and AR/AP on its own receipt date, including partial payments.
+- Removed invoice-status-based payment posting for future receipts so full settlement cannot duplicate the per-receipt ledger entries. No production migration was applied.
+- Added a partial unique index enforcing one live AR invoice per tenant/site/pay period; it fails safely for manual review if historic duplicates exist.
+
+### 02:25 - edge-function CORS hardening prepared
+- Replaced wildcard edge-function CORS with a single `APP_ORIGIN` environment value for user, billing, invoice, AI, and payroll endpoints.
+- Deployment must set `APP_ORIGIN` to the canonical HTTPS frontend origin before these function changes are deployed; otherwise browser calls correctly fail closed.
+
+### 02:20 - Vercel browser security headers prepared
+- Added CSP, HSTS, anti-framing, MIME-sniffing, referrer, and permissions headers to the Vercel configuration while allowing the app's Google Fonts and Supabase HTTPS/WebSocket connections.
+- Configuration is prepared only; deploy-target confirmation is still required before it can affect production.
+
+### 02:15 - targeted dependency security updates prepared
+- Updated compatible TanStack, Vite, Supabase, and React-plugin dependencies and regenerated the Bun lockfile; production build still passes.
+- Reduced `bun audit` from 64 findings including one critical to 40 findings with no critical severity. Remaining findings require separately validated major-version or transitive-dependency upgrades.
+
+### 02:05 - auth redirect defense in depth prepared
+- Restricted the auth-page redirect query parameter to a single internal path, rejecting protocol-relative and external destinations before navigation.
+
+### 02:02 - field-supervisor authority narrowed
+- Restricted field supervisors to daily muster and incident flagging; leave and employment-exit workflows now remain management responsibilities.
+- Clarified the role in System Users as a muster-only Field Supervisor, and documented the dismissal chain as Payroll/Operations → Operations/Admin → distinct Operations/Admin.
+
+### 02:00 - server-authoritative payroll calculation prepared
+- Moved the deterministic payroll calculator away from browser-specific data access and added a `run-payroll` Edge Function that re-reads source records, calculates payroll server-side, and persists only those results.
+- Updated the Payroll page to call the Edge Function and added a migration revoking direct authenticated access to `replace_draft_payroll`; only `service_role` may persist payroll drafts. No deployment or production migration was applied.
+
+### 01:45 - payment, workflow, site-scope, and payroll-concurrency fixes prepared
+- Added a migration that serializes invoice-payment total checks, scopes security-supervisor discipline reports to their assigned sites, and removes direct employment-exit transition updates.
+- Added the same pay-period row lock used at payroll finalization before a draft payroll replacement can delete and recreate rows. No migration was applied to production.
+
+### 01:35 - AI privacy, billing idempotency, and provider-error hardening prepared
+- Added a tracked migration restoring owner-scoped executive AI policies; tenant members can no longer read or write another executive's AI sessions, messages, memories, or audit events.
+- Made billing require a pay period before generating invoices and removed raw Gemini/provider error text from client responses. No production changes were applied.
+
+### 01:25 - authorization fetch gating and invoice-PDF SSRF hardening prepared
+- Prevented Payroll and Invoices queries from running until the authenticated profile has a permitted role, keeping restricted payroll and invoice records out of the browser cache.
+- Restricted invoice logo fetching to HTTPS hosts explicitly allowlisted through `INVOICE_LOGO_ALLOWED_HOSTS`, with request timeout and 5 MB response limits. Deployment must set the allowlist before enabling logo downloads.
+
+### 01:15 - critical invited-user and profile privilege-escalation remediation prepared
+- Added a migration that stops the auth trigger from trusting client-controlled signup metadata for tenant or role assignment and blocks direct privilege/tenant changes on profiles.
+- Updated the admin user-creation function to use immutable Auth app metadata and removed the self-service role picker from onboarding. Changes are prepared only; no production migration or deployment was applied.
+
+### 01:14 - daily muster filtering and sorting
+- Added attendance-status filters and within-site sorting by guard name, needs marking, weekly hours, or monthly hours so supervisors can work through exceptions without bulk-marking everyone present.
+
+### 01:07 - roster coverage and assignment integrity
+- Split the Schedule coverage display into Day and Night counts, so an imbalance cannot masquerade as total coverage.
+- Manual assignment choices now explain and prevent conflicting work shifts; extra one-off coverage requires and records a reason.
+- Applied and verified production migration `20260818230341_roster_assignment_integrity`, enforcing one working shift per day, weekly rest, safe Night/Day transitions, and the weekly cap for every write path.
+
+### 00:45 - quieter roster quality guidance
+- Made the Schedule page's Roster rules exceptions collapsible and closed by default, so the roster stays focused while details remain available on demand.
+- Removed the visible off-day/weekly-cap policy copy; existing roster validation and the 60-hour save block remain unchanged.
+
 ## 2026-08-08
 
 ### 09:00 - client UAT walkthrough

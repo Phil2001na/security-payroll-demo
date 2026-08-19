@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -866,7 +866,7 @@ Deno.serve(async (req) => {
           readOnly: true,
           requestMetadata: { error: errText.slice(0, 500) },
         });
-        return jsonResponse({ error: "Gemini request failed.", details: errText }, 502);
+        return jsonResponse({ error: "The AI service is temporarily unavailable. Please try again shortly." }, 502);
       }
 
       const geminiJson = await geminiResp.json();
@@ -999,10 +999,10 @@ Deno.serve(async (req) => {
       retrieval_errors: retrievalErrors,
     });
   } catch (error) {
+    console.error("[erp-brain] Unexpected error", error);
     return jsonResponse(
       {
         error: "Unexpected error",
-        details: error instanceof Error ? error.message : String(error),
       },
       500,
     );

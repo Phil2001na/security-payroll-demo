@@ -131,7 +131,7 @@ function LeavePage() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const role = profile?.role;
-  const allowed = ["admin", "operations", "supervisor", "payroll", "security_supervisor"].includes(
+  const allowed = ["admin", "operations", "supervisor", "payroll"].includes(
     role ?? "",
   );
   const canApprove = ["admin", "operations", "payroll"].includes(role ?? "");

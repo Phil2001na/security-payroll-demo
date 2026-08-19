@@ -79,7 +79,7 @@ function SystemUsersPage() {
             <Users className="h-7 w-7 text-muted-foreground" /> System users
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage who can sign into the ERP. Supervisors only see data for sites you assign them.
+            Manage who can sign into the ERP. Field supervisors only see their assigned sites and use daily muster to record attendance and incidents.
           </p>
         </div>
         <AddUserDialog />
@@ -89,7 +89,7 @@ function SystemUsersPage() {
         <CardHeader>
           <CardTitle className="text-base">Roles</CardTitle>
           <CardDescription>
-            Use <strong>Add user</strong> to create an account directly — they sign in with the email and temporary password you set. Roles: <strong>admin</strong> (full control + user management), <strong>accountant</strong> (finance/invoicing), <strong>payroll</strong> (scheduling/attendance/payroll), <strong>operations</strong> (full org access), <strong>supervisor</strong> (attendance-only, scoped to assigned sites — marks attendance for payroll to verify), or <strong>viewer</strong> (read-only). Assign a supervisor's sites from the site card on{" "}
+            Use <strong>Add user</strong> to create an account directly — they sign in with the email and temporary password you set. Roles: <strong>admin</strong> (full control + user management), <strong>accountant</strong> (finance/invoicing), <strong>payroll</strong> (scheduling/attendance/payroll), <strong>operations</strong> (full org access), <strong>field supervisor</strong> (muster and incident flagging only, scoped to assigned sites), or <strong>viewer</strong> (read-only). Assign a field supervisor's sites from the site card on{" "}
             <Link to="/sites" className="underline underline-offset-2">Sites</Link>.
           </CardDescription>
         </CardHeader>
@@ -128,7 +128,7 @@ const ROLE_OPTIONS: { value: UserProfile["role"]; label: string }[] = [
   { value: "accountant", label: "Accountant" },
   { value: "payroll", label: "Payroll" },
   { value: "operations", label: "Operations" },
-  { value: "security_supervisor", label: "Supervisor" },
+  { value: "security_supervisor", label: "Field supervisor (muster only)" },
 ];
 
 function AddUserDialog() {
@@ -224,7 +224,7 @@ function AddUserDialog() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">For supervisor roles, assign sites afterwards from the site card on the Sites page.</p>
+            <p className="text-xs text-muted-foreground">For field supervisors, assign sites afterwards from the site card on the Sites page.</p>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={!canSubmit}>
@@ -270,7 +270,7 @@ function UserRow({
             <SelectItem value="accountant">Accountant</SelectItem>
             <SelectItem value="payroll">Payroll</SelectItem>
             <SelectItem value="operations">Operations</SelectItem>
-            <SelectItem value="security_supervisor">Supervisor</SelectItem>
+            <SelectItem value="security_supervisor">Field supervisor (muster only)</SelectItem>
             <SelectItem value="viewer">Viewer</SelectItem>
           </SelectContent>
         </Select>

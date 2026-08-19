@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -75,8 +75,8 @@ Deno.serve(async (req) => {
 
   const fullName = `${firstName} ${lastName}`.trim();
 
-  // Create the auth user. The `handle_new_user` trigger reads `invited_tenant_id`
-  // and attaches the profile to this tenant (no new company is provisioned).
+  // The trigger reads immutable app_metadata, not client-editable
+  // user_metadata, to attach the profile to this tenant and role.
   // `email_confirm: true` skips email verification.
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
     email_confirm: true,
     user_metadata: {
       full_name: fullName,
+    },
+    app_metadata: {
       invited_tenant_id: tenantId,
       invited_role: role,
     },

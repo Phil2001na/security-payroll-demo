@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -26,6 +26,27 @@ function fmtDate(d: string | null): string {
   const dd = String(dt.getUTCDate()).padStart(2, "0");
   const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
   return `${dd}/${mm}/${dt.getUTCFullYear()}`;
+}
+
+function isSafeLogoUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    // HTTPS avoids file and metadata schemes. Reject IP literals and local host
+    // names outright; deployments may additionally restrict hosts with the
+    // INVOICE_LOGO_ALLOWED_HOSTS comma-separated environment variable.
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return false;
+    const host = url.hostname.toLowerCase();
+    if (host === "localhost" || host.endsWith(".localhost") || /^[0-9a-f:.]+$/i.test(host)) return false;
+    const allowedHosts = (Deno.env.get("INVOICE_LOGO_ALLOWED_HOSTS") ?? "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+    // Fail closed until deployment supplies the approved image-hosting domains.
+    return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  } catch {
+    return false;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -147,12 +168,16 @@ Deno.serve(async (req) => {
 
   let logoDims: { w: number; h: number } | null = null;
   let logoImg: any = null;
-  if (t.logo_url) {
+  if (isSafeLogoUrl(t.logo_url)) {
     try {
-      const resp = await fetch(t.logo_url as string);
+      const resp = await fetch(t.logo_url, { signal: AbortSignal.timeout(5_000) });
+      if (!resp.ok) throw new Error("Logo request failed");
+      const contentLength = Number(resp.headers.get("content-length") ?? 0);
+      if (contentLength > 5_000_000) throw new Error("Logo exceeds size limit");
       const buf = new Uint8Array(await resp.arrayBuffer());
+      if (buf.byteLength > 5_000_000) throw new Error("Logo exceeds size limit");
       const ct = resp.headers.get("content-type") ?? "";
-      logoImg = ct.includes("png") || (t.logo_url as string).toLowerCase().endsWith(".png")
+      logoImg = ct.includes("png") || t.logo_url.toLowerCase().endsWith(".png")
         ? await pdf.embedPng(buf)
         : await pdf.embedJpg(buf);
       const scale = 64 / logoImg.height;
