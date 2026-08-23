@@ -78,7 +78,7 @@ function DashboardPage() {
             <div>
               <h2 className="font-display text-lg font-semibold">New here? Start with the guided workflow</h2>
               <p className="text-sm text-muted-foreground">
-                Seven ordered steps from constants → sites → employees → schedule → attendance → payroll.
+                Ordered steps from company setup → constants → sites → employees → team → schedule → attendance → leave → payroll, plus billing and equipment.
               </p>
             </div>
           </div>

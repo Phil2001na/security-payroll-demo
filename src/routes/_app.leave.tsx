@@ -49,6 +49,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { downloadCsv } from "@/lib/csv";
+import { cn } from "@/lib/utils";
 import {
   LEAVE_STATUS_LABEL,
   LEAVE_TYPE_LABEL,
@@ -68,6 +69,7 @@ type Employee = {
   surname: string;
   employee_code: string;
   status: string;
+  home_site_id: string | null;
 };
 type Balance = {
   employee_id: string;
@@ -120,11 +122,17 @@ type CycleRow = {
   cycle_end: string;
   leave_type: LeaveType;
   entitlement_units: number;
+  latest_leave_date: string | null;
   employees: Employee | null;
 };
 
 function nameOf(e: Employee | null | undefined) {
   return e ? `${e.surname}, ${e.first_names}` : "Unknown employee";
+}
+
+function isoDateAdd(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 function LeavePage() {
@@ -164,7 +172,7 @@ function LeavePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,first_names,surname,employee_code,status")
+        .select("id,first_names,surname,employee_code,status,home_site_id")
         .eq("status", "active")
         .order("surname");
       if (error) throw error;
@@ -240,7 +248,7 @@ function LeavePage() {
       const { data, error } = await supabase
         .from("leave_cycles")
         .select(
-          "id,cycle_start,cycle_end,leave_type,entitlement_units,employees:employee_id(id,first_names,surname,employee_code,status)",
+          "id,cycle_start,cycle_end,leave_type,entitlement_units,latest_leave_date,employees:employee_id(id,first_names,surname,employee_code,status)",
         )
         .gte("cycle_end", new Date().toISOString().slice(0, 10))
         .order("cycle_end");
@@ -248,6 +256,64 @@ function LeavePage() {
       return data as unknown as CycleRow[];
     },
   });
+  const { data: sites = [] } = useQuery({
+    queryKey: ["leave-sites", profile?.tenant_id],
+    enabled: canViewLedger && !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sites").select("id,name").eq("active", true);
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+  });
+
+  // UAT-12: proactive leave planner — who's due/overdue for annual leave, using UAT-11's
+  // statutory deadline (leave_cycles.latest_leave_date), their current balance, and a simple
+  // coverage-risk signal (how many other active guards share their home site). Suggests
+  // nothing and books nothing — manager decision stays entirely human.
+  const LEAVE_PLANNER_WINDOW_DAYS = 90;
+  const employeeById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
+  const siteById = useMemo(() => new Map(sites.map((s) => [s.id, s.name])), [sites]);
+  const homeSiteCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of employees) {
+      if (!e.home_site_id) continue;
+      counts.set(e.home_site_id, (counts.get(e.home_site_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [employees]);
+  const plannerRows = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const windowEnd = (() => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + LEAVE_PLANNER_WINDOW_DAYS);
+      return d.toISOString().slice(0, 10);
+    })();
+    return cycles
+      .filter((c) => c.leave_type === "annual" && c.latest_leave_date)
+      .filter((c) => c.latest_leave_date! <= windowEnd)
+      .map((c) => {
+        const emp = employeeById.get(c.employees?.id ?? "");
+        const balance = balanceFor(
+          balances.find((b) => b.employee_id === c.employees?.id),
+          "annual",
+        );
+        const siteName = emp?.home_site_id ? (siteById.get(emp.home_site_id) ?? null) : null;
+        const coworkers = emp?.home_site_id ? (homeSiteCounts.get(emp.home_site_id) ?? 1) - 1 : null;
+        const coverageRisk: "high" | "medium" | "low" | null =
+          coworkers === null ? null : coworkers <= 1 ? "high" : coworkers <= 3 ? "medium" : "low";
+        return {
+          cycleId: c.id,
+          employee: c.employees,
+          cycleEnd: c.cycle_end,
+          latestLeaveDate: c.latest_leave_date!,
+          overdue: c.latest_leave_date! < today,
+          balance,
+          siteName,
+          coverageRisk,
+        };
+      })
+      .sort((a, b) => a.latestLeaveDate.localeCompare(b.latestLeaveDate));
+  }, [cycles, employeeById, balances, siteById, homeSiteCounts]);
 
   const pending = requests.filter((r) => r.status === "submitted");
   const openCover = coverage.filter((c) => c.status === "open");
@@ -328,6 +394,7 @@ function LeavePage() {
         {canViewLedger && (
           <TabsContent value="ledger">
             <div className="space-y-4">
+              <LeavePlannerTable rows={plannerRows} />
               <CyclesTable rows={cycles} />
               <LedgerTable rows={ledger} />
             </div>
@@ -711,6 +778,107 @@ function BalancesTable({
   );
 }
 
+type PlannerRow = {
+  cycleId: string;
+  employee: Employee | null;
+  cycleEnd: string;
+  latestLeaveDate: string;
+  overdue: boolean;
+  balance: number | null;
+  siteName: string | null;
+  coverageRisk: "high" | "medium" | "low" | null;
+};
+
+const COVERAGE_RISK_LABEL: Record<"high" | "medium" | "low", string> = {
+  high: "High — few/no cover at site",
+  medium: "Medium",
+  low: "Low",
+};
+const COVERAGE_RISK_CLASS: Record<"high" | "medium" | "low", string> = {
+  high: "bg-destructive/15 text-destructive border-destructive/30",
+  medium: "bg-warning/15 text-warning border-warning/40",
+  low: "bg-success/15 text-success border-success/30",
+};
+
+function LeavePlannerTable({ rows }: { rows: PlannerRow[] }) {
+  const overdueCount = rows.filter((r) => r.overdue).length;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Leave planner — due &amp; overdue for annual leave</CardTitle>
+        <CardDescription>
+          Employees whose statutory annual-leave deadline (Labour Act s.23) is within 90 days
+          or already passed. Suggests nothing automatically — scheduling the leave remains a
+          manager decision.
+          {overdueCount > 0 && (
+            <span className="text-destructive font-medium">
+              {" "}
+              {overdueCount} already overdue.
+            </span>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Guard</TableHead>
+              <TableHead>Site</TableHead>
+              <TableHead>Cycle end</TableHead>
+              <TableHead>Must be taken by</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
+              <TableHead>Coverage risk</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  No one is due or overdue for annual leave in the next 90 days.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row) => (
+                <TableRow key={row.cycleId}>
+                  <TableCell>{nameOf(row.employee)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {row.siteName ?? "—"}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{row.cycleEnd}</TableCell>
+                  <TableCell
+                    className={cn(
+                      "font-mono text-xs font-semibold",
+                      row.overdue ? "text-destructive" : "text-amber-600",
+                    )}
+                  >
+                    {row.latestLeaveDate}
+                    {row.overdue ? " · overdue" : ""}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {row.balance !== null ? `${row.balance.toFixed(2)}d` : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {row.coverageRisk ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-[10px]", COVERAGE_RISK_CLASS[row.coverageRisk])}
+                      >
+                        {COVERAGE_RISK_LABEL[row.coverageRisk]}
+                      </Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
 function CyclesTable({ rows }: { rows: CycleRow[] }) {
   return (
     <Card>
@@ -727,29 +895,49 @@ function CyclesTable({ rows }: { rows: CycleRow[] }) {
               <TableHead>Guard</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Cycle</TableHead>
+              <TableHead>Leave must be taken by</TableHead>
               <TableHead className="text-right">Entitlement</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   No active cycle records yet.
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{nameOf(row.employees)}</TableCell>
-                  <TableCell>{LEAVE_TYPE_LABEL[row.leave_type]}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {row.cycle_start} — {row.cycle_end}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {Number(row.entitlement_units).toFixed(2)}d
-                  </TableCell>
-                </TableRow>
-              ))
+              rows.map((row) => {
+                const today = new Date().toISOString().slice(0, 10);
+                const overdue = !!row.latest_leave_date && row.latest_leave_date < today;
+                const dueSoon =
+                  !!row.latest_leave_date &&
+                  !overdue &&
+                  row.latest_leave_date <= isoDateAdd(today, 60);
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell>{nameOf(row.employees)}</TableCell>
+                    <TableCell>{LEAVE_TYPE_LABEL[row.leave_type]}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {row.cycle_start} — {row.cycle_end}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "font-mono text-xs",
+                        overdue && "text-destructive font-semibold",
+                        dueSoon && "text-amber-600 font-semibold",
+                      )}
+                    >
+                      {row.latest_leave_date
+                        ? `${row.latest_leave_date}${overdue ? " · overdue" : dueSoon ? " · due soon" : ""}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {Number(row.entitlement_units).toFixed(2)}d
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

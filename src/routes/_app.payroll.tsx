@@ -36,6 +36,7 @@ import {
   type ShiftLogRow,
 } from "@/lib/payroll-engine";
 import { fetchPayrollConstants } from "@/lib/payroll-data";
+import { downloadCsv } from "@/lib/csv";
 import type { Tables } from "@/integrations/supabase/types";
 import { buildABSACsv, buildPayslipPDF } from "@/lib/payslip-pdf";
 import { formatNAD, formatDate } from "@/lib/format";
@@ -675,6 +676,20 @@ function PayrollPage() {
                     <TableCell className="text-right">{c.overtime_hours.toFixed(1)}</TableCell>
                     <TableCell className="text-right">
                       {(c.sunday_hours + c.sunday_callin_hours + c.public_holiday_hours).toFixed(1)}
+                      {(c.sunday_hours > 0 ? 1 : 0) +
+                        (c.sunday_callin_hours > 0 ? 1 : 0) +
+                        (c.public_holiday_hours > 0 ? 1 : 0) >
+                        1 && (
+                        <div className="text-[10px] text-muted-foreground">
+                          {[
+                            c.sunday_hours > 0 && `${c.sunday_hours.toFixed(1)} Sun`,
+                            c.sunday_callin_hours > 0 && `${c.sunday_callin_hours.toFixed(1)} call-in`,
+                            c.public_holiday_hours > 0 && `${c.public_holiday_hours.toFixed(1)} PH`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">{formatNAD(c.gross_salary)}</TableCell>
                     <TableCell className="text-right">{formatNAD(c.paye_amount)}</TableCell>
@@ -702,6 +717,141 @@ function PayrollPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* UAT-16: employee-level Sunday/premium report for the selected period — who worked
+          rostered Sunday vs call-in relief vs public holiday, hours and the pay each earned,
+          so management can see an uneven distribution before staff complain (ties to #6's
+          fairness ranking on the Schedule page). */}
+      {calcs.length > 0 && (
+        <Card>
+          <details>
+            <summary className="p-4 flex items-center justify-between gap-3 cursor-pointer">
+              <div>
+                <div className="font-semibold text-sm">Sunday & premium report</div>
+                <div className="text-xs text-muted-foreground">
+                  Rostered Sunday, call-in Sunday and public-holiday hours/pay per guard for{" "}
+                  {period?.label ?? "this period"}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const rows = calcs
+                    .filter(
+                      (c) => c.sunday_hours + c.sunday_callin_hours + c.public_holiday_hours > 0,
+                    )
+                    .map((c) => ({
+                      employee_code: c.employee.employee_code,
+                      name: c.employee.display_name ?? `${c.employee.first_names} ${c.employee.surname}`,
+                      sunday_hours: c.sunday_hours,
+                      sunday_pay: c.sunday_amount,
+                      sunday_callin_hours: c.sunday_callin_hours,
+                      sunday_callin_pay: c.sunday_callin_amount,
+                      public_holiday_hours: c.public_holiday_hours,
+                      public_holiday_pay: c.public_holiday_amount,
+                      total_premium_pay: c.sunday_amount + c.sunday_callin_amount + c.public_holiday_amount,
+                    }));
+                  downloadCsv(`sunday-premium-report-${period?.label ?? "period"}.csv`, rows);
+                }}
+              >
+                <Download className="h-4 w-4 mr-1.5" /> Export CSV
+              </Button>
+            </summary>
+            <CardContent className="pt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead className="text-right">Sunday (rostered)</TableHead>
+                    <TableHead className="text-right">Sunday call-in</TableHead>
+                    <TableHead className="text-right">Public holiday</TableHead>
+                    <TableHead className="text-right">Total premium pay</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {calcs.filter(
+                    (c) => c.sunday_hours + c.sunday_callin_hours + c.public_holiday_hours > 0,
+                  ).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        No Sunday or public-holiday hours in this period.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    calcs
+                      .filter(
+                        (c) => c.sunday_hours + c.sunday_callin_hours + c.public_holiday_hours > 0,
+                      )
+                      .sort(
+                        (a, b) =>
+                          b.sunday_amount +
+                          b.sunday_callin_amount +
+                          b.public_holiday_amount -
+                          (a.sunday_amount + a.sunday_callin_amount + a.public_holiday_amount),
+                      )
+                      .map((c) => (
+                        <TableRow key={c.employee.id}>
+                          <TableCell>
+                            <div className="font-medium">
+                              {c.employee.display_name ??
+                                `${c.employee.first_names} ${c.employee.surname}`}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {c.employee.employee_code}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {c.sunday_hours > 0 ? (
+                              <>
+                                {c.sunday_hours.toFixed(1)}h
+                                <div className="text-xs text-muted-foreground">
+                                  {formatNAD(c.sunday_amount)}
+                                </div>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {c.sunday_callin_hours > 0 ? (
+                              <>
+                                {c.sunday_callin_hours.toFixed(1)}h
+                                <div className="text-xs text-muted-foreground">
+                                  {formatNAD(c.sunday_callin_amount)}
+                                </div>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {c.public_holiday_hours > 0 ? (
+                              <>
+                                {c.public_holiday_hours.toFixed(1)}h
+                                <div className="text-xs text-muted-foreground">
+                                  {formatNAD(c.public_holiday_amount)}
+                                </div>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatNAD(
+                              c.sunday_amount + c.sunday_callin_amount + c.public_holiday_amount,
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </details>
+        </Card>
+      )}
     </div>
   );
 }

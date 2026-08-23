@@ -439,6 +439,55 @@ function SchedulePage() {
     },
   });
 
+  // Fairness history (#6): how many Sunday day-shift ("premium") opportunities each guard
+  // has already had recently, across every site — so auto-fill/generate can prefer whoever
+  // hasn't had one lately instead of defaulting back to the same familiar guard. Ranking
+  // signal only, not a hard cap — the exact policy window and any hard block are UAT-07,
+  // still pending a client/legal decision on the cap itself.
+  const PREMIUM_HISTORY_DAYS = 90;
+  const premiumHistoryStart = fmtIso(addDays(weekStart, -PREMIUM_HISTORY_DAYS));
+  const { data: premiumHistory } = useQuery<Assignment[]>({
+    queryKey: ["premium-history", profile?.tenant_id, premiumHistoryStart, rangeStart],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("schedule_assignments")
+        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
+        .gte("date", premiumHistoryStart)
+        .lt("date", rangeStart);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // UAT-10: recurring shortages over the trailing 30 days, across every site — the Ops/HR
+  // register of coverage the scheduler couldn't fill with a compliant guard.
+  const SHORTAGE_REPORT_DAYS = 30;
+  const { data: recentShortages } = useQuery<
+    {
+      id: string;
+      site_id: string;
+      shortage_date: string;
+      shift_kind: "day" | "night";
+      required_count: number;
+      unmet_count: number;
+      failed_eligibility: { employeeId: string; employeeName: string; reason: string }[];
+    }[]
+  >({
+    queryKey: ["schedule-shortages", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const since = fmtIso(addDays(new Date(), -SHORTAGE_REPORT_DAYS));
+      const { data, error } = await supabase
+        .from("schedule_shortages")
+        .select("id, site_id, shortage_date, shift_kind, required_count, unmet_count, failed_eligibility")
+        .gte("shortage_date", since)
+        .order("shortage_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // One guard's full month, across every site — for the "view guard month" modal
   const guardMonthWeeks = useMemo(() => monthCalendarWeeks(guardMonthCursor), [guardMonthCursor]);
   const guardMonthFrom = fmtIso(guardMonthWeeks[0][0]);
@@ -706,6 +755,7 @@ function SchedulePage() {
       required: number;
       have: number;
       short: number;
+      failedEligibility: { employeeId: string; employeeName: string; reason: string }[];
     }[];
     newAssignments: {
       employee_id: string;
@@ -760,6 +810,16 @@ function SchedulePage() {
       if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
       return null;
     };
+
+    // Fairness (#6): how many Sunday day-shift ("premium") slots each guard has already
+    // worked in the trailing window — used only to rank candidates for a fresh premium
+    // slot, never to exclude anyone (that would be UAT-07's still-undecided hard cap).
+    const premiumOpportunityCount = new Map<string, number>();
+    for (const a of premiumHistory ?? []) {
+      if (new Date(a.date + "T00:00:00Z").getUTCDay() !== 0) continue;
+      if (effectiveKind(a.shift_type_id) !== "day") continue;
+      premiumOpportunityCount.set(a.employee_id, (premiumOpportunityCount.get(a.employee_id) ?? 0) + 1);
+    }
 
     const empDates = new Map<string, Set<string>>();
     const empWeekHours = new Map<string, number>(); // key: `${empId}|${weekKey}`
@@ -914,6 +974,27 @@ function SchedulePage() {
                 return false;
               return true;
             });
+          // UAT-08/UAT-10: when a slot ends up short, name why each active-but-unavailable
+          // guard was excluded — mirrors buildPool's own checks so the reason always matches
+          // the actual exclusion, not a guess.
+          const diagnoseIneligible = (emp: (typeof employees)[number]): string | null => {
+            if (empDates.get(emp.id)?.has(wd.date)) return "Already rostered elsewhere that day";
+            const hrs = empWeekHours.get(`${emp.id}|${wkKey}`) ?? 0;
+            if (hrs + shiftHours > WEEKLY_HOUR_CAP) return "Would exceed the 60-hour weekly cap";
+            const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
+            if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return "Already worked the weekly rest limit";
+            if (
+              kind === "day" &&
+              empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, -1)}`) === "night"
+            )
+              return "Night shift the previous day ends too close to this Day shift";
+            if (
+              kind === "night" &&
+              empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, 1)}`) === "day"
+            )
+              return "Would leave insufficient rest before next day's Day shift";
+            return null;
+          };
           const sortPool = (arr: typeof employees) =>
             arr.sort((a, b) => {
               // 1. Grade fit vs the site's requirement — quality-of-fit outranks cost
@@ -922,15 +1003,24 @@ function SchedulePage() {
               const aFit = gradeFitScore(a.literacy_grade, site.required_guard_grade);
               const bFit = gradeFitScore(b.literacy_grade, site.required_guard_grade);
               if (aFit !== bFit) return aFit - bFit;
-              // 2. Home site preference (logistics/familiarity)
+              // 2. Fairness (#6): for a Sunday day ("premium") slot only, prefer whoever has
+              //    had fewer of these recently over the familiar/previously-used guard. Not a
+              //    hard cap or exclusion — that's UAT-07, still pending a client decision on
+              //    the exact policy window.
+              if (isSunday && kind === "day") {
+                const aPrem = premiumOpportunityCount.get(a.id) ?? 0;
+                const bPrem = premiumOpportunityCount.get(b.id) ?? 0;
+                if (aPrem !== bPrem) return aPrem - bPrem;
+              }
+              // 3. Home site preference (logistics/familiarity)
               const aHome = a.home_site_id === site.id ? 0 : 1;
               const bHome = b.home_site_id === site.id ? 0 : 1;
               if (aHome !== bHome) return aHome - bHome;
-              // 3. Shift preference specificity (avoids no-shows)
+              // 4. Shift preference specificity (avoids no-shows)
               const aSpec = a.preferred_shift === kind ? 1 : 0;
               const bSpec = b.preferred_shift === kind ? 1 : 0;
               if (aSpec !== bSpec) return bSpec - aSpec;
-              // 4. Cheapest guard for this specific shift (cost optimisation)
+              // 5. Cheapest guard for this specific shift (cost optimisation)
               const aCost = estimateShiftCost(
                 a.hourly_rate,
                 shiftHours,
@@ -948,7 +1038,7 @@ function SchedulePage() {
                 SCHED_CONSTANTS,
               );
               if (Math.abs(aCost - bCost) > 0.01) return aCost - bCost;
-              // 5. Keep each guard's work in blocks (#11): among guards who cost the same,
+              // 6. Keep each guard's work in blocks (#11): among guards who cost the same,
               //    prefer one who already works the day before or after. Work that runs in
               //    blocks leaves rest days that fall together, which is the only way to get
               //    paired off days out of a coverage-driven fill. Placed after cost on
@@ -959,7 +1049,7 @@ function SchedulePage() {
               const aAdj = adjacent(a.id),
                 bAdj = adjacent(b.id);
               if (aAdj !== bAdj) return bAdj - aAdj;
-              // 6. Load-balance tie-break
+              // 7. Load-balance tie-break
               return (
                 (empWeekHours.get(`${a.id}|${wkKey}`) ?? 0) -
                 (empWeekHours.get(`${b.id}|${wkKey}`) ?? 0)
@@ -1007,6 +1097,15 @@ function SchedulePage() {
           assignFrom(sortPool(buildPool(true)), false);
           if (assigned < needed) assignFrom(sortPool(buildPool(false)), true);
           if (assigned < needed) {
+            const failedEligibility = employees
+              .filter((emp) => emp.status === "active")
+              .map((emp) => ({ emp, reason: diagnoseIneligible(emp) }))
+              .filter((r): r is { emp: (typeof employees)[number]; reason: string } => r.reason !== null)
+              .map((r) => ({
+                employeeId: r.emp.id,
+                employeeName: `${r.emp.surname}, ${r.emp.first_names}`,
+                reason: r.reason,
+              }));
             plan.shortfalls.push({
               siteId: site.id,
               date: wd.date,
@@ -1014,6 +1113,7 @@ function SchedulePage() {
               required,
               have,
               short: needed - assigned,
+              failedEligibility,
             });
             plan.unassignable += needed - assigned;
           }
@@ -1024,6 +1124,30 @@ function SchedulePage() {
   }
 
   const [autoFilling, setAutoFilling] = useState(false);
+  // UAT-10: persist every unfillable slot from a fill attempt so Operations/HR has a
+  // reportable register instead of a toast that disappears. Best-effort — a failure here
+  // must never block the actual roster fill that already succeeded.
+  async function recordShortages(plan: FillPlan) {
+    if (!profile?.tenant_id || plan.shortfalls.length === 0) return;
+    try {
+      const rows = plan.shortfalls.map((s) => ({
+        tenant_id: profile.tenant_id,
+        site_id: s.siteId,
+        shortage_date: s.date,
+        shift_kind: s.kind,
+        required_count: s.required,
+        unmet_count: s.short,
+        failed_eligibility: s.failedEligibility,
+        attempted_by: profile.id,
+      }));
+      const { error } = await supabase.from("schedule_shortages").insert(rows);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["schedule-shortages"] });
+    } catch (err) {
+      console.error("Failed to record schedule shortages", err);
+    }
+  }
+
   async function autoFillRoster() {
     if (!profile?.tenant_id) return;
     const plan = buildFillPlan(days);
@@ -1054,6 +1178,7 @@ function SchedulePage() {
       if (plan.unassignable > 0 || plan.preferenceOverrides > 0 || plan.qualityWarnings.length > 0)
         toast.warning(msg);
       else toast.success(msg);
+      await recordShortages(plan);
       await Promise.all([
         refetchAssignments(),
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
@@ -1074,6 +1199,7 @@ function SchedulePage() {
       employees,
       requirements,
       weekAssignments,
+      premiumHistory,
       edits,
       autoShiftTypes,
       shiftTypeById,
@@ -1133,11 +1259,12 @@ function SchedulePage() {
     try {
       const plan = buildFillPlan(rangeDays);
       if (plan.newAssignments.length === 0) {
-        toast.info(
-          plan.shortfalls.length > 0
-            ? "No eligible guards available to fill the gaps in this range."
-            : "Nothing to generate — requirements already met or none set for this range.",
-        );
+        if (plan.shortfalls.length > 0) {
+          await recordShortages(plan);
+          toast.info("No eligible guards available to fill the gaps in this range.");
+        } else {
+          toast.info("Nothing to generate — requirements already met or none set for this range.");
+        }
         return;
       }
       const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
@@ -1157,6 +1284,7 @@ function SchedulePage() {
           : "");
       if (plan.unassignable > 0 || plan.preferenceOverrides > 0) toast.warning(msg);
       else toast.success(msg);
+      await recordShortages(plan);
       setWeekStart(startOfWeek(rangeDays[0]));
       await Promise.all([
         refetchAssignments(),
@@ -1967,6 +2095,72 @@ function SchedulePage() {
               Minimum {MIN_OFF_DAYS_PER_PERIOD} off days per period; off days should fall in
               consecutive pairs where coverage allows. The 60-hour weekly cap is enforced separately
               and blocks saving.
+            </div>
+          </details>
+        </Card>
+      )}
+
+      {/* Shortage register (#10/#8): every slot the scheduler couldn't fill with a
+          compliant guard, over the trailing 30 days — the recurring-gap signal Operations/HR
+          use to justify recruitment rather than overworking whoever's available. */}
+      {recentShortages && recentShortages.length > 0 && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <details>
+            <summary className="p-3 flex items-center gap-2 cursor-pointer">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <div className="text-sm font-semibold">
+                Coverage shortages · last {SHORTAGE_REPORT_DAYS} days
+                <span className="font-normal text-muted-foreground">
+                  {" · "}
+                  {recentShortages.length} unfilled slot{recentShortages.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            </summary>
+            <div className="p-3 space-y-2 max-h-64 overflow-y-auto text-xs">
+              {Object.entries(
+                recentShortages.reduce<Record<string, typeof recentShortages>>((acc, s) => {
+                  const key = `${s.site_id}|${s.shift_kind}`;
+                  (acc[key] ??= []).push(s);
+                  return acc;
+                }, {}),
+              )
+                .sort((a, b) => b[1].length - a[1].length)
+                .map(([key, rows]) => {
+                  const [siteId, kind] = key.split("|");
+                  const site = sites?.find((s) => s.id === siteId);
+                  const totalUnmet = rows.reduce((sum, r) => sum + r.unmet_count, 0);
+                  return (
+                    <div key={key} className="border rounded p-2 bg-background">
+                      <div className="flex items-center justify-between gap-3 font-medium">
+                        <span>
+                          {site?.name ?? "Unknown site"} · {kind === "day" ? "Day" : "Night"}
+                        </span>
+                        <Badge variant="destructive" className="text-[10px] h-5 shrink-0">
+                          {rows.length} occurrence{rows.length === 1 ? "" : "s"} · {totalUnmet}{" "}
+                          guard{totalUnmet === 1 ? "" : "s"} short
+                        </Badge>
+                      </div>
+                      <div className="mt-1 space-y-0.5 text-muted-foreground">
+                        {rows.slice(0, 5).map((r) => (
+                          <div key={r.id}>
+                            {r.shortage_date} — {r.unmet_count}/{r.required_count} unfilled
+                            {r.failed_eligibility.length > 0 && (
+                              <span>
+                                {" "}
+                                (
+                                {Array.from(new Set(r.failed_eligibility.map((f) => f.reason))).join(
+                                  "; ",
+                                )}
+                                )
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {rows.length > 5 && <div>+{rows.length - 5} more</div>}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </details>
         </Card>
