@@ -33,8 +33,10 @@ import {
   type PayrollConstants,
   type AdhocDeductionRow,
   type DisciplinaryRow,
+  type PayrollCalculationBreakdown,
   type ShiftLogRow,
 } from "@/lib/payroll-engine";
+import type { SundayPayBasis } from "@/lib/sunday-consent";
 import { fetchPayrollConstants } from "@/lib/payroll-data";
 import { downloadCsv } from "@/lib/csv";
 import type { Tables } from "@/integrations/supabase/types";
@@ -51,6 +53,15 @@ import {
 } from "@/lib/disciplinary";
 import { APPROVAL_LABELS, approvalBadgeClass, type ApprovalStatus } from "@/lib/approvals";
 import { AccessDenied } from "@/components/access-denied";
+import { PayrollSegmentBreakdown } from "@/components/payroll-segment-breakdown";
+import { SundayBaseRateCard } from "@/components/sunday-base-rate-card";
+import {
+  acknowledgementOf,
+  buildSundayRateValidation,
+  ordinaryRateSamples,
+  useSundayBaseRate,
+} from "@/lib/sunday-rate-period";
+import { sundayRateSubmissionBlock } from "@/lib/sunday-rate";
 
 export const Route = createFileRoute("/_app/payroll")({
   component: PayrollPage,
@@ -98,6 +109,42 @@ function payrollRunToCalc(pr: PayrollRunWithEmployee): PayslipCalc {
     warnings: Array.isArray(pr.compliance_warnings)
       ? pr.compliance_warnings.filter((value): value is string => typeof value === "string")
       : [],
+    // Read back from the stored breakdown rather than recomputed, so redisplaying a
+    // finalized period never rewrites what it was actually paid at.
+    ...sundayFieldsOf(pr),
+  };
+}
+
+// The Sunday basis and segment breakdown as they were saved with the run. Older rows
+// predate the breakdown column and read back as an empty one.
+function sundayFieldsOf(pr: PayrollRunWithEmployee) {
+  const stored = (pr.calculation_breakdown ?? {}) as Partial<PayrollCalculationBreakdown>;
+  const basis: SundayPayBasis = stored.sunday_basis ?? "contract_agreed_1_5x";
+  const rate = Number(pr.rate_per_hour) || 0;
+  return {
+    sunday_basis: basis,
+    sunday_consent_verified: stored.sunday_consent_verified ?? true,
+    sunday_multiplier_applied: stored.sunday_multiplier_applied ?? 1.5,
+    sunday_base_rate: stored.sunday_base_rate ?? rate,
+    sunday_base_rate_source: stored.sunday_base_rate_source ?? ("employee_ordinary_rate" as const),
+    breakdown: {
+      boundary_mode: stored.boundary_mode ?? "midnight_split",
+      sunday_basis: basis,
+      sunday_consent_verified: stored.sunday_consent_verified ?? true,
+      sunday_consent_evidence: stored.sunday_consent_evidence ?? "none",
+      sunday_consent_reasons: stored.sunday_consent_reasons ?? [],
+      sunday_multiplier_applied: stored.sunday_multiplier_applied ?? 1.5,
+      sunday_callin_multiplier_applied: stored.sunday_callin_multiplier_applied ?? 2,
+      sunday_base_rate: stored.sunday_base_rate ?? rate,
+      sunday_base_rate_source:
+        stored.sunday_base_rate_source ?? ("employee_ordinary_rate" as const),
+      segments: stored.segments ?? [],
+      segment_integrity: stored.segment_integrity ?? {
+        stored_minutes: 0,
+        segment_minutes: 0,
+        balanced: true,
+      },
+    } satisfies PayrollCalculationBreakdown,
   };
 }
 
@@ -513,6 +560,21 @@ function PayrollPage() {
   const isLocked = period?.status === "locked" || period?.status === "paid";
   const vetLevy = calcs.length && constants ? calcVETLevy(summary.gross, constants) : 0;
 
+  // UAT decisions #5/#6 — the manually entered Sunday base rate, its validation against the
+  // ordinary rate this run calculated, and whether an authorised user has taken any
+  // difference on the record. The same numbers drive the card and the Finalize button, so
+  // the two can't disagree. The database enforces the gate independently.
+  const { data: sundayRateRow } = useSundayBaseRate(periodId || undefined);
+  const ordinaryRates = useMemo(() => ordinaryRateSamples(calcs), [calcs]);
+  const sundayRateValidation = useMemo(
+    () => buildSundayRateValidation(sundayRateRow ?? null, ordinaryRates),
+    [sundayRateRow, ordinaryRates],
+  );
+  const sundayRateBlock = sundayRateSubmissionBlock({
+    comparison: sundayRateValidation,
+    acknowledgement: acknowledgementOf(sundayRateRow ?? null),
+  });
+
   if (!hasPayrollAccess) {
     return <AccessDenied message="Payroll access is restricted to payroll and operations staff." />;
   }
@@ -524,7 +586,9 @@ function PayrollPage() {
           <h1 className="text-2xl font-bold tracking-tight">Payroll</h1>
           <p className="text-sm text-muted-foreground">
             Gross-to-net engine — industry-standard rates. Ordinary ≤60h/wk @1×, OT 1.5×, rostered
-            Sunday 1.5× by contract, Sunday replacement call-in 2×, public holiday 2×.
+            Sunday 1.5× where the standing contract consent is on file (2× where it is not), Sunday
+            replacement call-in 2×, public holiday 2×. A shift crossing midnight stays one roster
+            record and is paid segment by segment.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -559,6 +623,15 @@ function PayrollPage() {
       )}
 
       <UnsignedNotice />
+
+      <SundayBaseRateCard
+        periodId={periodId || undefined}
+        isLocked={isLocked}
+        role={role}
+        ordinaryRates={ordinaryRates}
+        validation={sundayRateValidation}
+        row={sundayRateRow ?? null}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <SummaryCard label="Total Gross" value={formatNAD(summary.gross)} />
@@ -622,8 +695,18 @@ function PayrollPage() {
             <Button
               size="sm"
               onClick={() => finalizeMut.mutate()}
-              disabled={!calcs.length || finalizeMut.isPending || isLocked || !canRunPayroll}
-              title={!canRunPayroll ? "Only the payroll role can finalize payroll" : undefined}
+              disabled={
+                !calcs.length ||
+                finalizeMut.isPending ||
+                isLocked ||
+                !canRunPayroll ||
+                !!sundayRateBlock
+              }
+              title={
+                !canRunPayroll
+                  ? "Only the payroll role can finalize payroll"
+                  : (sundayRateBlock ?? undefined)
+              }
             >
               <Lock className="h-4 w-4 mr-2" />
               Finalize &amp; Lock
@@ -683,13 +766,15 @@ function PayrollPage() {
                         <div className="text-[10px] text-muted-foreground">
                           {[
                             c.sunday_hours > 0 && `${c.sunday_hours.toFixed(1)} Sun`,
-                            c.sunday_callin_hours > 0 && `${c.sunday_callin_hours.toFixed(1)} call-in`,
+                            c.sunday_callin_hours > 0 &&
+                              `${c.sunday_callin_hours.toFixed(1)} call-in`,
                             c.public_holiday_hours > 0 && `${c.public_holiday_hours.toFixed(1)} PH`,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                         </div>
                       )}
+                      <PayrollSegmentBreakdown calc={c} />
                     </TableCell>
                     <TableCell className="text-right">{formatNAD(c.gross_salary)}</TableCell>
                     <TableCell className="text-right">{formatNAD(c.paye_amount)}</TableCell>
@@ -744,14 +829,17 @@ function PayrollPage() {
                     )
                     .map((c) => ({
                       employee_code: c.employee.employee_code,
-                      name: c.employee.display_name ?? `${c.employee.first_names} ${c.employee.surname}`,
+                      name:
+                        c.employee.display_name ??
+                        `${c.employee.first_names} ${c.employee.surname}`,
                       sunday_hours: c.sunday_hours,
                       sunday_pay: c.sunday_amount,
                       sunday_callin_hours: c.sunday_callin_hours,
                       sunday_callin_pay: c.sunday_callin_amount,
                       public_holiday_hours: c.public_holiday_hours,
                       public_holiday_pay: c.public_holiday_amount,
-                      total_premium_pay: c.sunday_amount + c.sunday_callin_amount + c.public_holiday_amount,
+                      total_premium_pay:
+                        c.sunday_amount + c.sunday_callin_amount + c.public_holiday_amount,
                     }));
                   downloadCsv(`sunday-premium-report-${period?.label ?? "period"}.csv`, rows);
                 }}

@@ -10,6 +10,7 @@ import {
   type PayrollConstants,
   type ShiftLogRow,
 } from "../../../src/lib/payroll-engine.ts";
+import { sundayBoundaryModeFromCode } from "../../../src/lib/shift-segments.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "",
@@ -66,7 +67,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (periodErr || !period) return json({ error: "Open payroll period not found." }, 404);
 
-  const [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes] = await Promise.all([
+  const [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes, sundayRateRes] = await Promise.all([
     admin.from("payroll_constants").select("key,value").eq("tenant_id", tenantId),
     admin.from("paye_brackets").select("lower_bound,upper_bound,base_tax,marginal_rate").eq("tenant_id", tenantId).order("lower_bound"),
     admin.from("employees").select("*").eq("tenant_id", tenantId).eq("status", "active"),
@@ -77,8 +78,16 @@ Deno.serve(async (req) => {
     admin.from("public_holidays").select("date").eq("tenant_id", tenantId),
     admin.from("schedule_assignments").select("employee_id,date,leave_request_day_id,shift_types(pay_rule)").eq("tenant_id", tenantId).gte("date", period.start_date).lte("date", period.end_date),
     admin.from("tenants").select("night_premium_enabled").eq("id", tenantId).maybeSingle(),
+    // Sunday base rate payroll entered by hand for this period (UAT decision #5). Absent
+    // means Sunday hours are based on each employee's own ordinary rate, as before.
+    admin
+      .from("payroll_sunday_rates")
+      .select("sunday_base_rate")
+      .eq("tenant_id", tenantId)
+      .eq("pay_period_id", periodId)
+      .maybeSingle(),
   ]);
-  const results = [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes];
+  const results = [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes, sundayRateRes];
   const failed = results.find((result) => result.error);
   if (failed?.error) {
     console.error("[run-payroll] Source query failed", failed.error);
@@ -102,6 +111,13 @@ Deno.serve(async (req) => {
     weekly_ordinary_cap: constantMap.get("weekly_ordinary_cap") ?? 60,
     periods_per_year: constantMap.get("periods_per_year") ?? 12,
   };
+  // Configured Sunday boundary interpretation (UAT decision #1). An absent or unknown code
+  // resolves to the midnight split the engine has always used.
+  const sundayBoundaryMode = sundayBoundaryModeFromCode(constantMap.get("sunday_boundary_mode"));
+  const sundayBaseRate =
+    sundayRateRes.data?.sunday_base_rate == null
+      ? null
+      : Number(sundayRateRes.data.sunday_base_rate);
   const brackets: PayeBracket[] = (bracketsRes.data ?? []).map((row) => ({
     lower_bound: Number(row.lower_bound), upper_bound: row.upper_bound == null ? null : Number(row.upper_bound),
     base_tax: Number(row.base_tax), marginal_rate: Number(row.marginal_rate),
@@ -148,6 +164,8 @@ Deno.serve(async (req) => {
     publicHolidayDates,
     rosteredDays: rosteredDaysByEmployee.get(employee.id)?.size ?? 0,
     nightPremiumEnabled: tenantRes.data?.night_premium_enabled ?? true,
+    sundayBoundaryMode,
+    sundayBaseRate,
     constants,
     brackets,
   }));
@@ -168,6 +186,8 @@ Deno.serve(async (req) => {
       consensual_deductions: round2(calculation.consensual_deductions + calculation.fine_deductions),
       total_deductions: calculation.total_deductions, net_salary: calculation.net_salary,
       compliance_warnings: calculation.warnings,
+      // Internal segments, Sunday basis and the segment-integrity proof (decisions #2, #8).
+      calculation_breakdown: calculation.breakdown,
     }));
   const { error: saveErr } = await admin.rpc("replace_draft_payroll", { p_period: period.id, p_rows: rows });
   if (saveErr) {

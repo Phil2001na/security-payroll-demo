@@ -21,6 +21,7 @@ bun run dev
 bun run build
 bun run lint
 bun run format
+bun run test          # bun's runner; specs in tests/ (payroll segmentation, Sunday rules)
 ```
 
 ## Data model & security — read before touching RLS/roles
@@ -35,7 +36,12 @@ bun run format
   `role`/`is_ceo_executive`/`is_active`/`tenant_id` after onboarding — don't "fix" a permission
   issue by relaxing this; it closes a privilege-escalation hole.
 - Payroll lock/finalize RPCs (`replace_draft_payroll`, `finalize_payroll_period`) accept `admin`
-  as a fallback alongside `payroll`.
+  as a fallback alongside `payroll`. `finalize_payroll_period` also refuses to lock a period
+  whose manually entered Sunday base rate differs from the calculated ordinary rate and has not
+  been acknowledged — see `SUNDAY_CALCULATION.md`.
+- Sunday pay: the reduced 1.5× applies only where the standing contract consent is verifiable;
+  otherwise the statutory 2× applies. A shift crossing midnight stays ONE roster/attendance
+  record and is split into segments for calculation only — never into two shifts.
 - `erp-brain` is a Supabase Edge Function (Gemini-backed AI assistant: PDF/Excel/chart
   generation). Its `GEMINI_API_KEY`/`GEMINI_MODEL` are Supabase secrets, not repo env vars.
 - Before shipping any RLS/policy/grant change: check Supabase security advisors
@@ -50,5 +56,7 @@ bun run format
 ## Conventions
 
 - Log every meaningful change to `UPDATES.md` — newest entry at top.
+- Payroll rules that carry a legal interpretation are configuration, not constants, and the
+  reasoning lives in a dated design doc (`SUNDAY_CALCULATION.md`, `LEAVE_CALCULATION.md`).
 - This has real tenant data (UAT completed 2026-07-03) — treat schema/RLS changes with the same
   care as a live production system, not a demo.

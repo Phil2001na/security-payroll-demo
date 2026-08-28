@@ -1,5 +1,55 @@
 # Updates
 
+## 2026-08-28
+
+### Sunday boundary, midnight-crossing segmentation, and Sunday rate control (UAT decisions)
+- Implemented the confirmed business decisions from the security/payroll UAT. Full design
+  record, including the open legal questions, in `SUNDAY_CALCULATION.md`.
+- **Midnight-crossing shifts stay one record.** New `src/lib/shift-segments.ts` splits a
+  stored shift internally at midnight (and therefore at the Sunday / public-holiday
+  boundary) purely for calculation. No second roster or attendance row is ever created. The
+  client's worked example — one Saturday 18:00→Sunday 06:00 shift — now pays
+  `6 × rate + 6 × 1.5 × rate` from two internal segments, and the segments are exposed in the
+  payroll breakdown and stored on the run for audit.
+- **Sunday boundary rule is configurable**, not hardcoded: new `sunday_boundary_mode`
+  payroll constant — `0` split at midnight (seeded default, exactly today's behaviour),
+  `1` majority-of-shift per s.21(8), `2` whole shift follows its start day. The mode resolves
+  a 6/6 tie itself (highest-rate day) so there is no separate tie-breaker to configure.
+- **Sunday 1.5× now needs a basis on file** (`src/lib/sunday-consent.ts`). Standing signed
+  consent in the employment contract is sufficient — no per-shift consent action — but where
+  it is missing, unsigned or unverifiable the calculation falls back to the statutory 2×,
+  payroll still runs, and the reason is on the payslip and in the audit trail.
+  **Behaviour change / conflict:** the engine previously applied 1.5× to every rostered
+  Sunday for every employee regardless of `ordinarily_works_sundays` or any consent record.
+  Check `employees.contract_signed_at` and `ordinarily_works_sundays` are populated before
+  the first run after this ships — see `SUNDAY_CALCULATION.md`.
+- **Manual Sunday base rate per pay period** (`payroll_sunday_rates` + Payroll screen card).
+  Validated against the ordinary rate the run calculated; a difference warns and identifies
+  itself but never blocks on its own. An *unacknowledged* difference does hold finalization,
+  and only the payroll/admin roles can acknowledge — enforced by
+  `acknowledge_sunday_rate_variance` (SECURITY DEFINER, role-checked), by the table having no
+  write RLS policy at all, and re-checked inside `finalize_payroll_period`. The
+  acknowledgement records actor, timestamp, both rate values and an optional reason, and
+  writes an explicit `audit_events` row.
+- **Working-time rules extracted, unchanged**: the 60h weekly cap, one-shift-per-date, the
+  six-workday rest rule and the Night/Day conflict checks moved out of
+  `src/routes/_app.schedule.tsx` into `src/lib/working-time-rules.ts` so they can be
+  regression-tested. Same checks, same order, same wording. No minimum rest-gap rule was
+  added, per the UAT decision, and a test pins that.
+- Migration `20260828120000_sunday_boundary_and_sunday_rate_control.sql` — additive only:
+  seeds the boundary-mode constant at today's behaviour, adds
+  `payroll_runs.calculation_breakdown`, adds the `payroll_sunday_rates` table and its three
+  RPCs, and recreates `replace_draft_payroll` / `finalize_payroll_period` with the breakdown
+  column and the acknowledgement gate. No historical payroll or roster data is touched.
+  **Not yet applied to the live project** — needs `get_advisors` and per-role JWT smoke tests
+  first, per the repo's standing rule for RLS/policy changes.
+- Tests: new `bun test` suite (`tests/`, 94 tests) covering same-day / Sat→Sun / Sun→Mon /
+  multi-midnight / exact-midnight shifts, zero and invalid durations, no double-counting,
+  segment totals equalling the stored duration, all three boundary modes, timezone
+  independence (run out-of-process under four TZs), the working-time rules, the manual rate
+  matching and differing, authorised and unauthorised acknowledgement, the consent fallback,
+  audit output, and that stored shifts and historical figures are not rewritten.
+
 ## 2026-08-21
 
 ### 15:20 - autonomous UAT loop, round 1: UAT-04/UAT-05 verified live, stale wizard blurb fixed

@@ -2188,12 +2188,82 @@ export type Database = {
           },
         ];
       };
+      payroll_sunday_rates: {
+        Row: {
+          acknowledged_at: string | null;
+          acknowledged_by: string | null;
+          acknowledged_ordinary_rate: number | null;
+          acknowledged_rate: number | null;
+          acknowledgement_reason: string | null;
+          calculated_ordinary_rate: number;
+          created_at: string;
+          entered_at: string;
+          entered_by: string | null;
+          id: string;
+          note: string | null;
+          pay_period_id: string;
+          sunday_base_rate: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
+          acknowledged_ordinary_rate?: number | null;
+          acknowledged_rate?: number | null;
+          acknowledgement_reason?: string | null;
+          calculated_ordinary_rate: number;
+          created_at?: string;
+          entered_at?: string;
+          entered_by?: string | null;
+          id?: string;
+          note?: string | null;
+          pay_period_id: string;
+          sunday_base_rate: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
+          acknowledged_ordinary_rate?: number | null;
+          acknowledged_rate?: number | null;
+          acknowledgement_reason?: string | null;
+          calculated_ordinary_rate?: number;
+          created_at?: string;
+          entered_at?: string;
+          entered_by?: string | null;
+          id?: string;
+          note?: string | null;
+          pay_period_id?: string;
+          sunday_base_rate?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payroll_sunday_rates_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: true;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "payroll_sunday_rates_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payroll_runs: {
         Row: {
           annual_leave_hours: number;
           compassionate_leave_hours: number;
           maternity_leave_hours: number;
           maternity_paid_hours: number;
+          calculation_breakdown: Json;
           compliance_warnings: Json;
           consensual_deductions: number;
           created_at: string;
@@ -2235,6 +2305,7 @@ export type Database = {
           compassionate_leave_hours?: number;
           maternity_leave_hours?: number;
           maternity_paid_hours?: number;
+          calculation_breakdown?: Json;
           compliance_warnings?: Json;
           consensual_deductions?: number;
           created_at?: string;
@@ -2276,6 +2347,7 @@ export type Database = {
           compassionate_leave_hours?: number;
           maternity_leave_hours?: number;
           maternity_paid_hours?: number;
+          calculation_breakdown?: Json;
           compliance_warnings?: Json;
           consensual_deductions?: number;
           created_at?: string;
@@ -3432,6 +3504,23 @@ export type Database = {
       is_ceo_executive: { Args: never; Returns: boolean };
       replace_draft_payroll: {
         Args: { p_period: string; p_rows: Json };
+        Returns: undefined;
+      };
+      set_sunday_base_rate: {
+        Args: {
+          p_calculated_ordinary_rate: number;
+          p_note?: string | null;
+          p_period: string;
+          p_rate: number;
+        };
+        Returns: undefined;
+      };
+      clear_sunday_base_rate: {
+        Args: { p_period: string };
+        Returns: undefined;
+      };
+      acknowledge_sunday_rate_variance: {
+        Args: { p_period: string; p_reason?: string | null };
         Returns: undefined;
       };
       reject_leave_request: { Args: { p_reason: string; p_request: string }; Returns: undefined };
