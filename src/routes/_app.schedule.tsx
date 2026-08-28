@@ -35,6 +35,13 @@ import {
   type RosterViolation,
   type RosterShift,
 } from "@/lib/roster-rules";
+import {
+  MAX_WORKING_DAYS_PER_WEEK as SHARED_MAX_WORKING_DAYS_PER_WEEK,
+  WEEKLY_HOUR_CAP as SHARED_WEEKLY_HOUR_CAP,
+  WORKING_TIME_MESSAGES,
+  evaluateShiftPlacement,
+  type ShiftKind,
+} from "@/lib/working-time-rules";
 import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -118,8 +125,10 @@ type SiteRequirement = {
   shift_type_id: string | null;
 };
 
-const WEEKLY_HOUR_CAP = 60;
-const MAX_WORKING_DAYS_PER_WEEK = 6; // guarantees at least 1 full rest day per ISO week
+// The 60-hour weekly cap and the six-workday rest rule live in working-time-rules.ts with
+// the rest of the roster rule set (UAT decision #4), so they can be regression-tested.
+const WEEKLY_HOUR_CAP = SHARED_WEEKLY_HOUR_CAP;
+const MAX_WORKING_DAYS_PER_WEEK = SHARED_MAX_WORKING_DAYS_PER_WEEK;
 
 // Best→worst literacy grade. Ungraded employees (null) rank as worst (D-equivalent)
 // so they stay assignable — never excluded, just least-preferred on grade fit.
@@ -148,7 +157,6 @@ const SCHED_CONSTANTS = {
 } as const;
 
 // ── Shift visual category (drives color) ─────────────────────────────────────
-type ShiftKind = "day" | "night" | "double" | "leave" | "other";
 function shiftKindOf(st: ShiftType | undefined | null): ShiftKind {
   if (!st) return "other";
   if (st.is_leave) return "leave";
@@ -1690,7 +1698,7 @@ function SchedulePage() {
     const candidateKind = shiftKindOf(candidate);
     const candidateIsWorking = !candidate.is_leave && candidate.default_hours > 0;
     if (candidateIsWorking && candidateKind !== "day" && candidateKind !== "night") {
-      return "Only standard Day or Night shifts can be rostered here";
+      return WORKING_TIME_MESSAGES.shift_kind_allowed();
     }
 
     const weekKey = isoWeekKey(new Date(date));
@@ -1711,7 +1719,7 @@ function SchedulePage() {
       kindByDate.set(assignment.date, shiftKindOf(shift));
 
       if (candidateIsWorking && assignment.date === date) {
-        return "Already rostered for another shift on this date";
+        return WORKING_TIME_MESSAGES.one_shift_per_date();
       }
     }
 
@@ -1728,24 +1736,27 @@ function SchedulePage() {
       kindByDate.set(editedDate, shiftKindOf(shift));
 
       if (candidateIsWorking && editedDate === date) {
-        return "Already rostered for another shift on this date";
+        return WORKING_TIME_MESSAGES.one_shift_per_date();
       }
     }
 
-    if (!candidateIsWorking) return null;
-    if (weeklyHours + candidate.default_hours > WEEKLY_HOUR_CAP) {
-      return `Would exceed the ${WEEKLY_HOUR_CAP}-hour weekly cap`;
-    }
-    if (!workedDates.has(date) && workedDates.size >= MAX_WORKING_DAYS_PER_WEEK) {
-      return "Would remove the guard's required weekly rest day";
-    }
-    if (candidateKind === "day" && kindByDate.get(isoDateAdd(date, -1)) === "night") {
-      return "Night shift the previous day ends too close to this Day shift";
-    }
-    if (candidateKind === "night" && kindByDate.get(isoDateAdd(date, 1)) === "day") {
-      return "Day shift the next day starts too close to this Night shift";
-    }
-    return null;
+    // Weekly cap, weekly rest day and the Night/Day adjacency conflicts. Gathering the
+    // week's facts stays here; deciding on them is the shared, tested rule set.
+    return (
+      evaluateShiftPlacement({
+        date,
+        candidateKind,
+        candidateHours: candidate.default_hours,
+        candidateIsWorking,
+        weeklyHours,
+        workedDates,
+        kindByDate,
+        // Already handled above, while the loops were walking the week's assignments.
+        alreadyRosteredOnDate: false,
+        weeklyHourCap: WEEKLY_HOUR_CAP,
+        maxWorkingDaysPerWeek: MAX_WORKING_DAYS_PER_WEEK,
+      })?.message ?? null
+    );
   }
 
   const guardMonthEmp =

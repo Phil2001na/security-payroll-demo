@@ -1,9 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PayeBracket, PayrollConstants } from "@/lib/payroll-engine";
+import { sundayBoundaryModeFromCode, type SundayBoundaryMode } from "@/lib/shift-segments";
 
 export async function fetchPayrollConstants(): Promise<{
   constants: PayrollConstants;
   brackets: PayeBracket[];
+  // How a shift straddling the Sunday boundary is paid (UAT decision #1). Stored as a
+  // numeric code in payroll_constants because that column is numeric; an absent or unknown
+  // code resolves to the mode the engine has always used.
+  sundayBoundaryMode: SundayBoundaryMode;
 }> {
   const [{ data: constRows, error: cErr }, { data: bracketRows, error: bErr }] = await Promise.all([
     supabase.from("payroll_constants").select("key,value"),
@@ -38,5 +43,9 @@ export async function fetchPayrollConstants(): Promise<{
     base_tax: Number(row.base_tax),
     marginal_rate: Number(row.marginal_rate),
   }));
-  return { constants, brackets };
+  return {
+    constants,
+    brackets,
+    sundayBoundaryMode: sundayBoundaryModeFromCode(map.get("sunday_boundary_mode")),
+  };
 }
