@@ -1,0 +1,1037 @@
+{
+  "set": {
+    "id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+    "slug": "secpay-uat-2026-08-20",
+    "project": "security-payroll-demo",
+    "title": "Security payroll UAT — 20 Aug 2026",
+    "context": "The client's UAT on rostering, Sunday pay and leave. 17 items were raised; most need a policy call before anything can be built. Several are genuinely the client's or a labour lawyer's to answer, not Philip's — those get routed, not guessed. The full rationale is in uat/2026-08-20/UAT_REQUIREMENTS.md, the item table in UAT.md.",
+    "source_ref": "uat/2026-08-20/UAT.md",
+    "repo_owner": "Phil2001na",
+    "repo_name": "security-payroll-demo",
+    "export_path": "uat/2026-08-20/DECISIONS.md",
+    "status": "open",
+    "created_at": "2026-08-24T21:13:45.942093+00:00",
+    "updated_at": "2026-08-30T15:01:50.534817+00:00",
+    "closed_at": null,
+    "closure_reason": null
+  },
+  "exported_at": "2026-08-30T15:31:53.769Z",
+  "note": "RAW queue state as stored. Question/answer pairs are misaligned from D-05 onward - see DECISIONS.md for the reconciled brief. Do not implement from this file.",
+  "decisions": [
+    {
+      "id": "6d1c0dc9-48b3-400b-b1b8-c9a7c8214db5",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-01",
+      "area": "Sunday pay",
+      "question": "Which rule governs a shift that crosses midnight into or out of Sunday?",
+      "context": "Client's UAT example: Sat 18:00 to Sun 06:00. They expect a clock split — 6h normal + 6h at 1.5x. But s.21(8) of the Labour Act treats the whole shift as Sunday or as Sat/Mon depending on where the majority of hours fall, and 18:00-06:00 is an exact 6/6 tie the statute does not resolve. This blocks UAT-01, T01 and T02.",
+      "options": [
+        {
+          "label": "Midnight split as the client asked",
+          "detail": "Matches their expectation and is easy to explain on a payslip, but may not match the Act"
+        },
+        {
+          "label": "Majority-of-shift rule per s.21(8)",
+          "detail": "Statutory default, but leaves the 6/6 tie undefined"
+        },
+        {
+          "label": "Whatever the contract/collective agreement says, once documented",
+          "detail": "Safest — but needs the client to produce the document"
+        }
+      ],
+      "recommendation": "Do not encode either rule yet. This is the client's call with labour counsel. What Philip can decide now is that the engine takes the boundary rule as configuration rather than hardcoding one — then either answer is a settings change, not a rewrite.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Make the Sunday boundary rule configurable rather than hardcoding a single interpretation. The client and labour counsel must determine the applicable rule.",
+      "rationale": "An exact 6/6 split across midnight is ambiguous, and Namibia's Labour Act appears to use a majority-of-shift rule. Hardcoding one interpretation could encode the wrong legal assumption, so the system should expose the rule as a configurable setting.",
+      "blocked_by": null,
+      "sort_order": 1,
+      "decided_at": "2026-08-28T15:08:52.228275+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:08:52.228275+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "58bd7368-5fef-4534-b6f9-f5d93c38b36a",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-02",
+      "area": "Sunday pay",
+      "question": "For a tied shift (equal hours either side of midnight), which side wins?",
+      "context": "Only bites if the majority-of-shift rule is chosen. A 18:00-06:00 shift is 6/6 and needs an explicit tie-break, or payroll is non-deterministic.",
+      "options": [
+        {
+          "label": "Tie goes to Sunday (favours the employee)"
+        },
+        {
+          "label": "Tie goes to the start day"
+        },
+        {
+          "label": "Not applicable — midnight split chosen"
+        }
+      ],
+      "recommendation": "Tie to Sunday. Where a statute is silent, the reading that favours the employee is the defensible one, and the cost difference on tied shifts is small.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Not applicable - use the midnight-split rule instead.",
+      "rationale": "D-01 already established the configurable boundary approach; a separate tie-breaker is unnecessary when the midnight-split rule is used.",
+      "blocked_by": "D-01",
+      "sort_order": 2,
+      "decided_at": "2026-08-28T15:28:37.190444+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:28:37.190444+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "8f43de46-b1d2-4211-9d0d-a713c4911dbe",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-03",
+      "area": "Sunday 1.5x",
+      "question": "What counts as proof that the 1.5x Sunday arrangement is validly in place?",
+      "context": "The Act's default Sunday rate is 2x. The 1.5x alternative requires BOTH employee agreement AND equal time off in the next working week. The system currently has an ordinarily_works_sundays flag, which is not the same thing. UAT-02 / T03.",
+      "options": [
+        {
+          "label": "Signed consent on the employment contract + scheduled comp-rest days in the following week",
+          "detail": "Both halves recorded, linked to the specific Sunday"
+        },
+        {
+          "label": "Standing consent only",
+          "detail": "Simpler, but the equal-time-off half is what actually makes 1.5x lawful"
+        },
+        {
+          "label": "Per-occasion consent each Sunday",
+          "detail": "Strongest evidence, heaviest admin"
+        }
+      ],
+      "recommendation": "Standing signed consent, PLUS a per-Sunday link to the actual comp-rest day rostered in the next working week. The rest half must be per-occasion because that is the fact a dispute would turn on.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Standing signed consent in the employment contract is sufficient; no separate employee choice or per-Sunday consent is required.",
+      "rationale": "According to the client's existing arrangement, the agreement is already included in the employment contract, so employees are not being given a separate choice for each Sunday.",
+      "blocked_by": null,
+      "sort_order": 3,
+      "decided_at": "2026-08-28T15:12:55.40747+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:12:55.40747+00:00",
+      "routed_to": null,
+      "confidence": "medium"
+    },
+    {
+      "id": "cdd9b63f-c315-4add-908f-c1b015cda2a4",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-04",
+      "area": "Sunday 1.5x",
+      "question": "If the consent or comp-rest record is missing, does payroll hard-block or allow an authorised exception?",
+      "context": "The client asked for hard refusals as an operational control. But a hard block on payroll finalisation can stop everyone getting paid over one bad record.",
+      "options": [
+        {
+          "label": "Hard block the 1.5x rate only — pay that Sunday at 2x instead",
+          "detail": "Payroll still runs; the company pays the statutory default when it cannot prove the discount"
+        },
+        {
+          "label": "Hard block the whole payroll run until resolved"
+        },
+        {
+          "label": "Allow an authorised exception with reason + audit trail"
+        }
+      ],
+      "recommendation": "Block the rate, not the run: fall back to 2x. It never stops payday, and it makes the cheaper rate something the employer must earn with evidence — which is exactly the exposure the client is worried about.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Block the 1.5x rate and fall back to 2x when valid contract consent or required records are missing.",
+      "rationale": "The contract normally contains the standing consent, but if the contract record is missing, invalid, or not migrated, payroll should continue using the safer default rate rather than blocking payroll or silently granting 1.5x.",
+      "blocked_by": null,
+      "sort_order": 4,
+      "decided_at": "2026-08-28T15:28:38.283354+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:28:38.283354+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "c56fdb0d-96f2-4796-8a0f-50686cab31d1",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-05",
+      "area": "Sunday eligibility",
+      "question": "Which Sunday work categories must the system distinguish?",
+      "context": "UAT-03. The client does not want the favourable rate silently applied to the wrong category — a last-minute call-in is not the same as a rostered Sunday.",
+      "options": [
+        {
+          "label": "Rostered Sunday / call-in or relief / public holiday"
+        },
+        {
+          "label": "Rostered vs everything else"
+        },
+        {
+          "label": "Rostered / relief / holiday / overtime callout — four categories"
+        }
+      ],
+      "recommendation": "Three: rostered, relief-or-call-in, public holiday. Each carries a different pay basis, and three is the smallest set that keeps them separable on the payslip.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Require payroll to enter the Sunday base rate manually each period.",
+      "rationale": "Philip selected option 3. The Sunday base rate should be entered manually by payroll for each period.",
+      "blocked_by": null,
+      "sort_order": 5,
+      "decided_at": "2026-08-28T15:30:40.082867+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:30:40.082867+00:00",
+      "routed_to": null,
+      "confidence": "medium"
+    },
+    {
+      "id": "4409562a-a0ef-4092-85e9-98d8afec1e2e",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-06",
+      "area": "Fair allocation",
+      "question": "What exactly counts as a premium opportunity for the fairness cap?",
+      "context": "The client's complaint is the same guard repeatedly getting the lucrative Sunday 06:00-18:00. The cap is meaningless until premium is defined. UAT-06/07.",
+      "options": [
+        {
+          "label": "Sunday 06:00-18:00 day shift only",
+          "detail": "Exactly what the client described"
+        },
+        {
+          "label": "Any Sunday-working shift"
+        },
+        {
+          "label": "Any Sunday shift plus public holidays"
+        },
+        {
+          "label": "Any shift paying above the normal rate"
+        }
+      ],
+      "recommendation": "Sunday day shift plus public holidays. That is the set guards actually compete for; including every premium-rate hour turns the cap into a scheduling straitjacket.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Validate the manually entered Sunday base rate against the employee's ordinary rate and warn if it differs.",
+      "rationale": "Philip chose option 2: payroll should receive a validation warning when the manually entered Sunday base rate differs from the calculated ordinary rate, without blocking submission.",
+      "blocked_by": null,
+      "sort_order": 6,
+      "decided_at": "2026-08-28T15:34:43.036265+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:34:43.036265+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "ad97a3be-64aa-4332-b024-aa27925cca16",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-07",
+      "area": "Premium cap",
+      "question": "What is the cap and over what window — and is the window fixed or configurable?",
+      "context": "Client's starting proposal is one premium opportunity per guard per calendar month. They noted it might be two or three months at larger headcount. UAT-07.",
+      "options": [
+        {
+          "label": "One per calendar month, window configurable per tenant",
+          "detail": "Client's proposal, with room to widen"
+        },
+        {
+          "label": "One per rolling 30 days"
+        },
+        {
+          "label": "No hard cap — fairness ranking only"
+        }
+      ],
+      "recommendation": "One per calendar month, with the window as a tenant setting. Calendar month over rolling 30 days: it is what the client said, and it is what a supervisor can verify by looking at a roster.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Require an authorised user to acknowledge the warning before submission.",
+      "rationale": "Philip chose option 1: payroll may proceed after an authorised user explicitly acknowledges the rate-difference warning.",
+      "blocked_by": null,
+      "sort_order": 7,
+      "decided_at": "2026-08-28T15:48:50.991427+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:48:50.991427+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "03a8e56e-712c-4aa9-b696-53e3f95e57b8",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-08",
+      "area": "Premium cap",
+      "question": "Is the cap a hard block, or a strong de-prioritisation in the ranking?",
+      "context": "The client explicitly wants refusals to be real. But a hard cap can leave a Sunday unstaffed when the only qualified guard has already had their turn.",
+      "options": [
+        {
+          "label": "Hard block, with the shortage recorded and escalated"
+        },
+        {
+          "label": "Ranked last, assignable if nobody else is eligible"
+        },
+        {
+          "label": "Hard block, overridable only by the senior exception workflow"
+        }
+      ],
+      "recommendation": "Hard block, overridable only through the D-10 exception workflow. That gives the client the refusal they asked for without leaving a site uncovered, and every override leaves a trail.",
+      "priority": "high",
+      "status": "unresolved",
+      "answer": "Option 3: hard-block assignment when the premium cap is reached, but allow an override through a senior exception workflow.",
+      "rationale": "The cap should remain enforced by default, while a genuine operational emergency can be handled through a controlled senior override with an audit trail.",
+      "blocked_by": "D-10",
+      "sort_order": 8,
+      "decided_at": "2026-08-30T12:06:02.628894+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T15:01:50.534817+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "72623014-8345-4773-9547-4e0d0822a6ae",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-09",
+      "area": "Hour and rest limits",
+      "question": "Are there stricter company or contract limits beyond the current 60-hour week and six-workday rule?",
+      "context": "The scheduler already enforces one work shift per date, a 60-hour weekly cap, a weekly rest check, and Night-to-Day / Day-to-Night conflicts. UAT-04/05 ask whether that set is complete.",
+      "options": [
+        {
+          "label": "Current rules are the full set"
+        },
+        {
+          "label": "Add a minimum rest gap between shifts (e.g. 11 hours)"
+        },
+        {
+          "label": "Client to confirm against their contracts"
+        }
+      ],
+      "recommendation": "Add an explicit minimum rest gap as a configurable rule. The existing Night-to-Day conflict check approximates one but does not state it, and rest is the thing a fatigue complaint would test.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Add a minimum rest gap between shifts, such as 11 hours.",
+      "rationale": "Philip selected option 1 as presented, meaning the current company/contract rules are not complete and a minimum rest-gap rule should be added. Note: the displayed options appeared to label this as option 2; preserving the substantive choice rather than the inconsistent number.",
+      "blocked_by": null,
+      "sort_order": 9,
+      "decided_at": "2026-08-28T15:51:28.835529+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:51:28.835529+00:00",
+      "routed_to": null,
+      "confidence": "medium"
+    },
+    {
+      "id": "692268ec-d11b-4b90-a465-13b460426a67",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-10",
+      "area": "Emergency exceptions",
+      "question": "May a compliance block ever be overridden — and if so, by whom?",
+      "context": "UAT-09. The client wants refusals to hold, but real operations have emergencies. If an override exists it must be a separate workflow with senior approval, reason, risk acknowledgement and an audit event — never an ordinary roster edit.",
+      "options": [
+        {
+          "label": "No override at all — the shortage escalates instead"
+        },
+        {
+          "label": "Override for rest/hours breaches, senior role only, fully audited"
+        },
+        {
+          "label": "Override for fairness caps only; hard limits never overridable"
+        }
+      ],
+      "recommendation": "Fairness caps overridable by a senior role with reason and audit; statutory hours and rest limits never. Blurring the two is how a fairness policy becomes an excuse to overwork someone.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Keep the current one-shift-per-date rule.",
+      "rationale": "Philip chose option 1: retain the existing one-shift-per-calendar-date rule.",
+      "blocked_by": null,
+      "sort_order": 10,
+      "decided_at": "2026-08-28T15:56:31.360296+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T15:56:31.360296+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "12f9ecad-1c2f-4f8d-9b6f-a603bc7c0e95",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-11",
+      "area": "No-candidate response",
+      "question": "When nobody is compliant, what does the system do and show?",
+      "context": "UAT-08/T07. Requirement is a refusal naming the failed rules and the staffing gap, not a silent empty result.",
+      "options": [
+        {
+          "label": "Refuse, list each candidate and the rule they failed, auto-create a shortage record"
+        },
+        {
+          "label": "Refuse with a summary reason only"
+        },
+        {
+          "label": "Refuse and notify Operations immediately"
+        }
+      ],
+      "recommendation": "Per-candidate failure reasons plus an automatic shortage record. The reasons are what stops staff arguing with the system, and the auto-record is what makes UAT-10 work without anyone remembering to log it.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Keep one stored shift record with actual start and end timestamps; split it into payroll calculation segments on the backend at midnight.",
+      "rationale": "The operational roster should preserve one real-world shift, while the backend can calculate separate Saturday/Sunday segments and show the breakdown for audit without creating duplicate shift records.",
+      "blocked_by": null,
+      "sort_order": 11,
+      "decided_at": "2026-08-28T16:03:15.824505+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-28T16:03:15.824505+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "55243951-3977-4cda-b2ff-adf782507c09",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-12",
+      "area": "Shortage register",
+      "question": "What does the shortage register capture, and who gets the weekly report?",
+      "context": "UAT-10. The client recruits continuously through a training institution and wants shortages to surface a recruitment failure rather than be absorbed by overworking guards.",
+      "options": [
+        {
+          "label": "Site, date/shift, required vs unmet headcount, failed rules, who attempted — weekly report to Operations and HR"
+        },
+        {
+          "label": "Counts only, no per-attempt detail"
+        },
+        {
+          "label": "Full detail, on-demand report rather than scheduled"
+        }
+      ],
+      "recommendation": "Full detail with a scheduled weekly report to Operations and HR. On-demand reports do not get run; a scheduled one lands whether or not anyone remembers to ask.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Show the backend midnight calculation segments in payroll details and the audit trail, while keeping one stored roster shift.",
+      "rationale": "Philip chose option 1: the operational shift remains one record, but the Saturday/Sunday calculation segments should be visible for transparency and auditing.",
+      "blocked_by": null,
+      "sort_order": 12,
+      "decided_at": "2026-08-29T19:36:01.738238+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-29T19:36:01.738238+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "43f5d2a5-69c4-4021-b4de-0172a0880cea",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-13",
+      "area": "Recruitment scope",
+      "question": "Phase one: shortage reporting only, or also an applicant pipeline?",
+      "context": "UAT-17. No applicant portal was requested for guards. A driver/supervisor application link was mentioned but is not a defined requirement.",
+      "options": [
+        {
+          "label": "Shortage reporting only for now"
+        },
+        {
+          "label": "Shortage reporting plus a simple application link for drivers/supervisors"
+        },
+        {
+          "label": "Full applicant pipeline"
+        }
+      ],
+      "recommendation": "Shortage reporting only. It was never a stated requirement, it is the lowest-priority item on the client's own list, and an applicant pipeline is a product in its own right — better sold as scope than absorbed.",
+      "priority": "low",
+      "status": "confirmed",
+      "answer": "Show the warning both when the Sunday base rate is entered and again when payroll is submitted.",
+      "rationale": "Philip chose option 3: the discrepancy should be visible at entry and rechecked at submission.",
+      "blocked_by": null,
+      "sort_order": 13,
+      "decided_at": "2026-08-29T19:36:47.056286+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-29T19:36:47.056286+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "fcce9347-65f7-46e7-9d19-41f7f67364d2",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-14",
+      "area": "Leave cycles",
+      "question": "What anchors each employee's annual leave cycle, and is that date already in the system?",
+      "context": "UAT-11. The Act gives a 12-month cycle, then requires the employer to fix a leave date no later than four months after it ends (six only with prior written agreement). Every employee needs their own cycle.",
+      "options": [
+        {
+          "label": "Employment start date, per employee"
+        },
+        {
+          "label": "A company-wide cycle date"
+        },
+        {
+          "label": "Employment start, with a manual override where records are missing"
+        }
+      ],
+      "recommendation": "Employment start with a manual override. Some historical records will be wrong or missing, and a hard dependency on clean data will stall the whole leave module.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Acknowledgement applies only to the current payroll submission.",
+      "rationale": "Philip selected option 1.",
+      "blocked_by": null,
+      "sort_order": 14,
+      "decided_at": "2026-08-29T19:37:27.2112+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-29T19:37:27.2112+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "f15fa3db-ff2a-4116-ac21-83e747a25697",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-15",
+      "area": "Leave capacity",
+      "question": "The maximum-10-on-leave rule: tenant-wide or per-site, and does it count people or leave-days?",
+      "context": "UAT-14. The client stated the policy as a flat maximum of 10 employees on annual leave in a month. A monthly headline hides the real problem, which is coverage on specific days at specific sites.",
+      "options": [
+        {
+          "label": "Per-site, counting people overlapping on any given day"
+        },
+        {
+          "label": "Tenant-wide, counting people in the month"
+        },
+        {
+          "label": "Both: tenant-wide cap plus per-site day-level coverage check"
+        }
+      ],
+      "recommendation": "Both — enforce the tenant-wide 10 as the client stated it, but show the approver day-level coverage by site. Ten people off is harmless if they are spread; three at one site on one day is not.",
+      "priority": "high",
+      "status": "unresolved",
+      "answer": "Both: enforce the tenant-wide maximum of 10 employees on leave in a month and perform a per-site, day-level coverage check.",
+      "rationale": "The stated policy is a tenant-wide maximum of 10 employees on annual leave in a month, but site-level daily coverage is needed to catch operational shortages.",
+      "blocked_by": null,
+      "sort_order": 15,
+      "decided_at": "2026-08-30T14:31:50.088131+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T15:01:45.416501+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "19665bd0-f2d6-4d8f-9421-777c3b024ae0",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-16",
+      "area": "Leave conflict",
+      "question": "When the capacity cap collides with an employee's statutory leave deadline, what happens?",
+      "context": "UAT-15/T10. A simple monthly cap must not quietly defeat statutory leave timing — that shifts the exposure onto the employer.",
+      "options": [
+        {
+          "label": "Cap yields: flag the conflict, require a documented management decision, allow approval over the cap"
+        },
+        {
+          "label": "Cap holds: force an alternative date and record the refusal"
+        },
+        {
+          "label": "Escalate to a named approver before either path"
+        }
+      ],
+      "recommendation": "The cap yields to the statutory deadline, with a recorded management decision. A coverage policy is the company's own rule; the leave deadline is the law, and it is what an employee would litigate.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "Option 2: invalidate the previous acknowledgement and require a new acknowledgement when the Sunday base rate changes.",
+      "rationale": "The acknowledgement approves specific warning and rate values. If the rate changes, the authorised user is approving a different payroll condition, so the old acknowledgement should not remain valid.",
+      "blocked_by": null,
+      "sort_order": 16,
+      "decided_at": "2026-08-29T19:39:19.461285+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-29T19:39:19.461285+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "76400272-1bc3-44c2-a48b-5a3d1b74fb8a",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-17",
+      "area": "Directed leave evidence",
+      "question": "What is the acceptable evidence standard for instructed leave and employee refusal?",
+      "context": "UAT-13/T09. Where the employer directs leave and the employee refuses, the company needs dates offered, reason, acknowledgement or documented refusal to sign, and witnesses — exportable for a dispute.",
+      "options": [
+        {
+          "label": "On-screen signature capture plus witness name"
+        },
+        {
+          "label": "Uploaded scan of a signed form"
+        },
+        {
+          "label": "Either, plus a supervisor attestation where the employee refuses to sign"
+        }
+      ],
+      "recommendation": "Either method, with a mandatory supervisor attestation on refusal-to-sign. The refusal case is the one that ends up in front of an arbitrator, and it is precisely the case with no signature to capture.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Record that the Sunday rate validation passed successfully, but do not require an acknowledgement when there is no discrepancy.",
+      "rationale": "Philip chose option 1; acknowledgement is only necessary when the entered rate differs from the calculated ordinary rate.",
+      "blocked_by": null,
+      "sort_order": 17,
+      "decided_at": "2026-08-30T12:06:45.548933+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T12:06:45.548933+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "17614c33-96df-4d8b-8eb3-9d5e7fdfb5bf",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-18",
+      "area": "Leave planner",
+      "question": "How far ahead does the leave planner warn, and who sees it?",
+      "context": "UAT-12/T08. The planner should list employees due or overdue, entitlement, cycle end, latest compliant leave date, sites affected and coverage risk.",
+      "options": [
+        {
+          "label": "90 days before the statutory deadline, to Operations and HR"
+        },
+        {
+          "label": "60 days, to HR only"
+        },
+        {
+          "label": "Configurable lead time per tenant, default 90 days"
+        }
+      ],
+      "recommendation": "Configurable, defaulting to 90 days, to Operations and HR. Ops is who has to arrange the cover, so a warning that only reaches HR arrives at the wrong desk.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Acknowledgement is enough for payroll submission; no additional senior approval is required.",
+      "rationale": "The authorised acknowledgement already provides the necessary approval and audit trail.",
+      "blocked_by": null,
+      "sort_order": 18,
+      "decided_at": "2026-08-30T12:07:09.772629+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T12:07:09.772629+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "9cd87036-627a-4253-ba41-9df48b9fbd29",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-19",
+      "area": "Leave forfeiture",
+      "question": "Confirm the system will never auto-forfeit or auto-cash-out annual leave.",
+      "context": "The Act prohibits payment in substitution for annual leave except on termination, and whether unused leave can lapse is fact- and agreement-dependent. A scheduler date must not trigger either.",
+      "options": [
+        {
+          "label": "Never automatic — expiry and cash-out are manual, evidenced decisions"
+        },
+        {
+          "label": "Auto-flag as at-risk, manual action only"
+        },
+        {
+          "label": "Client and counsel to define a lapse policy first"
+        }
+      ],
+      "recommendation": "Never automatic, with an at-risk flag. This one is close to a free decision — no automatic forfeiture is both the lawful default and what the client actually asked for.",
+      "priority": "critical",
+      "status": "confirmed",
+      "answer": "1",
+      "rationale": "Expiry and cash-out of annual leave must never happen automatically. Any such action requires a manual, evidenced decision.",
+      "blocked_by": null,
+      "sort_order": 19,
+      "decided_at": "2026-08-30T14:36:44.130481+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T14:36:44.130481+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "682b8521-41ae-40f5-aab1-e6e83fa09528",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-20",
+      "area": "Premium reporting",
+      "question": "What does the management premium/Sunday report need to show?",
+      "context": "UAT-16. The client wants to see uneven distribution before staff complain about it.",
+      "options": [
+        {
+          "label": "Per employee: premium assignments, hours, premium pay, over a chosen period, with a fairness outlier flag"
+        },
+        {
+          "label": "Per employee totals only"
+        },
+        {
+          "label": "Per site and per employee, exportable"
+        }
+      ],
+      "recommendation": "Per employee with an outlier flag, filterable by site and exportable. The flag is the whole value — nobody reads a fair table looking for unfairness.",
+      "priority": "medium",
+      "status": "confirmed",
+      "answer": "3",
+      "rationale": "When annual leave reaches its expiry threshold, flag it as expired while preserving the record and allowing the client to decide manually what happens.",
+      "blocked_by": null,
+      "sort_order": 20,
+      "decided_at": "2026-08-30T14:38:23.820204+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T14:38:23.820204+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    },
+    {
+      "id": "f3c839f1-3e1a-4765-89cc-4b4e2829f10f",
+      "set_id": "55f8b31d-93cb-4b13-b5a6-63152d095aba",
+      "ref": "D-21",
+      "area": "Sequencing",
+      "question": "If the Sunday-pay rule is still held with the client, what should the cloud run build first?",
+      "context": "The documented priority order starts with Sunday pay, but that item is legally blocked. The scheduler hard-blocks, fairness allocation and the leave planner are not.",
+      "options": [
+        {
+          "label": "Scheduler hard-blocks and no-candidate explanations first, then fairness, then leave"
+        },
+        {
+          "label": "Leave planner first — largest visible client win"
+        },
+        {
+          "label": "Build the configurable Sunday engine now, leave the rule unset"
+        }
+      ],
+      "recommendation": "Scheduler hard-blocks first, and build the Sunday engine rule-configurable alongside it. It is the client's stated core outcome, it is partially implemented already, and it unblocks the fairness work behind it.",
+      "priority": "high",
+      "status": "confirmed",
+      "answer": "Move expired annual leave into a separate expired-leave balance that remains visible for audit and possible manual resolution.",
+      "rationale": "Philip chose option 3: preserve visibility and audit history while keeping expired leave separate from normally available leave.",
+      "blocked_by": null,
+      "sort_order": 21,
+      "decided_at": "2026-08-30T14:43:41.290702+00:00",
+      "created_at": "2026-08-24T21:15:09.866678+00:00",
+      "updated_at": "2026-08-30T14:43:41.290702+00:00",
+      "routed_to": null,
+      "confidence": "high"
+    }
+  ],
+  "history": [
+    {
+      "ref": "D-01",
+      "id": "255efa1e-9319-4aac-8492-3c9b12b3803b",
+      "decision_id": "6d1c0dc9-48b3-400b-b1b8-c9a7c8214db5",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Make the Sunday boundary rule configurable rather than hardcoding a single interpretation. The client and labour counsel must determine the applicable rule.",
+      "rationale": "An exact 6/6 split across midnight is ambiguous, and Namibia's Labour Act appears to use a majority-of-shift rule. Hardcoding one interpretation could encode the wrong legal assumption, so the system should expose the rule as a configurable setting.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:08:52.228275+00:00"
+    },
+    {
+      "ref": "D-02",
+      "id": "f00a2092-325b-46bc-897b-530a878fc0d1",
+      "decision_id": "58bd7368-5fef-4534-b6f9-f5d93c38b36a",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Not applicable - use the midnight-split rule instead.",
+      "rationale": "D-01 already established that the Sunday boundary interpretation must be configurable and that midnight splitting is one possible rule. Therefore a tie-breaker is unnecessary unless the majority-of-shift rule is later selected.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:11:25.504901+00:00"
+    },
+    {
+      "ref": "D-03",
+      "id": "bef665f1-bcb5-4271-97a0-20196cf017ba",
+      "decision_id": "8f43de46-b1d2-4211-9d0d-a713c4911dbe",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Standing signed consent in the employment contract is sufficient; do not require separate employee choice or per-Sunday consent.",
+      "rationale": "According to the client's existing arrangement, the agreement is already included in the employment contract, so employees are not separately given a choice. The contractual agreement should therefore be treated as a given rather than requiring additional consent each Sunday.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:12:32.841066+00:00"
+    },
+    {
+      "ref": "D-03",
+      "id": "db6d1d9d-349e-47e3-84ac-d96efc216f50",
+      "decision_id": "8f43de46-b1d2-4211-9d0d-a713c4911dbe",
+      "previous_status": "confirmed",
+      "new_status": "confirmed",
+      "previous_answer": "Standing signed consent in the employment contract is sufficient; do not require separate employee choice or per-Sunday consent.",
+      "previous_rationale": "According to the client's existing arrangement, the agreement is already included in the employment contract, so employees are not separately given a choice. The contractual agreement should therefore be treated as a given rather than requiring additional consent each Sunday.",
+      "answer": "Standing signed consent in the employment contract is sufficient; no separate employee choice or per-Sunday consent is required.",
+      "rationale": "According to the client's existing arrangement, the agreement is already included in the employment contract, so employees are not being given a separate choice for each Sunday.",
+      "changed_by": "philip",
+      "note": "revised",
+      "created_at": "2026-08-28T15:12:55.40747+00:00"
+    },
+    {
+      "ref": "D-02",
+      "id": "e1d03c1b-97f5-4bac-8f57-dbf9cd374b88",
+      "decision_id": "58bd7368-5fef-4534-b6f9-f5d93c38b36a",
+      "previous_status": "confirmed",
+      "new_status": "confirmed",
+      "previous_answer": "Not applicable - use the midnight-split rule instead.",
+      "previous_rationale": "D-01 already established that the Sunday boundary interpretation must be configurable and that midnight splitting is one possible rule. Therefore a tie-breaker is unnecessary unless the majority-of-shift rule is later selected.",
+      "answer": "Not applicable - use the midnight-split rule instead.",
+      "rationale": "D-01 already established the configurable boundary approach; a separate tie-breaker is unnecessary when the midnight-split rule is used.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:28:37.190444+00:00"
+    },
+    {
+      "ref": "D-04",
+      "id": "0b3e81a6-90ce-4141-8930-69b7c982f7dd",
+      "decision_id": "cdd9b63f-c315-4add-908f-c1b015cda2a4",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Block the 1.5x rate and fall back to 2x when valid contract consent or required records are missing.",
+      "rationale": "The contract normally contains the standing consent, but if the contract record is missing, invalid, or not migrated, payroll should continue using the safer default rate rather than blocking payroll or silently granting 1.5x.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:28:38.283354+00:00"
+    },
+    {
+      "ref": "D-05",
+      "id": "91638efd-92cd-41a2-968e-448ddb57ce39",
+      "decision_id": "c56fdb0d-96f2-4796-8a0f-50686cab31d1",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Require payroll to enter the Sunday base rate manually each period.",
+      "rationale": "Philip selected option 3. The Sunday base rate should be entered manually by payroll for each period.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:30:40.082867+00:00"
+    },
+    {
+      "ref": "D-06",
+      "id": "a07cc3fd-e17e-4959-a0ba-3050f7c3545b",
+      "decision_id": "4409562a-a0ef-4092-85e9-98d8afec1e2e",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Validate the manually entered Sunday base rate against the employee's ordinary rate and warn if it differs.",
+      "rationale": "Philip chose option 2: payroll should receive a validation warning when the manually entered Sunday base rate differs from the calculated ordinary rate, without blocking submission.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:34:43.036265+00:00"
+    },
+    {
+      "ref": "D-07",
+      "id": "ad667a0b-9604-40db-96fd-4dc44dad6c18",
+      "decision_id": "ad97a3be-64aa-4332-b024-aa27925cca16",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Require an authorised user to acknowledge the warning before submission.",
+      "rationale": "Philip chose option 1: payroll may proceed after an authorised user explicitly acknowledges the rate-difference warning.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:48:50.991427+00:00"
+    },
+    {
+      "ref": "D-09",
+      "id": "d9028746-8b67-409f-b321-9bd2e7d15d8a",
+      "decision_id": "72623014-8345-4773-9547-4e0d0822a6ae",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Add a minimum rest gap between shifts, such as 11 hours.",
+      "rationale": "Philip selected option 1 as presented, meaning the current company/contract rules are not complete and a minimum rest-gap rule should be added. Note: the displayed options appeared to label this as option 2; preserving the substantive choice rather than the inconsistent number.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:51:28.835529+00:00"
+    },
+    {
+      "ref": "D-10",
+      "id": "078db6b3-e9b5-4ec5-9956-f0e1b13d6987",
+      "decision_id": "692268ec-d11b-4b90-a465-13b460426a67",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Keep the current one-shift-per-date rule.",
+      "rationale": "Philip chose option 1: retain the existing one-shift-per-calendar-date rule.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T15:56:31.360296+00:00"
+    },
+    {
+      "ref": "D-11",
+      "id": "ce55fdf7-fb05-4de5-9197-2e8bb859f1b3",
+      "decision_id": "12f9ecad-1c2f-4f8d-9b6f-a603bc7c0e95",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Keep one stored shift record with actual start and end timestamps; split it into payroll calculation segments on the backend at midnight.",
+      "rationale": "The operational roster should preserve one real-world shift, while the backend can calculate separate Saturday/Sunday segments and show the breakdown for audit without creating duplicate shift records.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-28T16:03:15.824505+00:00"
+    },
+    {
+      "ref": "D-12",
+      "id": "6cfdca9b-1baf-41c5-9367-fcd9520d9628",
+      "decision_id": "55243951-3977-4cda-b2ff-adf782507c09",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Show the backend midnight calculation segments in payroll details and the audit trail, while keeping one stored roster shift.",
+      "rationale": "Philip chose option 1: the operational shift remains one record, but the Saturday/Sunday calculation segments should be visible for transparency and auditing.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-29T19:36:01.738238+00:00"
+    },
+    {
+      "ref": "D-13",
+      "id": "4e502b97-7083-4901-96c2-ce8202e40f05",
+      "decision_id": "43f5d2a5-69c4-4021-b4de-0172a0880cea",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Show the warning both when the Sunday base rate is entered and again when payroll is submitted.",
+      "rationale": "Philip chose option 3: the discrepancy should be visible at entry and rechecked at submission.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-29T19:36:47.056286+00:00"
+    },
+    {
+      "ref": "D-14",
+      "id": "55ec0147-61e8-400e-8c6f-0a72c198c944",
+      "decision_id": "fcce9347-65f7-46e7-9d19-41f7f67364d2",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Acknowledgement applies only to the current payroll submission.",
+      "rationale": "Philip selected option 1.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-29T19:37:27.2112+00:00"
+    },
+    {
+      "ref": "D-16",
+      "id": "ee78c683-ef7c-4edd-a46c-acf180b6dcf1",
+      "decision_id": "19665bd0-f2d6-4d8f-9421-777c3b024ae0",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Option 2: invalidate the previous acknowledgement and require a new acknowledgement when the Sunday base rate changes.",
+      "rationale": "The acknowledgement approves specific warning and rate values. If the rate changes, the authorised user is approving a different payroll condition, so the old acknowledgement should not remain valid.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-29T19:39:19.461285+00:00"
+    },
+    {
+      "ref": "D-08",
+      "id": "ccb0b482-c01e-4ae0-be81-cb8d74261723",
+      "decision_id": "03a8e56e-712c-4aa9-b696-53e3f95e57b8",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Option 3: hard-block assignment when the premium cap is reached, but allow an override through a senior exception workflow.",
+      "rationale": "The cap should remain enforced by default, while a genuine operational emergency can be handled through a controlled senior override with an audit trail.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T12:06:02.628894+00:00"
+    },
+    {
+      "ref": "D-17",
+      "id": "9259b498-58a5-4d76-9944-0db9acba75fa",
+      "decision_id": "76400272-1bc3-44c2-a48b-5a3d1b74fb8a",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Record that the Sunday rate validation passed successfully, but do not require an acknowledgement when there is no discrepancy.",
+      "rationale": "Philip chose option 1; acknowledgement is only necessary when the entered rate differs from the calculated ordinary rate.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T12:06:45.548933+00:00"
+    },
+    {
+      "ref": "D-18",
+      "id": "61b3eac9-efe9-4f61-b2cd-a5b3ee49baae",
+      "decision_id": "17614c33-96df-4d8b-8eb3-9d5e7fdfb5bf",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Acknowledgement is enough for payroll submission; no additional senior approval is required.",
+      "rationale": "The authorised acknowledgement already provides the necessary approval and audit trail.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T12:07:09.772629+00:00"
+    },
+    {
+      "ref": "D-15",
+      "id": "74095961-11af-4478-a072-3edcec82e6ec",
+      "decision_id": "f15fa3db-ff2a-4116-ac21-83e747a25697",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Both: enforce the tenant-wide maximum of 10 employees on leave in a month and perform a per-site, day-level coverage check.",
+      "rationale": "The stated policy is a tenant-wide maximum of 10 employees on annual leave in a month, but site-level daily coverage is needed to catch operational shortages.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T14:31:50.088131+00:00"
+    },
+    {
+      "ref": "D-19",
+      "id": "61fe5f55-186f-42b3-9dda-23519b663445",
+      "decision_id": "9cd87036-627a-4253-ba41-9df48b9fbd29",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "1",
+      "rationale": "Expiry and cash-out of annual leave must never happen automatically. Any such action requires a manual, evidenced decision.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T14:36:44.130481+00:00"
+    },
+    {
+      "ref": "D-20",
+      "id": "a3cbb961-f8f9-4c21-bf12-e2224b0e9cff",
+      "decision_id": "682b8521-41ae-40f5-aab1-e6e83fa09528",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "3",
+      "rationale": "When annual leave reaches its expiry threshold, flag it as expired while preserving the record and allowing the client to decide manually what happens.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T14:38:23.820204+00:00"
+    },
+    {
+      "ref": "D-21",
+      "id": "c677a005-dba4-4999-b855-711209cd6759",
+      "decision_id": "f3c839f1-3e1a-4765-89cc-4b4e2829f10f",
+      "previous_status": "open",
+      "new_status": "confirmed",
+      "previous_answer": null,
+      "previous_rationale": null,
+      "answer": "Move expired annual leave into a separate expired-leave balance that remains visible for audit and possible manual resolution.",
+      "rationale": "Philip chose option 3: preserve visibility and audit history while keeping expired leave separate from normally available leave.",
+      "changed_by": "philip",
+      "note": null,
+      "created_at": "2026-08-30T14:43:41.290702+00:00"
+    },
+    {
+      "ref": "D-15",
+      "id": "01a401be-bc9e-4de1-93b0-96b53bcd9607",
+      "decision_id": "f15fa3db-ff2a-4116-ac21-83e747a25697",
+      "previous_status": "confirmed",
+      "new_status": "unresolved",
+      "previous_answer": "Both: enforce the tenant-wide maximum of 10 employees on leave in a month and perform a per-site, day-level coverage check.",
+      "previous_rationale": "The stated policy is a tenant-wide maximum of 10 employees on annual leave in a month, but site-level daily coverage is needed to catch operational shortages.",
+      "answer": "Both: enforce the tenant-wide maximum of 10 employees on leave in a month and perform a per-site, day-level coverage check.",
+      "rationale": "The stated policy is a tenant-wide maximum of 10 employees on annual leave in a month, but site-level daily coverage is needed to catch operational shortages.",
+      "changed_by": "keeper",
+      "note": "The recorded answer appears mismatched with the actual UAT question/context. Reopen for reconciliation against the source UAT material; do not implement until corrected.",
+      "created_at": "2026-08-30T15:01:45.416501+00:00"
+    },
+    {
+      "ref": "D-08",
+      "id": "225a8b71-8342-4d1e-ae7d-12346eb357d5",
+      "decision_id": "03a8e56e-712c-4aa9-b696-53e3f95e57b8",
+      "previous_status": "confirmed",
+      "new_status": "unresolved",
+      "previous_answer": "Option 3: hard-block assignment when the premium cap is reached, but allow an override through a senior exception workflow.",
+      "previous_rationale": "The cap should remain enforced by default, while a genuine operational emergency can be handled through a controlled senior override with an audit trail.",
+      "answer": "Option 3: hard-block assignment when the premium cap is reached, but allow an override through a senior exception workflow.",
+      "rationale": "The cap should remain enforced by default, while a genuine operational emergency can be handled through a controlled senior override with an audit trail.",
+      "changed_by": "keeper",
+      "note": "The decision was recorded against context that may not match the actual UAT question. Reconcile against source UAT before implementation.",
+      "created_at": "2026-08-30T15:01:50.534817+00:00"
+    }
+  ]
+}

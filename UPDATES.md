@@ -1,5 +1,45 @@
 # Updates
 
+## 2026-09-01 18:12
+- Corrected the “real tenant data” claim in `CLAUDE.md`/`AGENTS.md`, `.claude/commands/next-fix.md`, `SECURITY_AUDIT_HANDOFF.md` and `uat/2026-08-20/CODEX_PROMPT.md`. The data is fabricated demo data; the claim was causing agents to gate routine migrations as if this were production. The migration-approval rule stays, re-justified on live-schema divergence rather than data sensitivity.
+- Added migration `20260901183000_namibian_public_holiday_calendar.sql`: `namibian_public_holidays(year)` computes the Namibian calendar per the Public Holidays Act 26 of 1990, deriving Good Friday/Easter Monday/Ascension from the Gregorian computus instead of hardcoding them, and applying the s.1(2) Sunday-to-Monday observance. Seeds 2026-2030 for all tenants. Not applied.
+- Found the live calendar held only 7 rows, all 2025 and none after 25 May, so every 2026 public holiday was pricing as an ordinary day in `run-payroll`.
+- Scoped the `majority_of_shift` tie error to shifts that actually touch a Sunday — a tie between two ordinary days is not a Sunday ambiguity and no longer aborts payroll.
+- Public-holiday hours now always classify by their real calendar date; `sunday_boundary_rule` governs Sunday attribution only and can no longer move hours onto or off a holiday.
+- Removed the inert `sundayBaseRate` seam and dropped migration `20260830183000_sunday_rate_validation_acknowledgement.sql` — the manual Sunday-rate stream has no basis in `uat/2026-08-20/UAT_REQUIREMENTS.md` and its premise conflicts with management-only `monthly_salary`.
+
+## 2026-08-30 18:10
+- Added an execution handover report documenting verified work, draft-only migrations, verification results, and remaining UAT gaps.
+
+## 2026-08-30 18:05
+- Prepared additive, unapplied migrations for Sunday-rate validation acknowledgements and annual-leave capacity policy/assessment.
+- Preserved existing payroll finalization behaviour by enforcing the Sunday acknowledgement gate through the pay-period lock transition trigger.
+
+## 2026-08-30 18:00
+- Added configurable Sunday-boundary seam with `midnight_split` default and a strict majority-mode tie stop; persisted calculation segments for payroll audit detail.
+- Added migration `20260830180000_sunday_boundary_and_payroll_segments.sql`; it was not applied to Supabase.
+
+## 2026-08-30 17:53
+- Added Vitest and an initial payroll-engine characterisation suite before UAT calculation changes.
+- Verified 11 tests covering shift boundaries, premium classification, weekly caps, PAYE, and money rounding.
+
+## 2026-08-30
+
+### 18:20 - evaluated the UAT decisions against the code; work plan written, nothing implemented
+
+- `uat/2026-08-20/WORKPLAN.md` - readiness evaluation of all 22 decisions in `DECISIONS.md` against `main` @ f2a323e. Verdict: 8 ready to build, 4 already implemented (verify-and-lock only), 6 decided but blocked, 4 gated on a missing prerequisite.
+- Much of the decided work is already shipped: `shiftSegments()`/`bucketiseLogs()` already do the midnight split P-05 asked for, the one-shift-per-date rule P-04 confirms is already a DB trigger, D-09's answer is to add nothing, and annual leave already never auto-expires per D-19. Those need regression tests, not features.
+- Genuinely blocked: D-08 (no cap value from D-07, no override authority from D-10), D-04 (the "equal time off" limb of the 1.5x test was never decided - only the consent limb), and P-13/P-14 (no defined expiry threshold for annual leave, and in tension with D-19 unless the expired bucket is presentational only).
+- **No test framework exists in this repo** - only `verify-leave-*.ts` scripts that hit the live DB. `payroll-engine.ts` is 610 lines of untested money arithmetic and every planned item touches it. Added as prerequisite P0.1: vitest plus characterisation tests before any engine change.
+- Flagged that three shipped features encode assumptions about still-open questions: the fairness ranking's 90-day premium window (D-06/D-07 propose one per calendar month), the premium report's missing outlier flag (D-20), and the shortage/planner report cadence (D-12/D-18).
+
+### 17:35 - exported the UAT decision queue from Keeper, reconciled
+
+- `uat/2026-08-20/DECISIONS.md` - the 21-question decision set Philip worked through with Keeper on 28-30 Aug, exported and reconciled against the conversation transcript. 8 original UAT questions decided, 14 additional payroll-workflow decisions captured, 13 UAT questions still genuinely open.
+- Keeper's queue drifted from `D-05` onward: the agent improvised its own follow-up questions but saved each answer against the next unanswered UAT ref, so on 13 of 21 rows the stored question and stored answer describe different things. A straight table dump would have handed a coding agent the wrong rules with full confidence.
+- Three further data defects recorded in the brief: D-09 stores the opposite of what Philip decided (an 11-hour rest gap he explicitly retracted), the "acknowledgement reason optional" decision was never persisted at all, and D-08/D-15 were reopened as unresolved when both are actually sound.
+- `uat/2026-08-20/decisions-raw.json` - the untouched queue plus its full revision history, for traceability. Not an implementation source.
+
 ## 2026-08-21
 
 ### 15:20 - autonomous UAT loop, round 1: UAT-04/UAT-05 verified live, stale wizard blurb fixed
