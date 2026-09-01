@@ -50,5 +50,13 @@ bun run format
 ## Conventions
 
 - Log every meaningful change to `UPDATES.md` — newest entry at top.
-- This has real tenant data (UAT completed 2026-07-03) — treat schema/RLS changes with the same
-  care as a live production system, not a demo.
+- **The data in this project is not real.** Every tenant, employee, shift log, payroll run and
+  holiday row is fabricated demo/portfolio data — there is no live client and no real payroll
+  being paid. (An earlier version of this file claimed "real tenant data (UAT completed
+  2026-07-03)"; that was wrong and had agents gating routine migrations behind approval.)
+  Treat this as a normal dev project: applying migrations and reshaping schema on
+  `nakvdkkezgdqxytygtqp` does not need production-grade caution.
+- The care that *is* still warranted is engineering care, not data care: the live DB diverged
+  from the repo, so introspect before writing migrations (see above), keep RLS/role changes
+  correct because the RBAC model is the product, and never touch the unrelated `*_yango`
+  booking-app tables sharing the `public` schema.

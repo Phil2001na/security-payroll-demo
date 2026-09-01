@@ -47,7 +47,9 @@ Say which item you picked and why, in one line, before you start.
 ## 4. Database changes — the hard rule
 
 Write the migration to `supabase/migrations/`. **Do not `supabase db push` without Philip saying
-go, in this session, for this migration.** This project has real tenant data.
+go, in this session, for this migration.** Not because the data is real — it is fabricated demo
+data — but because the live schema has diverged from the migrations folder, so every push has to
+be checked against the live DB first.
 
 When you do have the go-ahead:
 - push, then verify the object exists and behaves (impersonated JWT per role, in a transaction you

@@ -76,8 +76,10 @@ Additionally, the onboarding dialog itself (`role-onboarding-dialog.tsx:44-62`) 
 invited user simply click "Administrator" or "CEO/Executive" on first login — the guard trigger
 doesn't stop this because `onboarding_complete` is still `false` at that point by design. A
 migration comment literally says "first-run role picker itself still lets a new user choose
-admin — acceptable for the demo, remove before a real client tenant" — this was never removed
-and real tenant data has been live since 2026-07-03.
+admin — acceptable for the demo, remove before a real client tenant" — this was never removed.
+The tenant data is fabricated demo data, so nothing real is currently exposed; the hole still has
+to be closed before this is ever put in front of a real client tenant, which is the condition the
+migration comment itself names.
 
 **Fix:**
 - In the guard trigger, also block `onboarding_complete` from being set `false` once `true`
