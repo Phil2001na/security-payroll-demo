@@ -6,7 +6,7 @@ export async function fetchPayrollConstants(): Promise<{
   brackets: PayeBracket[];
 }> {
   const [{ data: constRows, error: cErr }, { data: bracketRows, error: bErr }] = await Promise.all([
-    supabase.from("payroll_constants").select("key,value"),
+    supabase.from("payroll_constants").select("key,value,value_text"),
     supabase
       .from("paye_brackets")
       .select("lower_bound,upper_bound,base_tax,marginal_rate")
@@ -16,7 +16,9 @@ export async function fetchPayrollConstants(): Promise<{
   if (bErr) throw bErr;
 
   const map = new Map<string, number>();
+  const textMap = new Map<string, string>();
   (constRows ?? []).forEach((row) => map.set(row.key, Number(row.value)));
+  (constRows ?? []).forEach((row) => row.value_text && textMap.set(row.key, row.value_text));
   const constants: PayrollConstants = {
     ssc_rate: map.get("ssc_employee_rate") ?? map.get("ssc_rate") ?? 0.009,
     ssc_max_deduction: map.get("ssc_max_deduction") ?? 99,
@@ -31,6 +33,7 @@ export async function fetchPayrollConstants(): Promise<{
     public_holiday_multiplier: map.get("public_holiday_multiplier") ?? 2,
     weekly_ordinary_cap: map.get("weekly_ordinary_cap") ?? 60,
     periods_per_year: map.get("periods_per_year") ?? 12,
+    sunday_boundary_rule: textMap.get("sunday_boundary_rule") === "majority_of_shift" ? "majority_of_shift" : "midnight_split",
   };
   const brackets: PayeBracket[] = (bracketRows ?? []).map((row) => ({
     lower_bound: Number(row.lower_bound),

@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
   if (periodErr || !period) return json({ error: "Open payroll period not found." }, 404);
 
   const [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes] = await Promise.all([
-    admin.from("payroll_constants").select("key,value").eq("tenant_id", tenantId),
+    admin.from("payroll_constants").select("key,value,value_text").eq("tenant_id", tenantId),
     admin.from("paye_brackets").select("lower_bound,upper_bound,base_tax,marginal_rate").eq("tenant_id", tenantId).order("lower_bound"),
     admin.from("employees").select("*").eq("tenant_id", tenantId).eq("status", "active"),
     admin.from("shift_logs").select("id,employee_id,date,hours_worked,night_hours,status,schedule_assignments:assignment_id(is_replacement,planned_hours),shift_types(code,is_leave,pay_rule,rate_multiplier,start_min,end_min,period)").eq("tenant_id", tenantId).eq("pay_period_id", period.id),
@@ -86,7 +86,9 @@ Deno.serve(async (req) => {
   }
 
   const constantMap = new Map<string, number>();
+  const constantTextMap = new Map<string, string>();
   for (const row of constantsRes.data ?? []) constantMap.set(row.key, Number(row.value));
+  for (const row of constantsRes.data ?? []) if (row.value_text) constantTextMap.set(row.key, row.value_text);
   const constants: PayrollConstants = {
     ssc_rate: constantMap.get("ssc_employee_rate") ?? constantMap.get("ssc_rate") ?? 0.009,
     ssc_max_deduction: constantMap.get("ssc_max_deduction") ?? 99,
@@ -101,6 +103,7 @@ Deno.serve(async (req) => {
     public_holiday_multiplier: constantMap.get("public_holiday_multiplier") ?? 2,
     weekly_ordinary_cap: constantMap.get("weekly_ordinary_cap") ?? 60,
     periods_per_year: constantMap.get("periods_per_year") ?? 12,
+    sunday_boundary_rule: constantTextMap.get("sunday_boundary_rule") === "majority_of_shift" ? "majority_of_shift" : "midnight_split",
   };
   const brackets: PayeBracket[] = (bracketsRes.data ?? []).map((row) => ({
     lower_bound: Number(row.lower_bound), upper_bound: row.upper_bound == null ? null : Number(row.upper_bound),
@@ -168,6 +171,7 @@ Deno.serve(async (req) => {
       consensual_deductions: round2(calculation.consensual_deductions + calculation.fine_deductions),
       total_deductions: calculation.total_deductions, net_salary: calculation.net_salary,
       compliance_warnings: calculation.warnings,
+      calculation_segments: calculation.calculation_segments,
     }));
   const { error: saveErr } = await admin.rpc("replace_draft_payroll", { p_period: period.id, p_rows: rows });
   if (saveErr) {

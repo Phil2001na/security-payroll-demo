@@ -2157,6 +2157,7 @@ export type Database = {
           tenant_id: string;
           updated_at: string;
           value: number;
+          value_text: string | null;
         };
         Insert: {
           created_at?: string;
@@ -2167,6 +2168,7 @@ export type Database = {
           tenant_id: string;
           updated_at?: string;
           value: number;
+          value_text?: string | null;
         };
         Update: {
           created_at?: string;
@@ -2177,6 +2179,7 @@ export type Database = {
           tenant_id?: string;
           updated_at?: string;
           value?: number;
+          value_text?: string | null;
         };
         Relationships: [
           {
@@ -2191,6 +2194,7 @@ export type Database = {
       payroll_runs: {
         Row: {
           annual_leave_hours: number;
+          calculation_segments: Json;
           compassionate_leave_hours: number;
           maternity_leave_hours: number;
           maternity_paid_hours: number;
@@ -2232,6 +2236,7 @@ export type Database = {
         };
         Insert: {
           annual_leave_hours?: number;
+          calculation_segments?: Json;
           compassionate_leave_hours?: number;
           maternity_leave_hours?: number;
           maternity_paid_hours?: number;
@@ -2273,6 +2278,7 @@ export type Database = {
         };
         Update: {
           annual_leave_hours?: number;
+          calculation_segments?: Json;
           compassionate_leave_hours?: number;
           maternity_leave_hours?: number;
           maternity_paid_hours?: number;

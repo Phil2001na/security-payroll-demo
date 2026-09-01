@@ -10,6 +10,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test": "vitest run",
     "verify:leave-payroll": "tsx scripts/verify-leave-payroll.ts",
     "verify:leave-migration": "tsx scripts/verify-leave-migration.ts",
     "verify:leave-database": "tsx scripts/verify-leave-database.ts",
@@ -96,6 +97,7 @@
     "tsx": "^4.23.5",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
+    "vitest": "^3.2.4",
     "vite": "^7.3.6"
   }
 }

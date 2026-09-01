@@ -98,6 +98,9 @@ function payrollRunToCalc(pr: PayrollRunWithEmployee): PayslipCalc {
     warnings: Array.isArray(pr.compliance_warnings)
       ? pr.compliance_warnings.filter((value): value is string => typeof value === "string")
       : [],
+    calculation_segments: Array.isArray(pr.calculation_segments)
+      ? pr.calculation_segments.filter((value): value is PayslipCalc["calculation_segments"][number] => typeof value === "object" && value !== null)
+      : [],
   };
 }
 
@@ -717,6 +720,31 @@ function PayrollPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {calcs.some((calc) => calc.calculation_segments.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Calculation segment audit trail</CardTitle>
+            <p className="text-xs text-muted-foreground">Per-day payroll classifications derived from each stored shift; roster records are unchanged.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {calcs.filter((calc) => calc.calculation_segments.length > 0).map((calc) => (
+              <details key={calc.employee.id} className="rounded border p-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  {calc.employee.display_name ?? `${calc.employee.first_names} ${calc.employee.surname}`} ({calc.employee.employee_code})
+                </summary>
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {calc.calculation_segments.map((segment, index) => (
+                    <div key={`${segment.shift_log_id}-${segment.date}-${index}`}>
+                      {segment.date}: {(segment.minutes / 60).toFixed(2)}h {segment.classification.replace("_", " ")} at {segment.multiplier_applied}×; night {(segment.night_minutes / 60).toFixed(2)}h
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* UAT-16: employee-level Sunday/premium report for the selected period — who worked
           rostered Sunday vs call-in relief vs public holiday, hours and the pay each earned,

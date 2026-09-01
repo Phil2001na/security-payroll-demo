@@ -119,6 +119,16 @@ export type PayrollConstants = {
   public_holiday_multiplier: number;
   weekly_ordinary_cap: number;
   periods_per_year: number;
+  sunday_boundary_rule: "midnight_split" | "majority_of_shift";
+};
+
+export type PayrollCalculationSegment = {
+  shift_log_id: string;
+  date: string;
+  minutes: number;
+  night_minutes: number;
+  classification: "ordinary" | "sunday" | "sunday_callin" | "public_holiday";
+  multiplier_applied: number;
 };
 
 export type PayeBracket = {
@@ -170,6 +180,7 @@ export type PayslipCalc = PayslipBuckets & {
   total_deductions: number;
   net_salary: number;
   warnings: string[];
+  calculation_segments: PayrollCalculationSegment[];
 };
 
 // ---------- Constants fetch ----------
@@ -286,7 +297,8 @@ function bucketiseLogs(
   warnings: string[],
   exemptWeekKeys: Set<string>,
   publicHolidayDates: Set<string>,
-): PayslipBuckets {
+  sundayBoundaryRule: PayrollConstants["sunday_boundary_rule"],
+): PayslipBuckets & { calculation_segments: PayrollCalculationSegment[] } {
   const b: PayslipBuckets = {
     normal_hours: 0,
     overtime_hours: 0,
@@ -307,6 +319,7 @@ function bucketiseLogs(
   // all logs are tallied. The weekly total alone decides normal vs overtime, so the
   // order of accumulation doesn't matter.
   const ordinaryByWeek = new Map<string, number>();
+  const calculation_segments: PayrollCalculationSegment[] = [];
   const addOrdinary = (day: string, hours: number) => {
     const wk = weekKeyOf(day);
     ordinaryByWeek.set(wk, (ordinaryByWeek.get(wk) ?? 0) + hours);
@@ -354,7 +367,7 @@ function bucketiseLogs(
       else b.sunday_hours += hours;
     };
 
-    const segs = shiftSegments(shiftStartMin(l.shift_types), hrs * 60);
+    const segs = shiftSegments(shiftStartMin(l.shift_types), Math.max(0, hrs * 60));
     let nightMinutes = 0;
     for (const s of segs) nightMinutes += s.nightMinutes;
     b.night_hours += nightMinutes / 60;
@@ -362,24 +375,57 @@ function bucketiseLogs(
     if (rule === "sunday_default" || rule === "sunday_ordinary") {
       // Explicit Sunday shift type — operator deliberately marked the whole shift Sunday.
       addSunday(hrs);
+      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: isCallIn ? "sunday_callin" : "sunday", multiplier_applied: isCallIn ? 2 : 1.5 });
       continue;
     }
     if (rule === "public_holiday_ordinary" || rule === "public_holiday_non_ordinary") {
       b.public_holiday_hours += hrs;
+      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: "public_holiday", multiplier_applied: 2 });
       continue;
     }
 
     // Standard shift — classify each segment by its real calendar day.
+    let majorityDay: string | null = null;
+    if (sundayBoundaryRule === "majority_of_shift") {
+      const byDay = new Map<string, number>();
+      for (const s of segs) {
+        const day = addDaysISO(l.date, s.dayOffset);
+        byDay.set(day, (byDay.get(day) ?? 0) + s.minutes);
+      }
+      // The rule only governs Sunday attribution (Labour Act s.21(8)). A shift that
+      // touches no Sunday has nothing for it to decide, so its segments stay on their
+      // real calendar days and a tie between two ordinary days is not an ambiguity.
+      if ([...byDay.keys()].some((d) => dowOf(d) === 0)) {
+        const ranked = [...byDay.entries()].sort((a, b) => b[1] - a[1]);
+        if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) {
+          throw new Error(`Sunday majority-of-shift rule is tied for shift log ${l.id}; client direction is required`);
+        }
+        majorityDay = ranked[0]?.[0] ?? null;
+      }
+    }
     for (const s of segs) {
       const day = addDaysISO(l.date, s.dayOffset);
       const hours = s.minutes / 60;
+      // `sunday_boundary_rule` governs Sunday attribution only. A public holiday is
+      // declared against a real calendar date, so it always classifies by that date —
+      // majority-of-shift must not move hours onto or off a holiday.
+      const sundayDay = majorityDay ?? day;
+      let classification: PayrollCalculationSegment["classification"];
+      let multiplier: number;
       if (publicHolidayDates.has(day)) {
         b.public_holiday_hours += hours;
-      } else if (dowOf(day) === 0) {
+        classification = "public_holiday";
+        multiplier = 2;
+      } else if (dowOf(sundayDay) === 0) {
         addSunday(hours);
+        classification = isCallIn ? "sunday_callin" : "sunday";
+        multiplier = isCallIn ? 2 : 1.5;
       } else {
         addOrdinary(day, hours);
+        classification = "ordinary";
+        multiplier = 1;
       }
+      calculation_segments.push({ shift_log_id: l.id, date: day, minutes: s.minutes, night_minutes: s.nightMinutes, classification, multiplier_applied: multiplier });
     }
   }
 
@@ -395,7 +441,7 @@ function bucketiseLogs(
       );
     }
   }
-  return b;
+  return { ...b, calculation_segments };
 }
 
 // ---------- Full calculator ----------
@@ -456,6 +502,7 @@ export function calculateNetPay(args: {
         maternity_leave_hours: 0,
         maternity_paid_hours: 0,
         unpaid_leave_hours: 0,
+        calculation_segments: [],
       }
     : bucketiseLogs(
         logs,
@@ -464,6 +511,7 @@ export function calculateNetPay(args: {
         warnings,
         exemptWeekKeys,
         publicHolidayDates,
+        constants.sunday_boundary_rule,
       );
 
   const rate = Number(employee.hourly_rate) || constants.min_wage_security;
@@ -602,6 +650,7 @@ export function calculateNetPay(args: {
     total_deductions,
     net_salary,
     warnings,
+    calculation_segments: buckets.calculation_segments,
   };
 }
 
