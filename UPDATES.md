@@ -1,5 +1,11 @@
 # Updates
 
+## 2026-09-02 00:15
+- Applied `20260830180000_sunday_boundary_and_payroll_segments` and `20260901183000_namibian_public_holiday_calendar` to the live project. `payroll_constants.value_text` now exists, which the deployed `run-payroll` was already selecting; `sunday_boundary_rule` seeded to `midnight_split` for all 4 tenants; `payroll_runs.calculation_segments` added. 280 holiday rows seeded (2026-2030, 4 tenants) against 7 previously, all of which were 2025 — every 2026 public holiday had been pricing as an ordinary day.
+- Held back `20260830184500_leave_capacity_policy`: no site filter, no required-role dimension, no role check on the RPC, and it re-derives coverage instead of reusing `leave_coverage`. It needs the §7 rebuild before it goes near the approval path.
+- `run-payroll` now calculates each employee inside its own try/catch and returns a `failures` list. Previously one throw — including the deliberate tied-Sunday throw — aborted the entire tenant's run. The payroll page surfaces the failures in a persistent toast naming each employee, since a failed employee is silently absent from the draft.
+- Regenerated `src/integrations/supabase/types.ts` from the live schema.
+
 ## 2026-09-01 18:12
 - Corrected the “real tenant data” claim in `CLAUDE.md`/`AGENTS.md`, `.claude/commands/next-fix.md`, `SECURITY_AUDIT_HANDOFF.md` and `uat/2026-08-20/CODEX_PROMPT.md`. The data is fabricated demo data; the claim was causing agents to gate routine migrations as if this were production. The migration-approval rule stays, re-justified on live-schema divergence rather than data sensitivity.
 - Added migration `20260901183000_namibian_public_holiday_calendar.sql`: `namibian_public_holidays(year)` computes the Namibian calendar per the Public Holidays Act 26 of 1990, deriving Good Friday/Easter Monday/Ascension from the Gregorian computus instead of hardcoding them, and applying the s.1(2) Sunday-to-Monday observance. Seeds 2026-2030 for all tenants. Not applied.

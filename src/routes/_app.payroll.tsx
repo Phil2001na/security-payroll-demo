@@ -246,10 +246,24 @@ function PayrollPage() {
         body: { periodId: period.id },
       });
       if (error) throw error;
-      const result = data as { calculations?: PayslipCalc[]; error?: string };
+      const result = data as {
+        calculations?: PayslipCalc[];
+        failures?: { employee_code: string | null; name: string; reason: string }[];
+        error?: string;
+      };
       if (!result.calculations) throw new Error(result.error ?? "Payroll run failed");
       setCalcs(result.calculations);
       toast.success(`Payroll computed for ${result.calculations.length} employees`);
+      // An employee the engine could not calculate is absent from the draft entirely, so
+      // the count above would otherwise be the only clue. Name them.
+      const failures = result.failures ?? [];
+      if (failures.length > 0) {
+        toast.error(
+          `${failures.length} employee${failures.length === 1 ? "" : "s"} could not be calculated and ${failures.length === 1 ? "is" : "are"} NOT in this draft: ` +
+            failures.map((f) => `${f.employee_code ?? f.name} (${f.reason})`).join("; "),
+          { duration: Infinity },
+        );
+      }
       return;
 
       const { constants, brackets } = await fetchPayrollConstants();

@@ -6,31 +6,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5";
   };
-  graphql_public: {
-    Tables: {
-      [_ in never]: never;
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json;
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-        };
-        Returns: Json;
-      };
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
   public: {
     Tables: {
       ai_audit_events: {
@@ -1425,6 +1400,57 @@ export type Database = {
           },
         ];
       };
+      invoice_payments: {
+        Row: {
+          amount: number;
+          created_at: string;
+          id: string;
+          invoice_id: string;
+          notes: string | null;
+          received_at: string;
+          recorded_by: string | null;
+          reference: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          id?: string;
+          invoice_id: string;
+          notes?: string | null;
+          received_at?: string;
+          recorded_by?: string | null;
+          reference?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          id?: string;
+          invoice_id?: string;
+          notes?: string | null;
+          received_at?: string;
+          recorded_by?: string | null;
+          reference?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey";
+            columns: ["invoice_id"];
+            isOneToOne: false;
+            referencedRelation: "invoices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_payments_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       invoices: {
         Row: {
           client_id: string | null;
@@ -1526,37 +1552,6 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
-      };
-      invoice_payments: {
-        Row: {
-          amount: number;
-          created_at: string;
-          id: string;
-          invoice_id: string;
-          notes: string | null;
-          received_at: string;
-          recorded_by: string | null;
-          reference: string | null;
-          tenant_id: string;
-        };
-        Insert: {
-          amount: number;
-          created_at?: string;
-          id?: string;
-          invoice_id: string;
-          notes?: string | null;
-          received_at?: string;
-          recorded_by?: string | null;
-          reference?: string | null;
-          tenant_id: string;
-        };
-        Update: {
-          amount?: number;
-          notes?: string | null;
-          received_at?: string;
-          reference?: string | null;
-        };
-        Relationships: [];
       };
       leave_accruals: {
         Row: {
@@ -1679,6 +1674,7 @@ export type Database = {
           assigned_at?: string | null;
           assigned_by?: string | null;
           coverage_date: string;
+          created_at?: string;
           id?: string;
           leave_employee_id: string;
           original_assignment_id: string;
@@ -1690,17 +1686,93 @@ export type Database = {
           site_id: string;
           status?: Database["public"]["Enums"]["leave_coverage_status"];
           tenant_id: string;
+          updated_at?: string;
           waived_reason?: string | null;
         };
         Update: {
           assigned_at?: string | null;
           assigned_by?: string | null;
+          coverage_date?: string;
+          created_at?: string;
+          id?: string;
+          leave_employee_id?: string;
+          original_assignment_id?: string;
+          planned_hours?: number;
           replacement_assignment_id?: string | null;
           replacement_employee_id?: string | null;
+          request_day_id?: string;
+          shift_type_id?: string;
+          site_id?: string;
           status?: Database["public"]["Enums"]["leave_coverage_status"];
+          tenant_id?: string;
+          updated_at?: string;
           waived_reason?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "leave_coverage_assigned_by_fkey";
+            columns: ["assigned_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_leave_employee_id_fkey";
+            columns: ["leave_employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_original_assignment_id_fkey";
+            columns: ["original_assignment_id"];
+            isOneToOne: true;
+            referencedRelation: "schedule_assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_replacement_assignment_id_fkey";
+            columns: ["replacement_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_replacement_employee_id_fkey";
+            columns: ["replacement_employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_request_day_id_fkey";
+            columns: ["request_day_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_request_days";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_shift_type_id_fkey";
+            columns: ["shift_type_id"];
+            isOneToOne: false;
+            referencedRelation: "shift_types";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_coverage_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       leave_cycles: {
         Row: {
@@ -1710,31 +1782,57 @@ export type Database = {
           employee_id: string;
           entitlement_units: number;
           id: string;
+          latest_leave_date: string | null;
           leave_type: Database["public"]["Enums"]["leave_type"];
           tenant_id: string;
           updated_at: string;
         };
         Insert: {
+          created_at?: string;
           cycle_end: string;
           cycle_start: string;
           employee_id: string;
           entitlement_units: number;
           id?: string;
+          latest_leave_date?: string | null;
           leave_type: Database["public"]["Enums"]["leave_type"];
           tenant_id: string;
+          updated_at?: string;
         };
         Update: {
+          created_at?: string;
           cycle_end?: string;
           cycle_start?: string;
+          employee_id?: string;
           entitlement_units?: number;
+          id?: string;
+          latest_leave_date?: string | null;
+          leave_type?: Database["public"]["Enums"]["leave_type"];
+          tenant_id?: string;
+          updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "leave_cycles_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_cycles_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       leave_ledger: {
         Row: {
-          cycle_id: string | null;
           created_at: string;
           created_by: string | null;
+          cycle_id: string | null;
           effective_date: string;
           employee_id: string;
           entry_type: Database["public"]["Enums"]["leave_ledger_entry_type"];
@@ -1747,9 +1845,9 @@ export type Database = {
           units: number;
         };
         Insert: {
-          cycle_id?: string | null;
           created_at?: string;
           created_by?: string | null;
+          cycle_id?: string | null;
           effective_date?: string;
           employee_id: string;
           entry_type: Database["public"]["Enums"]["leave_ledger_entry_type"];
@@ -1761,8 +1859,65 @@ export type Database = {
           tenant_id: string;
           units: number;
         };
-        Update: never;
-        Relationships: [];
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          cycle_id?: string | null;
+          effective_date?: string;
+          employee_id?: string;
+          entry_type?: Database["public"]["Enums"]["leave_ledger_entry_type"];
+          id?: string;
+          leave_type?: Database["public"]["Enums"]["leave_type"];
+          pay_period_id?: string | null;
+          reference?: string | null;
+          request_id?: string | null;
+          tenant_id?: string;
+          units?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "leave_ledger_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_ledger_cycle_id_fkey";
+            columns: ["cycle_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_cycles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_ledger_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_ledger_pay_period_id_fkey";
+            columns: ["pay_period_id"];
+            isOneToOne: false;
+            referencedRelation: "pay_periods";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_ledger_request_id_fkey";
+            columns: ["request_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_requests";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_ledger_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       leave_policies: {
         Row: {
@@ -1784,6 +1939,7 @@ export type Database = {
           active?: boolean;
           allow_negative?: boolean;
           balance_enforced?: boolean;
+          created_at?: string;
           evidence_required_after_days?: number | null;
           id?: string;
           label: string;
@@ -1792,17 +1948,32 @@ export type Database = {
           minimum_notice_days?: number;
           paid_percent?: number;
           tenant_id: string;
+          updated_at?: string;
         };
         Update: {
           active?: boolean;
           allow_negative?: boolean;
           balance_enforced?: boolean;
+          created_at?: string;
           evidence_required_after_days?: number | null;
+          id?: string;
+          label?: string;
+          leave_type?: Database["public"]["Enums"]["leave_type"];
           maximum_consecutive_days?: number | null;
           minimum_notice_days?: number;
           paid_percent?: number;
+          tenant_id?: string;
+          updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "leave_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       leave_request_days: {
         Row: {
@@ -1821,21 +1992,76 @@ export type Database = {
         };
         Insert: {
           charge_units?: number;
+          created_at?: string;
           employee_id: string;
           id?: string;
           leave_date: string;
-          request_id: string;
-          tenant_id: string;
-        };
-        Update: {
-          charge_units?: number;
           original_assignment_id?: string | null;
           original_planned_hours?: number | null;
           original_shift_type_id?: string | null;
           original_site_id?: string | null;
           paid_hours?: number;
+          request_id: string;
+          tenant_id: string;
         };
-        Relationships: [];
+        Update: {
+          charge_units?: number;
+          created_at?: string;
+          employee_id?: string;
+          id?: string;
+          leave_date?: string;
+          original_assignment_id?: string | null;
+          original_planned_hours?: number | null;
+          original_shift_type_id?: string | null;
+          original_site_id?: string | null;
+          paid_hours?: number;
+          request_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "leave_request_days_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_request_days_original_assignment_id_fkey";
+            columns: ["original_assignment_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_assignments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_request_days_original_shift_type_id_fkey";
+            columns: ["original_shift_type_id"];
+            isOneToOne: false;
+            referencedRelation: "shift_types";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_request_days_original_site_id_fkey";
+            columns: ["original_site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_request_days_request_id_fkey";
+            columns: ["request_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_requests";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_request_days_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       leave_requests: {
         Row: {
@@ -1864,15 +2090,27 @@ export type Database = {
         };
         Insert: {
           balance_charged?: boolean;
+          cancellation_reason?: string | null;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          charged_units?: number;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_notes?: string | null;
           employee_id: string;
           end_date: string;
           evidence_url?: string | null;
           id?: string;
           leave_type: Database["public"]["Enums"]["leave_type"];
+          paid_percent?: number;
           reason: string;
+          requested_at?: string;
           requested_by: string;
           start_date: string;
+          status?: Database["public"]["Enums"]["leave_request_status"];
           tenant_id: string;
+          updated_at?: string;
         };
         Update: {
           balance_charged?: boolean;
@@ -1880,12 +2118,61 @@ export type Database = {
           cancelled_at?: string | null;
           cancelled_by?: string | null;
           charged_units?: number;
+          created_at?: string;
           decided_at?: string | null;
           decided_by?: string | null;
           decision_notes?: string | null;
+          employee_id?: string;
+          end_date?: string;
+          evidence_url?: string | null;
+          id?: string;
+          leave_type?: Database["public"]["Enums"]["leave_type"];
+          paid_percent?: number;
+          reason?: string;
+          requested_at?: string;
+          requested_by?: string;
+          start_date?: string;
           status?: Database["public"]["Enums"]["leave_request_status"];
+          tenant_id?: string;
+          updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_requests_decided_by_fkey";
+            columns: ["decided_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_requests_requested_by_fkey";
+            columns: ["requested_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leave_requests_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       ledger_entries: {
         Row: {
@@ -2196,8 +2483,6 @@ export type Database = {
           annual_leave_hours: number;
           calculation_segments: Json;
           compassionate_leave_hours: number;
-          maternity_leave_hours: number;
-          maternity_paid_hours: number;
           compliance_warnings: Json;
           consensual_deductions: number;
           created_at: string;
@@ -2207,6 +2492,8 @@ export type Database = {
           gross_salary: number;
           id: string;
           leave_balances_snapshot: Json | null;
+          maternity_leave_hours: number;
+          maternity_paid_hours: number;
           net_salary: number;
           night_hours: number;
           night_premium_amount: number;
@@ -2221,8 +2508,8 @@ export type Database = {
           public_holiday_amount: number;
           public_holiday_hours: number;
           rate_per_hour: number;
-          ssc_amount: number;
           sick_leave_hours: number;
+          ssc_amount: number;
           status: Database["public"]["Enums"]["payroll_run_status"];
           sunday_amount: number;
           sunday_callin_amount: number;
@@ -2238,8 +2525,6 @@ export type Database = {
           annual_leave_hours?: number;
           calculation_segments?: Json;
           compassionate_leave_hours?: number;
-          maternity_leave_hours?: number;
-          maternity_paid_hours?: number;
           compliance_warnings?: Json;
           consensual_deductions?: number;
           created_at?: string;
@@ -2249,6 +2534,8 @@ export type Database = {
           gross_salary?: number;
           id?: string;
           leave_balances_snapshot?: Json | null;
+          maternity_leave_hours?: number;
+          maternity_paid_hours?: number;
           net_salary?: number;
           night_hours?: number;
           night_premium_amount?: number;
@@ -2263,8 +2550,8 @@ export type Database = {
           public_holiday_amount?: number;
           public_holiday_hours?: number;
           rate_per_hour: number;
-          ssc_amount?: number;
           sick_leave_hours?: number;
+          ssc_amount?: number;
           status?: Database["public"]["Enums"]["payroll_run_status"];
           sunday_amount?: number;
           sunday_callin_amount?: number;
@@ -2280,8 +2567,6 @@ export type Database = {
           annual_leave_hours?: number;
           calculation_segments?: Json;
           compassionate_leave_hours?: number;
-          maternity_leave_hours?: number;
-          maternity_paid_hours?: number;
           compliance_warnings?: Json;
           consensual_deductions?: number;
           created_at?: string;
@@ -2291,6 +2576,8 @@ export type Database = {
           gross_salary?: number;
           id?: string;
           leave_balances_snapshot?: Json | null;
+          maternity_leave_hours?: number;
+          maternity_paid_hours?: number;
           net_salary?: number;
           night_hours?: number;
           night_premium_amount?: number;
@@ -2305,8 +2592,8 @@ export type Database = {
           public_holiday_amount?: number;
           public_holiday_hours?: number;
           rate_per_hour?: number;
-          ssc_amount?: number;
           sick_leave_hours?: number;
+          ssc_amount?: number;
           status?: Database["public"]["Enums"]["payroll_run_status"];
           sunday_amount?: number;
           sunday_callin_amount?: number;
@@ -2697,6 +2984,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "schedule_assignments_leave_request_day_id_fkey";
+            columns: ["leave_request_day_id"];
+            isOneToOne: false;
+            referencedRelation: "leave_request_days";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "schedule_assignments_replaced_assignment_id_fkey";
             columns: ["replaced_assignment_id"];
             isOneToOne: false;
@@ -2719,6 +3013,67 @@ export type Database = {
           },
           {
             foreignKeyName: "schedule_assignments_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      schedule_shortages: {
+        Row: {
+          attempted_by: string | null;
+          created_at: string;
+          failed_eligibility: Json;
+          id: string;
+          required_count: number;
+          shift_kind: string;
+          shortage_date: string;
+          site_id: string;
+          tenant_id: string;
+          unmet_count: number;
+        };
+        Insert: {
+          attempted_by?: string | null;
+          created_at?: string;
+          failed_eligibility?: Json;
+          id?: string;
+          required_count: number;
+          shift_kind: string;
+          shortage_date: string;
+          site_id: string;
+          tenant_id: string;
+          unmet_count: number;
+        };
+        Update: {
+          attempted_by?: string | null;
+          created_at?: string;
+          failed_eligibility?: Json;
+          id?: string;
+          required_count?: number;
+          shift_kind?: string;
+          shortage_date?: string;
+          site_id?: string;
+          tenant_id?: string;
+          unmet_count?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "schedule_shortages_attempted_by_fkey";
+            columns: ["attempted_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_shortages_site_id_fkey";
+            columns: ["site_id"];
+            isOneToOne: false;
+            referencedRelation: "sites";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "schedule_shortages_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -3404,10 +3759,20 @@ export type Database = {
         };
         Returns: undefined;
       };
-      approve_leave_request: { Args: { p_notes?: string; p_request: string }; Returns: undefined };
-      assign_leave_cover: { Args: { p_coverage: string; p_employee: string }; Returns: string };
+      approve_leave_request: {
+        Args: { p_notes?: string; p_request: string };
+        Returns: undefined;
+      };
+      assign_leave_cover: {
+        Args: { p_coverage: string; p_employee: string };
+        Returns: string;
+      };
       cancel_employment_exit: {
         Args: { p_exit: string; p_reason: string };
+        Returns: undefined;
+      };
+      cancel_leave_request: {
+        Args: { p_reason: string; p_request: string };
         Returns: undefined;
       };
       confirm_disciplinary_action: {
@@ -3418,11 +3783,15 @@ export type Database = {
         Args: { p_exit: string; p_final_period?: string };
         Returns: undefined;
       };
+      current_site_ids: { Args: never; Returns: string[] };
+      employee_week_hours: {
+        Args: { _any_date: string; _employee_id: string };
+        Returns: number;
+      };
       finalize_payroll_period: {
         Args: { p_period: string };
         Returns: undefined;
       };
-      cancel_leave_request: { Args: { p_reason: string; p_request: string }; Returns: undefined };
       fn_get_or_create_account: {
         Args: {
           p_code: string;
@@ -3435,12 +3804,26 @@ export type Database = {
       };
       get_my_role: { Args: never; Returns: string };
       get_my_tenant_id: { Args: never; Returns: string };
+      has_ps_exemption: {
+        Args: { _date: string; _employee_id: string };
+        Returns: boolean;
+      };
       is_ceo_executive: { Args: never; Returns: boolean };
+      namibian_public_holidays: {
+        Args: { p_year: number };
+        Returns: {
+          holiday_date: string;
+          holiday_name: string;
+        }[];
+      };
+      reject_leave_request: {
+        Args: { p_reason: string; p_request: string };
+        Returns: undefined;
+      };
       replace_draft_payroll: {
         Args: { p_period: string; p_rows: Json };
         Returns: undefined;
       };
-      reject_leave_request: { Args: { p_reason: string; p_request: string }; Returns: undefined };
       set_site_supervisors: {
         Args: { p_site: string; p_user_ids: string[] };
         Returns: undefined;
@@ -3473,20 +3856,23 @@ export type Database = {
           p_active: boolean;
           p_allow_negative: boolean;
           p_balance_enforced: boolean;
-          p_evidence_required_after_days: number | null;
-          p_maximum_consecutive_days: number | null;
+          p_evidence_required_after_days: number;
+          p_maximum_consecutive_days: number;
           p_minimum_notice_days: number;
           p_paid_percent: number;
           p_type: Database["public"]["Enums"]["leave_type"];
         };
         Returns: undefined;
       };
-      waive_leave_cover: { Args: { p_coverage: string; p_reason: string }; Returns: undefined };
       verify_disciplinary_action: {
         Args: { p_action: string };
         Returns: undefined;
       };
       verify_employment_exit: { Args: { p_exit: string }; Returns: undefined };
+      waive_leave_cover: {
+        Args: { p_coverage: string; p_reason: string };
+        Returns: undefined;
+      };
       yango_has_role: {
         Args: {
           _role: Database["public"]["Enums"]["yango_app_role"];
@@ -3535,7 +3921,6 @@ export type Database = {
       installment_status: "active" | "paid_off" | "paused" | "written_off";
       invoice_status: "draft" | "issued" | "paid" | "void";
       invoice_type: "AR" | "AP";
-      literacy_grade: "A+" | "A" | "B" | "C" | "D";
       leave_coverage_status: "open" | "assigned" | "waived" | "cancelled";
       leave_ledger_entry_type:
         | "opening"
@@ -3547,6 +3932,7 @@ export type Database = {
         | "expiry";
       leave_request_status: "submitted" | "approved" | "rejected" | "cancelled";
       leave_type: "annual" | "sick" | "compassionate" | "maternity" | "unpaid";
+      literacy_grade: "A+" | "A" | "B" | "C" | "D";
       normal_balance_type: "debit" | "credit";
       pay_period_status: "open" | "locked" | "paid";
       pay_rule:
@@ -3696,9 +4082,6 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_type: ["asset", "liability", "equity", "income", "expense"],
@@ -3744,7 +4127,6 @@ export const Constants = {
       installment_status: ["active", "paid_off", "paused", "written_off"],
       invoice_status: ["draft", "issued", "paid", "void"],
       invoice_type: ["AR", "AP"],
-      literacy_grade: ["A+", "A", "B", "C", "D"],
       leave_coverage_status: ["open", "assigned", "waived", "cancelled"],
       leave_ledger_entry_type: [
         "opening",
@@ -3757,6 +4139,7 @@ export const Constants = {
       ],
       leave_request_status: ["submitted", "approved", "rejected", "cancelled"],
       leave_type: ["annual", "sick", "compassionate", "maternity", "unpaid"],
+      literacy_grade: ["A+", "A", "B", "C", "D"],
       normal_balance_type: ["debit", "credit"],
       pay_period_status: ["open", "locked", "paid"],
       pay_rule: [

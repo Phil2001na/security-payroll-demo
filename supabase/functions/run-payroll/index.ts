@@ -141,19 +141,39 @@ Deno.serve(async (req) => {
     deductionsByEmployee.set(deduction.employee_id, entries);
   }
   const publicHolidayDates = new Set((holidaysRes.data ?? []).map((row) => String(row.date).slice(0, 10)));
-  const calculations = (employeesRes.data ?? []).map((employee) => calculateNetPay({
-    employee: employee as EmployeeRow,
-    logs: (logsRes.data ?? []).filter((log) => log.employee_id === employee.id) as ShiftLogRow[],
-    disciplinary: (disciplinaryRes.data ?? []).filter((action) => action.employee_id === employee.id) as DisciplinaryRow[],
-    adhocDeductions: deductionsByEmployee.get(employee.id) ?? [],
-    suspensionDates: suspensionByEmployee.get(employee.id),
-    psExemptWeekKeys: exemptWeeksByEmployee.get(employee.id),
-    publicHolidayDates,
-    rosteredDays: rosteredDaysByEmployee.get(employee.id)?.size ?? 0,
-    nightPremiumEnabled: tenantRes.data?.night_premium_enabled ?? true,
-    constants,
-    brackets,
-  }));
+  // One employee's data must not sink the whole run. The engine throws deliberately in
+  // cases that need a human answer (a tied majority-of-shift Sunday, for example), and an
+  // uncaught throw here previously meant nobody in the tenant got a draft. Failures are
+  // collected and reported instead of swallowed — an employee missing from the draft is a
+  // fact payroll has to see, not one to discover on the payslip.
+  const calculations: ReturnType<typeof calculateNetPay>[] = [];
+  const failures: { employee_id: string; employee_code: string | null; name: string; reason: string }[] = [];
+  for (const employee of employeesRes.data ?? []) {
+    try {
+      calculations.push(calculateNetPay({
+        employee: employee as EmployeeRow,
+        logs: (logsRes.data ?? []).filter((log) => log.employee_id === employee.id) as ShiftLogRow[],
+        disciplinary: (disciplinaryRes.data ?? []).filter((action) => action.employee_id === employee.id) as DisciplinaryRow[],
+        adhocDeductions: deductionsByEmployee.get(employee.id) ?? [],
+        suspensionDates: suspensionByEmployee.get(employee.id),
+        psExemptWeekKeys: exemptWeeksByEmployee.get(employee.id),
+        publicHolidayDates,
+        rosteredDays: rosteredDaysByEmployee.get(employee.id)?.size ?? 0,
+        nightPremiumEnabled: tenantRes.data?.night_premium_enabled ?? true,
+        constants,
+        brackets,
+      }));
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      failures.push({
+        employee_id: employee.id,
+        employee_code: employee.employee_code ?? null,
+        name: employee.display_name || [employee.first_names, employee.surname].filter(Boolean).join(" ") || employee.id,
+        reason,
+      });
+      console.error("[run-payroll] Calculation failed for employee", employee.id, reason);
+    }
+  }
   const rows = calculations
     .filter((calculation) => calculation.gross_salary > 0 || calculation.total_deductions > 0 || calculation.employee.category === "management")
     .map((calculation) => ({
@@ -178,5 +198,5 @@ Deno.serve(async (req) => {
     console.error("[run-payroll] Persistence failed", saveErr);
     return json({ error: "Unable to save the payroll draft." }, 500);
   }
-  return json({ calculations });
+  return json({ calculations, failures });
 });
