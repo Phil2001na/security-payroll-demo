@@ -1,7 +1,12 @@
 # Updates
 
+## 2026-09-02 20:12
+- Deployed the `run-payroll` edge function, so the per-employee try/catch and the `failures` list are now live. Verified against the deployed source, not just the CLI success line.
+- The deploy came back as **version 1, created just now** — `run-payroll` had never been deployed to this project. The 00:15 entry below claimed the migration fixed a live break where the deployed function selected a missing `value_text` column; that was wrong and has been corrected. The migration was still a prerequisite (the function selects `value_text` and every run would have 500'd without it), but nothing was broken in production beforehand because nothing was running.
+- Payroll in the deployed app has therefore never run server-side. Worth confirming which path the payroll page was actually using before this.
+
 ## 2026-09-02 00:15
-- Applied `20260830180000_sunday_boundary_and_payroll_segments` and `20260901183000_namibian_public_holiday_calendar` to the live project. `payroll_constants.value_text` now exists, which the deployed `run-payroll` was already selecting; `sunday_boundary_rule` seeded to `midnight_split` for all 4 tenants; `payroll_runs.calculation_segments` added. 280 holiday rows seeded (2026-2030, 4 tenants) against 7 previously, all of which were 2025 — every 2026 public holiday had been pricing as an ordinary day.
+- Applied `20260830180000_sunday_boundary_and_payroll_segments` and `20260901183000_namibian_public_holiday_calendar` to the live project. `payroll_constants.value_text` now exists, which `run-payroll` selects; `sunday_boundary_rule` seeded to `midnight_split` for all 4 tenants; `payroll_runs.calculation_segments` added. 280 holiday rows seeded (2026-2030, 4 tenants) against 7 previously, all of which were 2025 — every 2026 public holiday had been pricing as an ordinary day.
 - Held back `20260830184500_leave_capacity_policy`: no site filter, no required-role dimension, no role check on the RPC, and it re-derives coverage instead of reusing `leave_coverage`. It needs the §7 rebuild before it goes near the approval path.
 - `run-payroll` now calculates each employee inside its own try/catch and returns a `failures` list. Previously one throw — including the deliberate tied-Sunday throw — aborted the entire tenant's run. The payroll page surfaces the failures in a persistent toast naming each employee, since a failed employee is silently absent from the draft.
 - Regenerated `src/integrations/supabase/types.ts` from the live schema.
