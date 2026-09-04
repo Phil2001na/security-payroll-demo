@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/admin/settings")({
@@ -19,6 +20,10 @@ export const Route = createFileRoute("/_app/admin/settings")({
 });
 
 type Constant = { key: string; value: number; description: string | null };
+
+// Stored in payroll_constants.value_text, not .value — the numeric editor below would show it
+// as a meaningless 0 and silently write a number the engine never reads, so it gets its own card.
+const TEXT_CONSTANT_KEYS = new Set(["sunday_boundary_rule"]);
 
 function SettingsPage() {
   const { profile } = useAuth();
@@ -47,7 +52,7 @@ function SettingsPage() {
         .select("key, value, description")
         .order("key");
       if (error) throw error;
-      return data as Constant[];
+      return (data as Constant[]).filter((c) => !TEXT_CONSTANT_KEYS.has(c.key));
     },
   });
 
@@ -115,6 +120,8 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
+      <SundayBoundaryCard />
+
       <CompanyBillingCard />
 
       <ContractTemplatesCard />
@@ -129,6 +136,104 @@ function SettingsPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+// ─── Sunday boundary rule ─────────────────────────────────────────────────────
+
+type BoundaryRule = "midnight_split" | "majority_of_shift";
+
+const BOUNDARY_OPTIONS: { value: BoundaryRule; label: string; detail: string }[] = [
+  {
+    value: "midnight_split",
+    label: "Split at midnight (default)",
+    detail:
+      "Each side of midnight is paid at its own rate. A Saturday 18h00–Sunday 06h00 shift pays 6 hours normal and 6 hours at the Sunday rate.",
+  },
+  {
+    value: "majority_of_shift",
+    label: "Majority of the shift",
+    detail:
+      "The whole shift takes the rate of whichever calendar day holds more than half its minutes. A shift split exactly evenly cannot be calculated and payroll will refuse it rather than guess.",
+  },
+];
+
+function SundayBoundaryCard() {
+  const qc = useQueryClient();
+  const [choice, setChoice] = useState<BoundaryRule | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["sunday-boundary-rule"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payroll_constants")
+        .select("id, value_text")
+        .eq("key", "sunday_boundary_rule")
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; value_text: string | null } | null;
+    },
+  });
+
+  const saved: BoundaryRule = data?.value_text === "majority_of_shift" ? "majority_of_shift" : "midnight_split";
+  const current = choice ?? saved;
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!data?.id) throw new Error("Sunday boundary rule is not configured for this tenant");
+      const { error } = await supabase
+        .from("payroll_constants")
+        .update({ value_text: current })
+        .eq("id", data.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Sunday boundary rule updated");
+      setChoice(null);
+      void qc.invalidateQueries({ queryKey: ["sunday-boundary-rule"] });
+      void qc.invalidateQueries({ queryKey: ["payroll-constants"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Sunday boundary rule</CardTitle>
+        <CardDescription>
+          How a shift that crosses midnight into or out of a Sunday is paid. Applies to the next payroll
+          run — periods already finalised keep the figures they were calculated with.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-6"><Loader2 className="h-5 w-5 animate-spin inline" /></div>
+        ) : !data ? (
+          <p className="text-sm text-muted-foreground">
+            No <span className="font-mono text-xs">sunday_boundary_rule</span> row exists for this tenant.
+            The engine falls back to splitting at midnight.
+          </p>
+        ) : (
+          <RadioGroup value={current} onValueChange={(v) => setChoice(v as BoundaryRule)} className="space-y-3">
+            {BOUNDARY_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
+                <RadioGroupItem value={opt.value} className="mt-1" />
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">{opt.label}</div>
+                  <p className="text-xs text-muted-foreground">{opt.detail}</p>
+                </div>
+              </label>
+            ))}
+          </RadioGroup>
+        )}
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending || !data || current === saved}>
+            {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save boundary rule
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

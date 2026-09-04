@@ -1,5 +1,28 @@
 # Updates
 
+## 2026-09-04 10:55
+- Added a **Sunday boundary rule** card to Admin settings. D-01 made the rule configurable in the
+  engine but nothing surfaced it, so the only way to change it was editing the `payroll_constants`
+  row by hand and UAT-T01/T02 could not be tested both ways. It lives in `value_text`, not `value`,
+  so it needed its own control: the numeric constants editor would have shown a meaningless 0 and
+  written a number the engine never reads. `sunday_boundary_rule` is now filtered out of that list.
+- Corrected the status column in `uat/2026-08-20/UAT.md`. It still read "Not started" for UAT-03,
+  06, 10, 12 and 16, all of which shipped in `f2a323e` -- that commit touched the file without
+  updating the statuses, so the ledger understated what was built. Every status was re-checked
+  against the code before being changed, and the file now records the date it was verified.
+- Rebuilt `tracker.html` for the 2026-08-20 UAT round. It had been frozen since 21 August with two
+  cards and none of the round's work in it. Added nine "Built -- verify" cards covering the boundary
+  rule, calculation segments, the Sunday/premium report, Sunday categorisation, the leave planner,
+  the shortage register, premium fairness ranking, the payroll failure guard and the holiday
+  calendar -- each with steps naming the real screens, and a note on where the implementation
+  differs from the original UAT wording.
+- Not verified: which migrations are actually applied to live. The database is unreachable from
+  here (`ECONNREFUSED` on IPv6, from both the MCP tools and the Supabase CLI) while the project
+  itself reports `ACTIVE_HEALTHY`, so this is local routing rather than the DB. Cards 4, 7, 8 and 11
+  depend on migrations whose applied state is currently unconfirmed.
+- `bunx tsc --noEmit` 30 errors, unchanged and all pre-existing (none in the touched file);
+  `bun run build` passes; `bun run test` 15/15.
+
 ## 2026-09-02 20:12
 - Deployed the `run-payroll` edge function, so the per-employee try/catch and the `failures` list are now live. Verified against the deployed source, not just the CLI success line.
 - The deploy came back as **version 1, created just now** — `run-payroll` had never been deployed to this project. The 00:15 entry below claimed the migration fixed a live break where the deployed function selected a missing `value_text` column; that was wrong and has been corrected. The migration was still a prerequisite (the function selects `value_text` and every run would have 500'd without it), but nothing was broken in production beforehand because nothing was running.

@@ -417,6 +417,155 @@
       fail: 'A new tenant lands with 0 constants / 0 shift types / 0 leave policies (wizard steps 2, 5, 12 all show "not done" with zero counts), or an existing tenant’s constants/shift types/leave policies changed unexpectedly after this migration ran.',
       location: 'supabase/migrations/20260821120000_provision_payroll_defaults_for_new_tenants.sql · handle_new_user()',
       fix: 'Migration 36cb02a (PR #3) extends handle_new_user() to seed payroll_constants, shift_types, and leave_policies for new tenants, and backfills the two existing tenants that predate the change. Already applied directly to the live Supabase project (nakvdkkezgdqxytygtqp) and checked against get_advisors with no new findings — this card is confirming the live behavior, not deploying anything.'
+    },
+    {
+      id: 3,
+      priority: 'easy', priorityLabel: 'Built — verify',
+      title: 'Sunday boundary rule is selectable in Admin settings',
+      bug: 'UAT-01 asked for the approved rule on shifts crossing midnight into or out of a Sunday. The rule was made configurable in the engine (decision D-01: split at midnight is the default) but there was no screen anywhere to see or change it — the only way to switch was editing the payroll_constants row by hand, so UAT-T01 and UAT-T02 could not be tested both ways.',
+      steps: [
+        'Sign in as an admin and open Admin settings',
+        'Find the "Sunday boundary rule" card, below "Payroll constants"',
+        'Confirm the current selection is "Split at midnight (default)"',
+        'Confirm sunday_boundary_rule no longer appears as a number field in the "Payroll constants" list above',
+        'Switch to "Majority of the shift", click "Save boundary rule", reload the page and confirm the choice stuck',
+        'Switch it back to "Split at midnight (default)" and save'
+      ],
+      pass: 'The card shows both options with a plain-language explanation of each, the saved value survives a page reload, the Save button stays disabled until the selection actually changes, and sunday_boundary_rule is absent from the numeric constants list.',
+      fail: 'The card is missing, the selection does not persist after reload, saving errors, or sunday_boundary_rule still shows as an editable number (value 0) in the constants list above.',
+      location: 'src/routes/_app.admin.settings.tsx · SundayBoundaryCard',
+      note: 'The rule lives in payroll_constants.value_text, not .value, so it needed its own control rather than a row in the numeric editor — the generic editor would have shown a meaningless 0 and written a number the engine never reads. Changing the rule affects the next payroll run only; finalised periods keep the figures they were calculated with.'
+    },
+    {
+      id: 4,
+      priority: 'easy', priorityLabel: 'Built — verify',
+      title: 'Payroll shows the per-day calculation segments behind each payslip',
+      bug: 'P-06: the engine computed per-day segments for every shift and then discarded them, so a payslip showed only totals. Payroll had no way to show a guard why a shift that crossed midnight paid what it paid.',
+      steps: [
+        'Open Payroll and select a pay period that has shifts crossing midnight',
+        'Run the payroll draft',
+        'Scroll to the "Calculation segment audit trail" card below the per-category breakdown',
+        'Pick one guard who worked a Saturday-into-Sunday shift and read their segment lines'
+      ],
+      pass: 'Each segment line shows the date, hours, classification, the multiplier applied and the night hours within it. The segment hours for a shift add up exactly to that shift length — no minute is lost or counted twice.',
+      fail: 'The card does not appear, segments are missing for a shift that crossed midnight, or the segment hours do not sum to the shift duration.',
+      location: 'src/routes/_app.payroll.tsx:738 · supabase/migrations/20260830180000_sunday_boundary_and_payroll_segments.sql',
+      note: 'The roster is untouched — one shift is still one stored record with its real start and end timestamps. Segments are a calculation and audit artifact stored on the payroll run, not a change to how shifts are recorded.'
+    },
+    {
+      id: 5,
+      priority: 'easy', priorityLabel: 'Built — verify',
+      title: 'Sunday and premium report for management',
+      bug: 'UAT-16: management had no employee-level view of who worked Sunday and premium shifts, how many hours, and what each earned.',
+      steps: [
+        'Open Payroll and select a period that contains Sunday or public-holiday work',
+        'Run or open the draft',
+        'Scroll to the "Sunday & premium report" section',
+        'Check one guard against their payslip figures',
+        'Click the CSV download and open the file'
+      ],
+      pass: 'The table lists every guard with Sunday hours and pay, call-in Sunday hours and pay, public-holiday figures and a total premium pay column. Guards with no premium hours are excluded. The CSV matches what is on screen.',
+      fail: 'A guard with Sunday hours is missing, the pay figures disagree with the payslip, or the CSV export fails or is empty.',
+      location: 'src/routes/_app.payroll.tsx',
+      note: 'Built from the payroll run figures rather than re-derived from the roster, so the report cannot drift from what was actually paid.'
+    },
+    {
+      id: 6,
+      priority: 'easy', priorityLabel: 'Built — verify',
+      title: 'Rostered Sunday, call-in Sunday and public holiday are paid and shown separately',
+      bug: 'UAT-03: normal rostered Sunday work and call-in or relief work attract different rates (1.5x and 2x), and the system did not distinguish them on the payslip.',
+      steps: [
+        'Roster a guard for a normal Sunday shift and a second guard as a Sunday call-in',
+        'Run payroll for that period',
+        'Open each payslip and read the hours breakdown',
+        'Check the same split appears on the downloaded payslip PDF'
+      ],
+      pass: 'Rostered Sunday hours are listed separately from call-in Sunday hours and from public-holiday hours, each with its own amount, on screen and in the PDF. Rostered pays the agreed multiplier (1.5x) and call-in pays the default (2x).',
+      fail: 'The two Sunday types are combined into one line, or both are paid at the same rate.',
+      location: 'src/lib/payroll-engine.ts · src/lib/payslip-pdf.ts · src/routes/_app.payroll.tsx',
+      note: 'No further contractual Sunday category is modelled. Decision 2026-09-03 kept the blanket 1.5x for rostered Sundays without a per-employee consent gate — the exposure under Labour Act s.21 is recorded in uat/2026-08-20/DECISIONS-2026-09-03.md section 2.'
+    },
+    {
+      id: 7,
+      priority: 'medium', priorityLabel: 'Built — verify',
+      title: 'Leave planner flags guards due and overdue for annual leave',
+      bug: 'UAT-11 and UAT-12: leave cycles are anchored per employee and the Labour Act gives a four-month deadline after each cycle ends, but nothing told Operations who was approaching or past that date, or what taking them off would do to site coverage.',
+      steps: [
+        'Open the Leave page',
+        'Find the "Leave planner — due & overdue for annual leave" card',
+        'Read the list of guards, their deadline dates and balances',
+        'Confirm anyone already past their deadline is marked overdue and visually distinct',
+        'Check the coverage-risk indicator against the home-site staffing for that guard'
+      ],
+      pass: 'The planner lists guards whose annual leave deadline falls in the next 90 days, shows the statutory deadline date and current balance for each, marks overdue rows clearly, gives a running overdue count, and shows a high/medium/low coverage risk per guard.',
+      fail: 'A guard past their deadline is missing, the deadline date is wrong for their cycle, or no coverage risk is shown.',
+      location: 'src/routes/_app.leave.tsx · supabase/migrations/20260821153000_leave_cycle_latest_compliant_date.sql',
+      note: 'The deadline is a generated column on leave_cycles (cycle end plus four months) and is null for sick and compassionate leave, which have no equivalent statutory scheduling rule. The six-month extension is deliberately not modelled — capturing that written agreement is UAT-13 work.'
+    },
+    {
+      id: 8,
+      priority: 'medium', priorityLabel: 'Built — verify',
+      title: 'Unfillable coverage is recorded as a shortage instead of disappearing',
+      bug: 'UAT-08 and UAT-10: when the scheduler could not fill required coverage with a compliant guard, the gap surfaced as a toast that vanished. Operations and HR had no record to plan recruitment from, and the temptation was to overwork whoever was available.',
+      steps: [
+        'Open the Schedule page for a week with a site that cannot be fully covered',
+        'Run auto-fill or generate coverage so at least one slot cannot be filled',
+        'Look for the red "Coverage shortages · last 30 days" panel and expand it',
+        'Read one entry and check it names the site, date, shift and how many slots went unfilled',
+        'Confirm the entry lists the guards who were considered and the reason each was excluded'
+      ],
+      pass: 'Every unfilled slot creates a persistent record. The expanded panel groups shortages by site and shows date, day or night shift, required versus unmet count, and a per-guard exclusion reason. The record survives a page reload.',
+      fail: 'A shortage is only a toast, the panel does not appear, exclusion reasons are missing, or the record disappears on reload.',
+      location: 'src/routes/_app.schedule.tsx:1143 · supabase/migrations/20260821164000_schedule_shortage_register.sql',
+      note: 'This is the register only. The weekly Ops and HR report grouping recurring shortages by site, shift and required skill — decided 2026-09-03 as the whole of UAT-17 — is not built yet.'
+    },
+    {
+      id: 9,
+      priority: 'medium', priorityLabel: 'Built — verify',
+      title: 'Auto-fill prefers guards who have not had a recent premium Sunday',
+      bug: 'UAT-06: premium Sunday work kept going to the same familiar guards. Candidate selection needed to favour whoever has had fewer recent premium opportunities and lower hours.',
+      steps: [
+        'Give one guard a Sunday day shift this week',
+        'Move to a following week and auto-fill another Sunday day shift at the same site',
+        'Check which guard the system proposes first',
+        'Repeat with a guard who has had no Sunday work in the last three months'
+      ],
+      pass: 'A guard with no recent premium Sunday is ranked ahead of one who has just had one, all else being equal. The guard who worked recently is not hidden — they are ranked lower, and can still be assigned manually.',
+      fail: 'Ranking ignores premium history entirely, or a recently-premiumed guard is blocked outright rather than deprioritised.',
+      location: 'src/routes/_app.schedule.tsx:447',
+      note: 'Ranking signal only, over a fixed 90-day lookback. Decision 2026-09-03 replaces this with a configurable window defaulting to one premium opportunity per calendar month, counting every Sunday-working shift including call-ins, and excluding over-cap guards from suggestions with a visible reason. That change is not built yet — what ships today is the 90-day preference.'
+    },
+    {
+      id: 10,
+      priority: 'medium', priorityLabel: 'Built — verify',
+      title: 'One guard failing no longer kills the whole payroll run',
+      bug: 'A single employee with bad data threw out of the payroll calculation and aborted the entire run, with no indication of who caused it. Separately, the run-payroll edge function had never actually been deployed to the live project, so payroll in the deployed app had been failing outright since 19 August rather than falling back to anything.',
+      steps: [
+        'Open Payroll and select an open period',
+        'Click Run payroll',
+        'Confirm the draft is produced and the calculated guards are listed',
+        'If any guard could not be calculated, confirm they are named with the reason instead of the whole run failing'
+      ],
+      pass: 'The run completes and produces a draft. Any employee whose calculation failed is reported by name with a reason, and the remaining employees are still calculated and saved.',
+      fail: 'The run aborts entirely on one bad employee, or a failure is swallowed silently so a guard is quietly left out of the draft with no warning.',
+      location: 'supabase/functions/run-payroll/index.ts · src/routes/_app.payroll.tsx',
+      note: 'Deployed to the live project on 2026-09-02 and verified by reading the deployed source back, not just the CLI success line. Payroll is server-authoritative — the browser receives the display model only and is never the writer of record.'
+    },
+    {
+      id: 11,
+      priority: 'easy', priorityLabel: 'Built — verify',
+      title: 'Namibian public holidays are computed rather than typed in by hand',
+      bug: 'The public holiday calendar was hand-entered per tenant. The live 2025 calendar holds only 7 rows, all before 25 May, so six holidays are missing and any shift worked on them was paid as a normal day.',
+      steps: [
+        'Open the public holidays screen and view the calendar for 2026',
+        'Confirm the fixed-date holidays and the moveable Easter-linked dates are present',
+        'Find a public holiday that falls on a Sunday and confirm the following Monday also appears as a holiday',
+        'Roster a guard across that Sunday and Monday, run payroll, and check both days pay the public-holiday multiplier'
+      ],
+      pass: 'The 2026 calendar is complete, moveable feasts are correct, and a holiday falling on a Sunday adds the following Monday without moving off the Sunday. Both days attract the 2x multiplier.',
+      fail: 'Holidays are missing, an Easter-linked date is wrong, or a Sunday holiday moves to Monday instead of adding it.',
+      location: 'supabase/migrations/20260901183000_namibian_public_holiday_calendar.sql',
+      note: '2025 is deliberately left alone — backfilling it would create a calendar that disagrees with what finalised 2025 periods actually paid. It is recorded as known-bad demo data. The Sunday-plus-Monday reading follows Public Holidays Act 26 of 1990 s.1(2) and is on the employee-protective side of an ambiguity that has not been reviewed by counsel; it is question (a) in the 2026-09-04 email to the client.'
     }
   ];
 
