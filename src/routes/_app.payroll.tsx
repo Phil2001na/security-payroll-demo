@@ -131,9 +131,9 @@ function PayrollPage() {
   const { profile } = useAuth();
   const role = profile?.role;
   const hasPayrollAccess = role === "admin" || role === "operations" || role === "payroll";
-  // Running/finalizing a payroll run is restricted to the payroll role only (separation of
-  // duties) — admin/operations can view this page but can't trigger either action.
-  const canRunPayroll = role === "payroll";
+  // Running/finalizing a payroll run is restricted to payroll and admin — the same two roles
+  // run-payroll and finalize_payroll_period accept server-side. Operations can view only.
+  const canRunPayroll = role === "payroll" || role === "admin";
   const qc = useQueryClient();
   const [periodId, setPeriodId] = useState<string>("");
   const [calcs, setCalcs] = useState<PayslipCalc[]>([]);
@@ -543,7 +543,7 @@ function PayrollPage() {
           <Button
             onClick={runPayroll}
             disabled={running || !period || isLocked || !canRunPayroll}
-            title={!canRunPayroll ? "Only the payroll role can run payroll" : undefined}
+            title={!canRunPayroll ? "Only payroll or admin users can run payroll" : undefined}
           >
             <Play className="h-4 w-4 mr-2" />
             {running ? "Running…" : "Run Payroll"}
@@ -623,7 +623,7 @@ function PayrollPage() {
               size="sm"
               onClick={() => finalizeMut.mutate()}
               disabled={!calcs.length || finalizeMut.isPending || isLocked || !canRunPayroll}
-              title={!canRunPayroll ? "Only the payroll role can finalize payroll" : undefined}
+              title={!canRunPayroll ? "Only payroll or admin users can finalize payroll" : undefined}
             >
               <Lock className="h-4 w-4 mr-2" />
               Finalize &amp; Lock

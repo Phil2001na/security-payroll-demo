@@ -30,7 +30,8 @@ function DashboardPage() {
         supabase.from("employees").select("id, status, hourly_rate", { count: "exact" }).eq("status", "active"),
         supabase.from("sites").select("id", { count: "exact" }).eq("active", true),
         supabase.from("disciplinary_actions").select("id", { count: "exact" }).is("resolved_at", null),
-        supabase.from("pay_periods").select("id, label, status, start_date, end_date").eq("status", "open").maybeSingle(),
+        // More than one period can be open at once; show the oldest, which is the next to close.
+        supabase.from("pay_periods").select("id, label, status, start_date, end_date").eq("status", "open").order("start_date").limit(1).maybeSingle(),
       ]);
 
       const totalActive = employees.count ?? 0;
