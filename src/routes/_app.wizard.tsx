@@ -87,7 +87,7 @@ function WizardPage() {
         supabase.from("shift_logs").select("id", { count: "exact", head: true }),
         supabase.from("shift_logs").select("id", { count: "exact", head: true }).eq("status", "approved"),
         supabase.from("leave_policies").select("id", { count: "exact", head: true }),
-        supabase.from("pay_periods").select("id, label, status, start_date, end_date").eq("status", "open").maybeSingle(),
+        supabase.from("pay_periods").select("id, label, status, start_date, end_date").eq("status", "open").order("start_date").limit(1).maybeSingle(),
         supabase.from("payroll_runs").select("id", { count: "exact", head: true }),
         supabase.from("disciplinary_actions").select("id", { count: "exact", head: true }),
       ]);

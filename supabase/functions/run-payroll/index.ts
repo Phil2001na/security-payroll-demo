@@ -23,6 +23,20 @@ function json(body: unknown, status = 200) {
   });
 }
 
+type PageResult<T> = { data: T[] | null; error: unknown };
+
+// Reads a query page by page until a short page comes back. The query must have a stable order.
+async function fetchAll<T>(page: (from: number, to: number) => PromiseLike<PageResult<T>>): Promise<PageResult<T>> {
+  const size = 1000;
+  const rows: T[] = [];
+  for (let from = 0; ; from += size) {
+    const { data, error } = await page(from, from + size - 1);
+    if (error) return { data: null, error };
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < size) return { data: rows, error: null };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -66,16 +80,19 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (periodErr || !period) return json({ error: "Open payroll period not found." }, 404);
 
+  // PostgREST caps every response at 1000 rows, and a month of shift logs for a real guard
+  // force is several thousand. Without paging, everything past row 1000 was silently left
+  // out and those shifts were never paid. Every list below is read to the end.
   const [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes] = await Promise.all([
-    admin.from("payroll_constants").select("key,value,value_text").eq("tenant_id", tenantId),
-    admin.from("paye_brackets").select("lower_bound,upper_bound,base_tax,marginal_rate").eq("tenant_id", tenantId).order("lower_bound"),
-    admin.from("employees").select("*").eq("tenant_id", tenantId).eq("status", "active"),
-    admin.from("shift_logs").select("id,employee_id,date,hours_worked,night_hours,status,schedule_assignments:assignment_id(is_replacement,planned_hours),shift_types(code,is_leave,pay_rule,rate_multiplier,start_min,end_min,period)").eq("tenant_id", tenantId).eq("pay_period_id", period.id),
-    admin.from("disciplinary_actions").select("id,employee_id,action_type,fine_amount,suspension_hours,collective_agreement_reference,offence_code,incident_date").eq("tenant_id", tenantId).eq("status", "confirmed").gte("incident_date", period.start_date).lte("incident_date", period.end_date),
-    admin.from("deductions").select("employee_id,amount,disciplinary_action_id,deduction_types(code,label,category,requires_collective_agreement)").eq("tenant_id", tenantId).eq("pay_period_id", period.id),
-    admin.from("ps_exemptions").select("employee_id,effective_from,effective_to").eq("tenant_id", tenantId).lte("effective_from", period.end_date).gte("effective_to", period.start_date),
-    admin.from("public_holidays").select("date").eq("tenant_id", tenantId),
-    admin.from("schedule_assignments").select("employee_id,date,leave_request_day_id,shift_types(pay_rule)").eq("tenant_id", tenantId).gte("date", period.start_date).lte("date", period.end_date),
+    fetchAll((from, to) => admin.from("payroll_constants").select("key,value,value_text").eq("tenant_id", tenantId).order("key").range(from, to)),
+    fetchAll((from, to) => admin.from("paye_brackets").select("lower_bound,upper_bound,base_tax,marginal_rate").eq("tenant_id", tenantId).order("lower_bound").range(from, to)),
+    fetchAll((from, to) => admin.from("employees").select("*").eq("tenant_id", tenantId).eq("status", "active").order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("shift_logs").select("id,employee_id,date,hours_worked,night_hours,status,schedule_assignments:assignment_id(is_replacement,planned_hours),shift_types(code,is_leave,pay_rule,rate_multiplier,start_min,end_min,period)").eq("tenant_id", tenantId).eq("pay_period_id", period.id).order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("disciplinary_actions").select("id,employee_id,action_type,fine_amount,suspension_hours,collective_agreement_reference,offence_code,incident_date").eq("tenant_id", tenantId).eq("status", "confirmed").gte("incident_date", period.start_date).lte("incident_date", period.end_date).order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("deductions").select("id,employee_id,amount,disciplinary_action_id,deduction_types(code,label,category,requires_collective_agreement)").eq("tenant_id", tenantId).eq("pay_period_id", period.id).order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("ps_exemptions").select("id,employee_id,effective_from,effective_to").eq("tenant_id", tenantId).lte("effective_from", period.end_date).gte("effective_to", period.start_date).order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("public_holidays").select("id,date").eq("tenant_id", tenantId).order("id").range(from, to)),
+    fetchAll((from, to) => admin.from("schedule_assignments").select("id,employee_id,date,leave_request_day_id,shift_types(pay_rule)").eq("tenant_id", tenantId).gte("date", period.start_date).lte("date", period.end_date).order("id").range(from, to)),
     admin.from("tenants").select("night_premium_enabled").eq("id", tenantId).maybeSingle(),
   ]);
   const results = [constantsRes, bracketsRes, employeesRes, logsRes, disciplinaryRes, deductionsRes, exemptionsRes, holidaysRes, assignmentsRes, tenantRes];
@@ -193,7 +210,9 @@ Deno.serve(async (req) => {
       compliance_warnings: calculation.warnings,
       calculation_segments: calculation.calculation_segments,
     }));
-  const { error: saveErr } = await admin.rpc("replace_draft_payroll", { p_period: period.id, p_rows: rows });
+  // The service-role client has no auth.uid(), so the tenant resolved from the caller's
+  // profile above is passed explicitly; the RPC is executable by the service role only.
+  const { error: saveErr } = await admin.rpc("replace_draft_payroll", { p_period: period.id, p_rows: rows, p_tenant: tenantId });
   if (saveErr) {
     console.error("[run-payroll] Persistence failed", saveErr);
     return json({ error: "Unable to save the payroll draft." }, 500);
