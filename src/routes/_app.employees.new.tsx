@@ -310,7 +310,7 @@ function NewEmployeePage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Typical days / week">
+            <Field label="Maximum days / week">
               <Select
                 value={String(form.days_per_week)}
                 onValueChange={(v) => setForm({ ...form, days_per_week: Number(v) })}

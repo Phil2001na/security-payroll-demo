@@ -55,6 +55,32 @@ function calc(logs: ShiftLogRow[]) {
   return calculateNetPay({ employee, logs, disciplinary: [], constants, brackets: [] });
 }
 
+describe("tenant multipliers flow into the audit trail", () => {
+  // DogForce pay public holidays at 1.5x, not the 2x Labour Act default (client review,
+  // 2026-09-15). The segment trail used to record a hardcoded 2 regardless, so the audit
+  // record disagreed with the money actually paid.
+  const ph = { ...constants, public_holiday_multiplier: 1.5 };
+  const phLog = log({ date: "2026-12-25", hours_worked: 12, shift_types: { pay_rule: "public_holiday_ordinary", rate_multiplier: 1.5, start_min: 360, end_min: 1080, period: "day" } });
+
+  it("pays a public holiday at the tenant's multiplier", () => {
+    const result = calculateNetPay({ employee, logs: [phLog], disciplinary: [], constants: ph, brackets: [] });
+    expect(result.public_holiday_hours).toBe(12);
+    expect(result.public_holiday_amount).toBe(round2(12 * 20 * 1.5));
+  });
+
+  it("records the multiplier it actually applied, not the statutory default", () => {
+    const result = calculateNetPay({ employee, logs: [phLog], disciplinary: [], constants: ph, brackets: [] });
+    const seg = result.calculation_segments.find((x) => x.classification === "public_holiday");
+    expect(seg?.multiplier_applied).toBe(1.5);
+  });
+
+  it("still records 2x when the tenant is on the statutory default", () => {
+    const result = calculateNetPay({ employee, logs: [phLog], disciplinary: [], constants, brackets: [] });
+    const seg = result.calculation_segments.find((x) => x.classification === "public_holiday");
+    expect(seg?.multiplier_applied).toBe(2);
+  });
+});
+
 describe("payroll engine characterisation", () => {
   it("pays a same-day standard shift as ordinary hours", () => {
     const result = calc([log()]);

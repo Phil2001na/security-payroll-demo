@@ -1,4 +1,434 @@
+## 2026-09-17 20:15
+- Browser-tested the whole UAT run for the first time, signing in through the "View live
+  demo" button on the auth page (demo@payroll.dev, tenant Apex Shield Security, role admin).
+  Every earlier UAT-T pass this round was RPC/library level only.
+- Verified in the real UI: leave capacity cap saves and reads back (UAT-14 grants + admin
+  insert policy + audit trigger); directed leave records end to end, with the typed
+  acknowledgement correctly gating the Record button (UAT-13); the weekly recruitment report
+  renders grouped rows, ranks the recurring gap first, shows "B" vs "Any" for required grade
+  and enables Export only when there is data (UAT-10).
+- Verified the UAT-08/09 path against a real DB refusal: rostering a 7th consecutive 12h day
+  produced "1 shift refused - the rest were saved" (the partial-batch fix), the refusal panel
+  named BOTH broken rules with their statutes from error.details, and authorising the override
+  wrote the row with rules {weekly_hours,weekly_rest}, consumed it single-use against the
+  assignment, saved the shift, and audited both the insert and the consumption.
+- FOUND A PRE-EXISTING BUG (not from this run): the client-side weekly-hour guard silently
+  switches off on large tenants. `weekAssignments` ("assignments-all", ~line 826) fetches
+  every assignment across all sites between fetchStart and fetchEnd with no .range(), so
+  PostgREST caps it at 1000 rows. fetchStart is widened to cover the generate/print range, so
+  with FROM=2026-07-21 the window held 1180 rows. The overflow silently drops the visible
+  week: a guard on 7x12h showed "0h" in WK HRS with no warning and the footer read "Within
+  weekly limits". Narrowing FROM to 2026-09-07 (same data, window under 1000) immediately
+  showed "84h OVER" plus "Roster cannot be saved - 1 weekly cap breach". The DB trigger still
+  refuses the shift either way, so nothing unlawful was written - but the scheduler is told
+  everything is fine right up to the refusal. Fix is to page the query or scope it to the
+  employees on screen. Not fixed here: it is outside this run's scope and touches a hot path.
+- All browser test data removed afterwards (7 assignments, 1 override, 1 shortage, 1 directed
+  leave record, 1 capacity policy). Deleting the directed leave row needed
+  session_replication_role=replica, which is itself proof the append-only trigger holds.
+
+## 2026-09-17 18:30
+- UAT-10 (shortage register) completed. New `report_weekly_shortages(p_weeks)` RPC and a
+  "Recruitment: recurring coverage gaps" card on the Schedule page, with CSV export and a
+  4/8/13/26-week window selector.
+- The RPC is SECURITY INVOKER on purpose: schedule_shortages already has an RLS policy scoping
+  reads by tenant, role and assigned site. Running as the caller inherits all of it; a
+  SECURITY DEFINER function would have had to re-implement that policy and would drift from it.
+  The verification asserts another tenant sees none of the seeded rows.
+- "Required skill" in decision section 8 maps to `sites.required_guard_grade` - the literacy
+  grade the auto-fill candidate ranking already scores against (gradeFitScore). It is the only
+  competency requirement in the schema; `site_requirements` carries quantity and shift kind but
+  no skill. Sites that set none read as "Any" rather than a blank column.
+- Recurrence logic lives in `src/lib/shortage-report.ts` so it is testable: a gap in two or
+  more SEPARATE weeks is a vacancy, anything else is an incident. Two shortages in one week
+  count as one week. Recurring patterns rank above one-offs however large the one-off was,
+  because a single bad week is not a reason to hire.
+- The existing 30-day scheduler card stays as the operational view; this is the recruitment
+  view sitting beneath it.
+- `scripts/verify-shortage-report.ts` (11 checks) and `src/lib/shortage-report.test.ts`
+  (21 tests). Full suite 115 pass; build clean; typecheck 30 at baseline; schedule lint 58 vs
+  57 baseline (the +1 is the previously flagged placementCtx hook, not new).
+- UAT-T07 extended to cover the report half and still Pass.
+
+## 2026-09-17 17:10
+- UAT-13 (directed leave evidence) built. New `directed_leave_records` table plus
+  `record_directed_leave` RPC: who offered, the dates offered, the reason, the employee's
+  response (acknowledged / refused / refused-to-sign), the typed acknowledgement, an optional
+  witness, attachments, and the recording user and timestamp.
+- Append-only is enforced by a BEFORE UPDATE OR DELETE trigger, not by the absence of an RLS
+  policy. A missing policy stops PostgREST but not a SECURITY DEFINER function written later;
+  the trigger holds even for the table owner, which the verification asserts directly.
+- Attachments reuse the existing private `leave-evidence` bucket and its
+  <tenant_id>/<employee_id>/<file> path convention, so the storage RLS already written for
+  leave-request evidence applies unchanged. Storage paths are stored, never public URLs.
+- No signature-capture UI, per decision section 7 - a typed name plus a scan of the signed
+  paper form is the stronger artifact and the cheaper build.
+- `refused_to_sign` is a first-class response rather than an error state: the typed
+  acknowledgement is required only when the employee acknowledged.
+- Frontend: new Leave > Directed leave tab (admin/operations/payroll/supervisor) with a record
+  dialog and CSV export. Warnings for a witness-less refusal to sign, and for a refusal with
+  neither note nor attachment - warnings only, because an unrecordable event becomes an
+  unrecorded one.
+- Stripped the inherited `authenticated` TRUNCATE grant on this table too; TRUNCATE bypasses
+  RLS and would have defeated append-only entirely.
+- `scripts/verify-directed-leave.ts` (13 checks) and `src/lib/directed-leave.test.ts`
+  (22 tests). Full suite 94 pass; build clean; typecheck 30 and lint 6 at their baselines.
+- UAT-T09 marked Pass.
+
+## 2026-09-17 15:45
+- UAT-05 (hour protection) built. `enforce_monthly_hour_cap` now consults the UAT-09 override
+  before refusing, on both `schedule_assignments` and `shift_logs`, and raises with
+  `detail = 'monthly_hours'` so the scheduler offers the override for exactly that rule.
+- Before this the ONLY way past the monthly cap was switching enforcement off for the whole
+  tenant — the blanket warning-only bypass decision §5 rules out. Now there is an authorised,
+  single-use, admin-recorded way past it for one guard on one day.
+- No frontend change was needed: `monthly_hours` was already in OVERRIDABLE_RULES, so the
+  refusal panel handles it through the same path. Added a test pinning that contract, since
+  the refusal comes from a different trigger than the integrity one.
+- `payroll_constants.monthly_cap_enforced` was NOT changed for any tenant. The verification
+  enables it only inside a transaction that is always rolled back, and its last check re-reads
+  the live values to prove they are untouched.
+- FLAGGED: the flag is not 0 everywhere as assumed. **Apex Shield Security is already 1**; the
+  other four tenants are 0. Left exactly as found. This means UAT-05's hard block is live for
+  Apex and dormant for the rest until Philip switches them on.
+- `scripts/verify-monthly-hour-cap.ts` (9 checks). Full suite 72 pass; roster override checks
+  still 21/21; build clean; typecheck 30 at baseline.
+- UAT-T05 marked Pass.
+
+## 2026-09-17 14:35
+- UAT-08 (no-candidate response) built. All four roster write paths — manual save, auto-fill,
+  generate-range and custom coverage — now go through one `placeAssignments` helper instead of
+  four separate batch inserts that each threw on the first refusal.
+- Every refused shift is now named with the guard, the date and the rules it broke, and the
+  shifts that were acceptable still land. Previously one refused row aborted its whole 200-row
+  batch and surfaced a single unexplained toast.
+- Decision §5's "the shortage record is still created" now holds for refusals too. Until now
+  only buildFillPlan recorded a gap (nobody eligible); a slot where a guard WAS chosen but the
+  database refused left no trace. Both routes to the same staffing gap now reach the register.
+- Grouping extracted to `src/lib/roster-shortages.ts` so it is testable: guards refused for the
+  same site, date and shift kind become one gap of N, which is what a recruiter acts on.
+- `src/lib/roster-shortages.test.ts` (11 tests) and UAT-T07 added to
+  `scripts/verify-roster-overrides.ts` (now 21 checks). Full suite 71 pass; build clean;
+  typecheck 30 at baseline.
+- Lint on _app.schedule.tsx went 57 -> 58: the new `placementCtx` useMemo joins 48 existing
+  react-hooks/rules-of-hooks errors caused by the component's `return <AccessDenied/>` sitting
+  above ~48 hooks. Pre-existing structural bug, not fixed here.
+- UAT-T07 marked Pass.
+
+## 2026-09-17 13:20
+- UAT-09 (emergency rostering override) built. New `roster_emergency_overrides` table plus
+  `record_/verify_/confirm_/cancel_roster_override` RPCs, and
+  `enforce_roster_assignment_integrity` rewritten to consult an override before refusing.
+- Design calls not spelled out in decision §5, both documented in the migration: only the four
+  rules representing an acceptable legal risk are overridable (shift-type and duplicate-shift
+  refusals stay structural), and an override is SINGLE USE for one guard on one date so it
+  cannot decay into the standing bypass UAT-05 forbids.
+- The record -> verify -> confirm chain from approvals.ts is reused, but the override is
+  effective the moment it is recorded — it is an emergency path. Verify and confirm are the
+  post-hoc review and carry the "one person cannot fill two roles" rule.
+- The refusal now collects EVERY breached rule before raising, so the message names all of
+  them, and puts the machine-readable rule keys in the error DETAIL so the client offers an
+  override for exactly the rules that failed rather than parsing prose.
+- Scheduler: a refused row used to abort its whole 200-row batch with one unexplained toast.
+  It now replays the batch row by row, so every acceptable shift lands and every refused one
+  is listed with its rules, its exposure, and (for admins) the override form.
+- Two bugs found and fixed by the verification script: `text[] || 'literal'` in plpgsql is
+  read as an array literal and failed with "malformed array literal" on every breach; and the
+  consumed_assignment_id FK had to become DEFERRABLE INITIALLY DEFERRED because consumption
+  happens in a BEFORE INSERT trigger, before the assignment row exists.
+- Found but NOT fixed: Supabase default privileges give `authenticated` TRUNCATE on 61 public
+  tables including `audit_events`, `employees` and `payroll_runs`. TRUNCATE ignores RLS.
+  PostgREST does not expose it so it is not remotely exploitable, but it contradicts the RBAC
+  model. Stripped on the new table only; the other 60 need Philip's call.
+- `scripts/verify-roster-overrides.ts` (17 checks) and `src/lib/roster-overrides.test.ts`
+  (18 tests). Full suite 61 pass; build clean; typecheck 30 and lint 57 at their baselines.
+- UAT-T04 marked Pass as the regression guard for the trigger rewrite.
+
+## 2026-09-17 11:40
+- UAT-15 (leave conflict handling) built. `src/lib/leave-deadline.ts` computes the Labour Act
+  s.23 deadline risk; the approval dialog now shows it beside UAT-14's capacity figures.
+- When a cap warning and a live deadline are both present the dialog names the collision and
+  says the system does not decide between them — D-16 is explicitly out of scope per decision
+  §6, so it shows the conflict rather than resolving it.
+- The deadline also shows when REJECTING annual leave. "Never silently deny leave" is what
+  UAT-15 is for, and turning down the last request that could discharge a statutory obligation
+  is the denial that matters most.
+- `latest_leave_date` turned out to be a generated column (cycle_end + 4 months), so the
+  deadline window is derived, not stored — the risk module reads it rather than recomputing.
+- `src/lib/leave-deadline.test.ts` (13 tests). `scripts/verify-leave-capacity.ts` extended to
+  run the UAT-T10 scenario end to end: cap breach + 18-day deadline on one request produces two
+  warnings, an `approaching` risk and a reported conflict, and the approval still succeeds.
+  10/10. Full suite 43 pass; build clean; typecheck and lint at their pre-existing baselines.
+- UAT-T10 marked Pass, with the caveat recorded in UAT.md that the browser rendering is
+  unverified — the repo has no test credentials, so the run goes through the RPC and the real
+  logic modules rather than the UI.
+
+## 2026-09-17 10:15
+- UAT-14 (leave capacity cap) built. Applied `20260830184500_leave_capacity_policy.sql`, which
+  had been written 2026-08-30 but never reached live — `annual_leave_capacity_policies` and
+  `preview_annual_leave_capacity` were both absent from the database.
+- Two follow-up migrations. `20260917093000_leave_capacity_policy_access.sql`: the original
+  revoked all privileges from `authenticated`, which left its own SELECT policy unreachable and
+  gave the cap no write path, so it granted read to the approving roles, admin-only
+  insert/update/delete, an audit trigger, and a role guard inside the RPC (it was tenant-scoped
+  but not role-scoped, so any tenant member could read colleagues' leave clustering).
+  `20260917094500_leave_capacity_per_site_day_count.sql`: the day figure counted annual leave
+  tenant-wide while returning a `site_id` it never filtered on — decision §6 asks for a per-site
+  day-level check, so a 40-site tenant would have seen an alarming number that said nothing
+  about the gate the guard actually works.
+- Frontend: `src/lib/leave-capacity.ts` turns the preview into warnings; the approval dialog
+  shows the monthly and per-site figures and requires a reason to approve past one; new admin
+  card on Leave > Policies sets the cap with an effective date and policy owner. Rows are
+  effective-dated, not edited in place, so the cap that applied to an earlier approval survives.
+- Warn only throughout, per decision §6 — nothing here can block a statutory leave deadline.
+- `scripts/verify-leave-capacity.ts` (6 checks, seeds and rolls back, impersonates a JWT) and
+  `src/lib/leave-capacity.test.ts` (12 tests). Full suite 30 pass; build clean.
+
 # Updates
+
+## 2026-09-17
+
+### 00:30 - hardened invoice-pdf deployed
+- Deployed the repo's `invoice-pdf` (as of `b6e6f01`) over the June version that was live. Same
+  query and layout; adds `APP_ORIGIN` CORS instead of `*`, and only fetches `logo_url` over HTTPS
+  from `INVOICE_LOGO_ALLOWED_HOSTS` (5 s timeout, 5 MB cap) - the June version fetched any URL.
+  Both secrets were set earlier today. Verified as `demo@payroll.dev`: `INV-2025-09-001` renders
+  a PDF (HTTP 200, `application/pdf`) with allow-origin `https://security-payroll-demo.vercel.app`.
+  The logo path itself is not exercised yet: no tenant with a logo has an invoice.
+
+### 00:15 - public demo scrubbed of DogForce branding; DogForce logo added
+- Before sending DogForce's HR contact the public "View live demo" link (signs into Apex Shield),
+  checked the demo against DogForce's real `JANUARY 2026 PAYROLL.xlsx`: of Apex's 145 staff,
+  **0** match on full name, ID number, bank account or phone (control: DogForce's own tenant
+  matches 185 names / 182 IDs / 184 accounts). Apex staff details are visibly invented
+  (sequential phones, patterned account numbers). The public repo has never contained a
+  spreadsheet or any of the sampled real names.
+- But the Apex tenant profile still carried DogForce branding: `legal_name` "DogForce security",
+  `company_email` accounts@dogforce.com.na, and `logo_url` pointing at a Google Images link to
+  DogForce's Facebook logo. Renamed to "Apex Shield Security (Pty) Ltd" /
+  accounts@apexshield.demo and cleared the logo. A text scan of Apex's tenant, clients, sites,
+  service items, invoices, vendors, profiles, employees, constants and chart of accounts now finds
+  no DogForce mention; nor does the live JS bundle.
+- Removed Apex test junk: clients "mail", "management", "nope", "thomas party", "phil", and the
+  unused site "house" (also stripped from supervisors' `assigned_site_ids`). Site "Nantu Bank"
+  kept - demo disciplinary records reference it - and unlinked from the "phil" client.
+- DogForce logo (200x200 PNG, taken from the DogForce website) uploaded to a new public
+  `branding` storage bucket (images only, 1 MB cap, no write policies - service role only) at
+  `branding/dogforce/logo.png`, and set as `logo_url` on the DogForce and DogForce Sandbox tenants.
+  Set the `INVOICE_LOGO_ALLOWED_HOSTS` secret to the project's storage host: the repo's
+  `invoice-pdf` refuses every logo URL until that list is configured.
+
+## 2026-09-16
+
+### 21:55 - server payroll actually works now; DogForce Sandbox for their ops manager
+- **Server-side payroll had never saved a draft.** `run-payroll` calls `replace_draft_payroll` with
+  the service-role client, but the RPC authorized through `auth.uid()`, which is NULL for the
+  service role - every run since the 2 Sep deploy returned "Unable to save the payroll draft"
+  (logs: "Not authorized to run payroll"). Migration
+  `20260916150000_replace_draft_payroll_service_only.sql` makes the RPC take the tenant explicitly
+  and be executable by `service_role` only. That also closes a live gap: `authenticated` could
+  still call it directly and write arbitrary draft figures (the 18 Aug revoke never reached live).
+  Applied over the pooler, grants verified.
+- **Payroll was silently truncated at 1000 shift logs.** `run-payroll` read its source lists
+  without paging, so PostgREST's 1000-row cap dropped everything after row 1000. On the sandbox
+  (3,654 approved shifts) a run paid 11,208 of 43,848 hours - about a quarter. All source lists
+  are now paged. Re-run pays exactly 43,848h (38,214 normal + 5,634 Sunday), gross N$746,640,
+  0 failures. Apex Shield never showed it because it has fewer guards.
+- **`APP_ORIGIN` secret was never set**, so `run-payroll` sent an empty CORS allow-origin and a
+  browser on the live site would discard every response. Set to
+  `https://security-payroll-demo.vercel.app`. The other four functions read the same secret in the
+  repo but their deployed versions predate that code. Local dev on :5173 is not an allowed origin.
+- `run-payroll` redeployed from this working tree, which **includes the uncommitted 00:30
+  engine change** (real multipliers in `calculation_segments`); `bun run test` 18/18 first.
+- Payroll page: Run Payroll / Finalize & Lock now enabled for `admin` as well as `payroll`
+  (the server already accepted both; admins saw greyed-out buttons). Dashboard and wizard now take
+  the oldest open period instead of erroring when two are open. Shipped to production as `d7e019f`
+  on `main` via `vercel deploy --prod` - **the git push did not trigger a Vercel build**; the Git
+  integration looks disconnected (no deployment of any branch since 28 Aug).
+- **DogForce Sandbox tenant** (`scripts/seed-dogforce-sandbox.sql`) for DogForce's operations
+  manager to drive the system: full copy of DogForce's settings, 30 sites, 185 employees and leave
+  state; site requirements of 2 day + 2 night guards per site per day; an open "August 2026
+  SANDBOX" period with a complete roster (180 guards on 2-on/1-off, 5 relief) and approved
+  attendance (66 no-shows) - ready to Run Payroll; and an open, empty "September 2026 SANDBOX"
+  period for the full roster -> muster -> approve -> run -> finalize flow (includes Heroes' Day).
+  Checked: 2+2 cover everywhere, max 60h/ISO week, no Night->Day, rest-day rule met, real DogForce
+  tenant untouched. Login `ops@dogforce-sandbox.demo` (admin, not CEO-flagged); password is in
+  `.claude/verify-accounts.local.json`.
+
+### 00:30
+- **DogForce answered the business-rules review (15 Sep, 10:55-11:00).** 7 sections marked by one
+  reviewer: sections 2, 4 and 5 confirmed; sections 3, 6, 7 and 8 marked "change". All four are now
+  applied to the system and to the document. Read them back any time with
+  `bun scripts/read-rules-review.ts`.
+- `supabase/migrations/20260916120000_dogforce_rules_review_decisions.sql`, applied over the pooler
+  and verified against live. Everything in it is tenant-scoped; the other three tenants are
+  untouched and still on the product defaults.
+  - **Shift times 06:00/18:00** (was 07:00/19:00) across all six operational shift types. This is
+    what the `service_items` catalog already said - it prices guarding as 06h00-18h00 - so the
+    roster was the side that was wrong. Knock-on: the statutory night band is 20:00-07:00, so a
+    12h night shift now overlaps it for 10 hours instead of 11. Reported night hours change; no
+    money changes, because the premium is off.
+  - **Public holidays 1.5x** (was 2.0x). Client's own words: "we are shift based and we are giving
+    employees ample time". **This is below the Labour Act s.21(5) figure of 2x** and the reason
+    given was commercial, not legal. Recorded as their dated decision, flagged in the document as
+    a lawyer question, and not changed for any other tenant.
+  - **Night premium: no change needed** - `tenants.night_premium_enabled` was already false for
+    DogForce. Their "change" mark actually confirms the state the system was in, and closes
+    decision 1, which the document had been carrying as an open question since v1.0.
+  - **Allowances zeroed** - tenant default and all 185 employees. The transport column, its
+    proration rule and its payslip line all stay, so restoring it is a number, not a rebuild.
+- **Added the missing audit trigger on `shift_types`.** It was the only pay-affecting table without
+  one, and `start_min`/`end_min` decide which hours land in the night band. Closed before making
+  the shift-time changes, so those six edits are themselves in `audit_events`.
+- **Fixed the calculation audit trail disagreeing with the money.** `calculation_segments` recorded
+  `multiplier_applied` as a hardcoded 2 for public holidays and 2/1.5 for Sundays, regardless of
+  what the tenant was actually set to. With DogForce now on 1.5x holidays, the trail would have
+  claimed 2x on every holiday segment while paying 1.5x. `bucketiseLogs` now takes the real
+  multipliers. Three tests cover it; 18 pass.
+- **Business rules document to v1.3** (`docs/BUSINESS-RULES.md` + `docs/business-rules.html`).
+  Sections 3, 6, 7 and 8 rewritten, each with a "Changed 15 Sep" callout quoting the client back to
+  themselves. Knock-ons fixed too: the Monday-after-a-Sunday-holiday rate, the management-pay
+  paragraph promising a full transport allowance, the PAYE note about untaxed allowance, the night
+  band diagram, and the decision count (eight to seven). All 17 `data-section` keys left alone, so
+  nothing already saved is orphaned.
+- **Two things still open for the client**, both in section 13 of the document: whether "its not
+  allowance its deduction" means *no allowance* (how it is built) or *a transport deduction we have
+  not set up*; and the holiday rate being below the statutory figure.
+- **`review-site/` deliberately not updated** - it is the record of the round they answered, and
+  their responses are keyed to its sections. Republishing it is a call to make when the next review
+  round starts.
+
+## 2026-09-07 14:10
+- **Document rewritten in plain language (v1.2).** Short sentences, everyday words, no jargon.
+  "Premium" became "extra pay", "pro-rated by attendance" became "goes up and down with
+  attendance", "ordinary hours" became "normal hours", the two-pots explanation became two
+  baskets, and every section title was simplified. **Every rule, rate and number is unchanged** --
+  only the wording. `docs/BUSINESS-RULES.md` and `docs/business-rules.html` both rewritten, the
+  `data-section` keys deliberately left alone so nothing already saved would orphan.
+- Redeployed to Vercel and republished the artifact, both verified live.
+
+## 2026-09-07 11:30
+- Business-rules page to v1.2: reviewers can now **type the correction**, not just tag the section.
+  Free-text box under every section's Confirm/Change/Question buttons, a reviewer-name field, and an
+  export button that produces a full report (name, date, each marked section with its written note)
+  for pasting into a reply. Marks and notes persist in `localStorage` as they type.
+- **Storing corrections server-side is blocked for this audience.** The artifact `db` capability
+  would do exactly what was wanted, but declaring it makes the artifact organization-internal --
+  every reader must be a signed-in member of our own org, which DogForce are not, so the page would
+  stop opening for them. The CSP also blocks fetch/XHR from an artifact to any external host, so the
+  page cannot write to our own Supabase either. Durable capture has to live in the app itself
+  (client logins are coming anyway) -- a rules-review register per tenant, which would also satisfy
+  the change register already promised in section 14 of the document.
+
+- **Business-rules review page is live on Vercel, writing to Supabase.**
+  `https://dogforce-rules-review.vercel.app` -- a standalone static build of the same document
+  (`review-site/`, generated from `docs/business-rules.html`), so DogForce need no Claude login and
+  no account. Corrections now persist server-side instead of only in the reviewer's browser.
+- New `rules_review` schema on `nakvdkkezgdqxytygtqp` (`20260907120000_rules_review_capture.sql`),
+  applied over the pooler. Reviewers are anonymous, so **the tables are not exposed to PostgREST at
+  all** -- the only reachable surface is two SECURITY DEFINER functions in the already-exposed
+  `public` schema, `rules_review_load` / `rules_review_save`, with EXECUTE granted to anon and
+  nothing else. The unguessable token in the link (`?k=`) is the credential; a reviewer id minted in
+  the browser separates people sharing one link. Verified against live as anon: save works, a
+  reviewer loads only their own rows, another reviewer id sees nothing, a guessed token is refused,
+  and a direct table read 404s. Length caps and a per-link reviewer ceiling guard against abuse.
+- Page writes to `localStorage` first and the database second, and says which happened, so a
+  reviewer who loses connectivity keeps their work. Without a token the page still reads and still
+  exports -- it just saves locally. Full loop tested in a real browser; test rows removed after.
+- `scripts/read-rules-review.ts` prints everything the client has written, grouped by reviewer.
+- **DogForce review link:** `https://dogforce-rules-review.vercel.app/?k=dogforce-537bIHXHbykq`
+  Token row lives in `rules_review.reviews`; set `is_open = false` to close the review.
+
+## 2026-09-06 17:05
+- **Fixed a silent regression in annual-leave accrual.** `20260628120000` deliberately moved
+  accrual off `employees.days_per_week` and onto actual attendance (1 leave day per 12 days
+  worked) because a pattern guessed at onboarding was "both a guess payroll had to make and
+  unfair". `20260803181750_leave_management_module` rewrote `finalize_payroll_period` wholesale
+  and reverted it without saying so - the deployed function accrued a daily fraction of
+  `days_per_week * 4` across the employment period, so an officer accrued on rest days, on unpaid
+  suspension, and on days nobody rostered them. Dumped both functions from live first and
+  confirmed the August version was what was actually deployed.
+- The revert was also arithmetically unreachable. Four hard roster rules bound scheduling: 12h/day,
+  60h/ISO week, max 6 working days/week, min 10 rest days/month. **With 12-hour shifts the 60h cap
+  binds first - 60/12 = 5 shifts** - so a sixth full shift is refused before the six-day rule is
+  ever consulted. The default `days_per_week` of 6 was promising 24 leave days a year for a pattern
+  the system will not build. Five 12h shifts/week is ~20 worked days and lands at exactly 240h,
+  which is also the monthly cap, so the enforced rules are internally consistent at 5 x 12h.
+- `supabase/migrations/20260906160000_annual_leave_accrual_from_worked_days.sql` restores the
+  worked-days rule in `finalize_payroll_period` and stops `private.ensure_statutory_leave_cycles`
+  deriving the **annual** cycle's `entitlement_units` from the pattern (it now mirrors the accrual
+  basis). Sick leave keeps `days_per_week * 6` - the Act ties sick entitlement to the ordinary
+  working week explicitly, so that one is correct. Applied over the pooler and verified against
+  live, then written to the repo as the record. **Not** pushed - the migration history is still
+  unreconciled and a push would apply the held-back `20260830184500`.
+- `days_per_week` relabelled "Maximum days / week" in the employee form and detail page - it is a
+  scheduling availability ceiling now and nothing else. Employee leave caption states the actual
+  rule.
+- **N$13.50 was not stale data - it was last year's statutory rate.** The security sector minimum
+  wage is phased: N$13.50 (2025) -> N$16.00 (2026) -> N$18.00 (2027) under the wages order between
+  the Security Association of Namibia and the sector unions. Set all 185 DogForce officers to
+  N$16.00, which matches the already-configured `min_wage_security` floor. The 2027 step is not
+  automatic and is flagged in the client document.
+- **Loaded the 7 PAYE brackets for DogForce** - the schedule in force since 1 March 2024 per the
+  Income Tax Amendment Act 2024 (tax-free to N$100,000; 18/25/28/30/32/37 thereafter; top band from
+  N$1,550,000). Note the existing Apex Shield rows are the pre-amendment schedule with non-standard
+  rates and were not copied. `calcPAYE` is a correct marginal-with-base implementation and needed
+  only the rows; spot-checked at every band. Consequence worth knowing: a guard at N$16/hr x 240h is
+  ~N$46,000/yr, well under the threshold, so **PAYE is nil at the sector rate** - which is why an
+  empty bracket table had never surfaced as an error.
+- **Business-rules document revised to v1.1** (`docs/BUSINESS-RULES.md` + `docs/business-rules.html`,
+  republished to the same artifact URL) on Philip's review. Headcounts and all "verified against your
+  live configuration" framing removed - the data is test data. VET levy, the 2025 calendar note and
+  the Sunday-holiday interpretation question dropped; the Sunday contract agreement now stated as
+  fact rather than asked. Four inline diagrams added (the two hour pots, a week of 12h shifts hitting
+  the 60h ceiling, the midnight split, the night band). Open items cut from fourteen to eight.
+
+## 2026-09-06 14:20
+- Wrote the client-facing business-rules overview committed in the sent email (due today):
+  `docs/BUSINESS-RULES.md` as the versioned source of truth, plus `docs/business-rules.html`
+  published as a shareable page. Covers pay basis, overtime, Sunday, public holidays, night work,
+  allowances, deductions, leave and scheduling limits, rule by rule, scoped to DogForce's live
+  configuration rather than the seeded defaults. Each section carries a Confirm/Change/Question
+  marker for the review session in the week of 7-11 September.
+- **Verified every figure against DogForce's live tenant, and found four blockers that the seed
+  defaults hide.** (1) All 185 employees are on N$13.50/hr against the configured N$16.00
+  `min_wage_security` floor - every payslip would carry a minimum-wage warning. (2) `paye_brackets`
+  is **empty** for DogForce (only Apex Shield has the 7-row set), so PAYE would compute as zero for
+  everyone on the first run. (3) `night_premium_enabled` is **false** for DogForce - the 6% night
+  premium is configured but not paid. (4) `monthly_cap_enforced = 0`, so the 240h cap is warn-only
+  against a 6x12 roster that runs 288-312h/month.
+- Also confirmed: 30 sites and 185 employees loaded, but **zero schedule assignments and zero
+  payroll runs** - nothing has been calculated yet, so all of the above is still correctable. All
+  185 are on a 6-day week (24 annual leave days each); no management-category employees; transport
+  allowance ranges N$84-350; holidays seeded 2026-2030; no PS exemptions.
+- Fourteen open items raised in the document, triaged into must-settle-before-first-payroll (4),
+  before-go-live (5) and can-follow (5). Nine were already settled in `DECISIONS-2026-09-03.md`
+  as product decisions but need client confirmation; five are new, including the minimum-wage
+  discrepancy and the absent PAYE tables.
+
+## 2026-09-04 16:45
+- Restored database access. `db.<ref>.supabase.co` is IPv6-only and this machine has no IPv6 at
+  all, so every direct connection failed; the Supavisor pooler
+  (`aws-0-eu-west-1.pooler.supabase.com:5432`) is IPv4 and reachable. `SUPABASE_DB_URL` now holds
+  that pooler string in `.env` (gitignored). `supabase db dump` still needs Docker, but Bun's
+  built-in SQL client queries the live schema fine.
+- **Corrects the caveat in the 10:55 entry.** Verified against live: `schedule_shortages` and
+  `public_holidays` exist, `leave_cycles.latest_leave_date`, `payroll_constants.value_text` and
+  `payroll_runs.calculation_segments` exist, `namibian_public_holidays()` exists, and
+  `annual_leave_capacity_policies` is correctly absent. All 429 payroll runs carry
+  `calculation_segments`; all four tenants are seeded `midnight_split`. Tracker cards 4, 7, 8
+  and 11 are testable.
+- **New finding: the migration history does not match the schema.** `supabase_migrations` has no
+  record of `20260821153000`, `20260821164000`, `20260830180000` or `20260901183000`, yet every
+  object those files create is present. History instead holds `20260821173608`, `20260821185251`,
+  `20260901215918` and `20260901215936`, which have no local file and are stamped a few hours
+  later -- the changes were applied through the MCP/SQL editor and the repo files written
+  afterwards as the record. Consequence: a `supabase db push` would try to re-apply four
+  already-applied migrations **and** would apply `20260830184500`, the leave-capacity policy
+  migration that was deliberately held back and is known defective. Do not push until the history
+  is reconciled.
+- Live holiday calendar: 2025 has 7 rows (known-bad, left alone per DECISIONS §10); 2026 has 52,
+  2027-2028 have 60 each, 2029 has 56, 2030 has 52.
 
 ## 2026-09-04 10:55
 - Added a **Sunday boundary rule** card to Admin settings. D-01 made the rule configurable in the

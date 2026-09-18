@@ -37,3 +37,5 @@ supabase/.temp/
 *.sln
 *.sw?
 .claude/verify-accounts.local.json
+
+.vercel

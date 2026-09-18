@@ -24,6 +24,24 @@ import {
   Undo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv } from "@/lib/csv";
+import { buildShortageRows } from "@/lib/roster-shortages";
+import {
+  describePattern,
+  shortageCsvRows,
+  shortageTotals,
+  summarisePatterns,
+  type WeeklyShortageRow,
+} from "@/lib/shortage-report";
+import {
+  RULE_EXPOSURE,
+  RULE_LABEL,
+  canAuthoriseOverride,
+  overrideBlockedReason,
+  parseRosterRefusal,
+  type OverridableRule,
+  type RosterRefusal,
+} from "@/lib/roster-overrides";
 import { useAuth } from "@/lib/auth-context";
 import { AccessDenied } from "@/components/access-denied";
 import { estimateShiftCost, round2 } from "@/lib/payroll-engine";
@@ -38,10 +56,20 @@ import {
 import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
@@ -95,6 +123,373 @@ type Employee = {
   literacy_grade: LiteracyGrade | null;
   ordinarily_works_sundays: boolean;
 };
+// UAT-08 — every refused shift is named, with the rules it broke and the staffing gap it
+// leaves, instead of a toast that disappears.
+// UAT-09 — and where the rules are ones an admin may knowingly accept, the emergency override
+// is offered here: mandatory reason, explicit legal-risk acknowledgement, admin only.
+function RefusedShiftsPanel({
+  refusals,
+  employees,
+  role,
+  onDismiss,
+  onAuthorised,
+}: {
+  refusals: RefusedAssignment[];
+  employees: Employee[];
+  role: string | undefined;
+  onDismiss: () => void;
+  onAuthorised: () => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (!refusals.length) return null;
+
+  const nameOf = (id: string) => {
+    const e = employees.find((x) => x.id === id);
+    return e ? `${e.surname}, ${e.first_names}` : "Unknown guard";
+  };
+
+  const overridable = refusals.filter((r) => r.refusal.overridable);
+  const structural = refusals.filter((r) => !r.refusal.overridable);
+  const rules = [...new Set(overridable.flatMap((r) => r.refusal.rules))] as OverridableRule[];
+  const mayAuthorise = canAuthoriseOverride(role) && overridable.length > 0;
+  const blocked = overrideBlockedReason({ reason, acknowledged, rules });
+
+  async function authorise() {
+    setBusy(true);
+    try {
+      for (const r of overridable) {
+        const { error } = await supabase.rpc("record_roster_override", {
+          p_employee: r.row.employee_id,
+          p_date: r.row.date,
+          p_rules: r.refusal.rules,
+          p_reason: reason.trim(),
+          p_acknowledge_legal_risk: true,
+          p_site: r.row.site_id,
+        });
+        if (error) throw error;
+      }
+      // The overrides exist now; replay the refused inserts so they land under them.
+      let placed = 0;
+      for (const r of overridable) {
+        const { error } = await supabase.from("schedule_assignments").insert(r.row);
+        if (!error) placed += 1;
+      }
+      toast.success(
+        `${placed} shift${placed === 1 ? "" : "s"} rostered under an emergency override`,
+      );
+      setReason("");
+      setAcknowledged(false);
+      await onAuthorised();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Override failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-destructive">
+          <AlertTriangle className="h-5 w-5" />
+          {refusals.length} shift{refusals.length === 1 ? "" : "s"} refused
+        </CardTitle>
+        <CardDescription>
+          These shifts were not saved. The rest of the roster was. Each one below names the rule
+          that stopped it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ul className="space-y-2 text-sm">
+          {refusals.map((r, i) => (
+            <li key={i} className="rounded border border-border/60 px-3 py-2">
+              <div className="font-medium">
+                {nameOf(r.row.employee_id)} &middot; {r.row.date}
+              </div>
+              <div className="text-muted-foreground">{r.refusal.message}</div>
+              {!r.refusal.overridable && (
+                <div className="mt-1 text-muted-foreground">
+                  This one cannot be overridden &mdash; it would leave the roster inconsistent
+                  rather than accept a known risk. Change the shift instead.
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {mayAuthorise ? (
+          <div className="space-y-3 rounded border border-destructive/40 bg-destructive/5 p-3">
+            <p className="text-sm font-medium">Authorise an emergency override</p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>You would be accepting, on the record:</p>
+              <ul className="list-disc pl-5">
+                {rules.map((rule) => (
+                  <li key={rule}>
+                    <span className="font-medium text-foreground">{RULE_LABEL[rule]}</span>
+                    {" — "}
+                    {RULE_EXPOSURE[rule]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why is this shift necessary despite the rule? This is the audit trail."
+              rows={3}
+            />
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                checked={acknowledged}
+                onCheckedChange={(v) => setAcknowledged(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                I acknowledge the legal risk set out above and authorise{" "}
+                {overridable.length === 1 ? "this shift" : `these ${overridable.length} shifts`}.
+              </span>
+            </label>
+            <div className="flex items-center gap-2">
+              <Button variant="destructive" disabled={!!blocked || busy} onClick={authorise}>
+                Authorise and roster
+              </Button>
+              <Button variant="ghost" onClick={onDismiss} disabled={busy}>
+                Leave unrostered
+              </Button>
+              {blocked && <span className="text-xs text-muted-foreground">{blocked}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Recorded against your name as its own audit event, single use, and reviewed afterwards
+              by two other people.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={onDismiss}>
+              Dismiss
+            </Button>
+            {overridable.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                An admin can authorise an emergency override for {overridable.length} of these.
+              </span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// UAT-08/09 — a roster insert that survives a refusal.
+//
+// A refused row aborts its whole batch, so a single bad cell used to discard up to 199 good
+// ones with a single unexplained toast. On a refusal the batch is replayed one row at a time:
+// every acceptable shift lands, and every refused shift is returned with the rules it broke.
+type NewAssignment = {
+  tenant_id: string;
+  employee_id: string;
+  site_id: string;
+  date: string;
+  shift_type_id: string;
+  planned_hours: number;
+  notes?: string;
+};
+// The whole row is kept, not just the identifying fields — it has to be replayable verbatim
+// once an override authorises it.
+type RefusedAssignment = { row: NewAssignment; refusal: RosterRefusal };
+
+async function insertAssignmentsCollectingRefusals(
+  rows: NewAssignment[],
+): Promise<RefusedAssignment[]> {
+  const refused: RefusedAssignment[] = [];
+  for (let i = 0; i < rows.length; i += 200) {
+    const slice = rows.slice(i, i + 200);
+    const { error } = await supabase.from("schedule_assignments").insert(slice);
+    if (!error) continue;
+    if (!parseRosterRefusal(error)) throw error;
+
+    for (const row of slice) {
+      const { error: rowError } = await supabase.from("schedule_assignments").insert(row);
+      if (!rowError) continue;
+      const refusal = parseRosterRefusal(rowError);
+      if (!refusal) throw rowError;
+      refused.push({ row, refusal });
+    }
+  }
+  return refused;
+}
+
+// UAT-10 — the weekly Operations/HR shortage report.
+//
+// Decision section 8: shortage reporting only, no applicant pipeline. Group recurring
+// shortages by site, shift and required skill so HR can see where to recruit.
+//
+// The card above this one is the operational 30-day view: what went wrong lately. This is the
+// recruitment view: what keeps going wrong. One unfilled Tuesday night is an incident someone
+// covered by phone; the same Tuesday night unfilled for six weeks is a vacancy, and only the
+// second is a reason to hire.
+function WeeklyShortageReport({ tenantId }: { tenantId: string | undefined }) {
+  const [weeks, setWeeks] = useState(8);
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["weekly-shortage-report", tenantId, weeks],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("report_weekly_shortages", { p_weeks: weeks });
+      if (error) throw error;
+      return (data ?? []) as WeeklyShortageRow[];
+    },
+  });
+
+  const patterns = useMemo(() => summarisePatterns(rows), [rows]);
+  const totals = shortageTotals(patterns);
+
+  const exportRows = () =>
+    downloadCsv(
+      `shortage-report-${new Date().toISOString().slice(0, 10)}.csv`,
+      shortageCsvRows(patterns),
+    );
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            Recruitment: recurring coverage gaps
+          </CardTitle>
+          <CardDescription>
+            Where coverage keeps failing, grouped by site, shift and the grade the site requires. A
+            gap in two or more separate weeks is treated as a vacancy rather than an incident.
+          </CardDescription>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <select
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            value={weeks}
+            onChange={(e) => setWeeks(Number(e.target.value))}
+          >
+            <option value={4}>Last 4 weeks</option>
+            <option value={8}>Last 8 weeks</option>
+            <option value={13}>Last 13 weeks</option>
+            <option value={26}>Last 26 weeks</option>
+          </select>
+          <Button variant="outline" onClick={exportRows} disabled={!patterns.length}>
+            Export
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+        {!isLoading && !patterns.length && (
+          <p className="text-sm text-muted-foreground">
+            No coverage gaps recorded in this window. Nothing to recruit for.
+          </p>
+        )}
+        {!isLoading && patterns.length > 0 && (
+          <>
+            <p className="text-sm">
+              <strong>{totals.recurring}</strong> recurring gap
+              {totals.recurring === 1 ? "" : "s"} across <strong>{totals.sites}</strong> site
+              {totals.sites === 1 ? "" : "s"} &middot; {totals.totalUnmet} guard-shift
+              {totals.totalUnmet === 1 ? "" : "s"} unfilled in total.
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Site</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Grade required</TableHead>
+                  <TableHead className="text-right">Weeks</TableHead>
+                  <TableHead className="text-right">Unfilled</TableHead>
+                  <TableHead>Span</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {patterns.map((pt) => (
+                  <TableRow key={pt.key}>
+                    <TableCell>
+                      <div className="font-medium">{pt.siteName}</div>
+                      <div className="text-xs text-muted-foreground">{describePattern(pt)}</div>
+                    </TableCell>
+                    <TableCell className="capitalize">{pt.shiftKind}</TableCell>
+                    <TableCell>{pt.requiredGrade}</TableCell>
+                    <TableCell className="text-right">
+                      {pt.recurring ? (
+                        <Badge variant="destructive">{pt.weeksAffected}</Badge>
+                      ) : (
+                        pt.weeksAffected
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">{pt.totalUnmet}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {pt.firstWeek === pt.lastWeek
+                        ? pt.firstWeek
+                        : `${pt.firstWeek} to ${pt.lastWeek}`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// UAT-08 — decision §5: "The shortage record is still created."
+//
+// A slot with no compliant candidate was already recorded by buildFillPlan. A slot the
+// DATABASE refuses was not: the roster simply came back one guard short with no trace. That
+// is the same staffing gap arriving by a different route, so it belongs in the same register
+// Operations and HR recruit from.
+//
+// Best-effort — failing to log a shortage must never undo shifts that were placed.
+async function recordRefusalShortages(
+  refusals: RefusedAssignment[],
+  ctx: PlacementContext,
+): Promise<void> {
+  const rows = buildShortageRows(refusals, ctx);
+  if (!rows.length) return;
+  try {
+    const { error } = await supabase.from("schedule_shortages").insert(
+      rows.map((r) => ({
+        ...r,
+        tenant_id: ctx.tenantId,
+        attempted_by: ctx.profileId,
+      })),
+    );
+    if (error) throw error;
+  } catch (err) {
+    console.error("Failed to record shortages for refused assignments", err);
+  }
+}
+
+type PlacementContext = {
+  tenantId: string;
+  profileId: string;
+  kindOf: (shiftTypeId: string) => ShiftKind;
+  nameOf: (employeeId: string) => string;
+};
+
+/**
+ * The single way this page writes roster assignments. Places what it can, records a shortage
+ * for anything the database refuses, and hands the refusals back so the caller can show them.
+ */
+async function placeAssignments(
+  rows: NewAssignment[],
+  ctx: PlacementContext,
+): Promise<RefusedAssignment[]> {
+  if (!rows.length) return [];
+  const refused = await insertAssignmentsCollectingRefusals(rows);
+  if (refused.length) await recordRefusalShortages(refused, ctx);
+  return refused;
+}
+
 type Assignment = {
   id: string;
   employee_id: string;
@@ -261,6 +656,9 @@ function monthCalendarWeeks(monthAnchor: Date): Date[][] {
 function SchedulePage() {
   const { profile } = useAuth();
   const role = profile?.role;
+  // UAT-08/09: shifts the database turned away on the last save, awaiting explanation or an
+  // admin's emergency override.
+  const [refusals, setRefusals] = useState<RefusedAssignment[]>([]);
   if (
     role &&
     role !== "admin" &&
@@ -584,6 +982,21 @@ function SchedulePage() {
     return m;
   }, [shiftTypes]);
 
+  // UAT-08: every roster write on this page goes through placeAssignments with this context,
+  // so a refusal is explained and logged as a shortage no matter which path caused it.
+  const placementCtx = useMemo<PlacementContext>(
+    () => ({
+      tenantId: profile?.tenant_id ?? "",
+      profileId: profile?.id ?? "",
+      kindOf: (shiftTypeId: string) => shiftKindOf(shiftTypeById.get(shiftTypeId)),
+      nameOf: (employeeId: string) => {
+        const e = (employees ?? []).find((x) => x.id === employeeId);
+        return e ? `${e.surname}, ${e.first_names}` : "Unknown guard";
+      },
+    }),
+    [profile?.tenant_id, profile?.id, shiftTypeById, employees],
+  );
+
   const assignByKey = useMemo(() => {
     const m = new Map<string, Assignment>();
     (assignments ?? []).forEach((a) => m.set(`${a.employee_id}|${a.date}`, a));
@@ -712,16 +1125,18 @@ function SchedulePage() {
           .eq("id", u.id);
         if (error) throw error;
       }
-      if (inserts.length) {
-        for (let i = 0; i < inserts.length; i += 200) {
-          const { error } = await supabase
-            .from("schedule_assignments")
-            .insert(inserts.slice(i, i + 200));
-          if (error) throw error;
-        }
-      }
+      const refused = await placeAssignments(inserts, placementCtx);
 
-      toast.success(`Roster saved · ${dirtyCount} change${dirtyCount === 1 ? "" : "s"}`);
+      if (refused.length) {
+        // UAT-08/09: the refusal is never swallowed. Say how many shifts were turned away and
+        // why; an admin is then offered the emergency override for exactly those shifts.
+        setRefusals(refused);
+        toast.error(
+          `${refused.length} shift${refused.length === 1 ? "" : "s"} refused — the rest were saved`,
+        );
+      } else {
+        toast.success(`Roster saved · ${dirtyCount} change${dirtyCount === 1 ? "" : "s"}`);
+      }
       setEdits({});
       await Promise.all([
         refetchAssignments(),
@@ -1157,14 +1572,10 @@ function SchedulePage() {
     }
     setAutoFilling(true);
     try {
+      let refusedByDb: RefusedAssignment[] = [];
       if (plan.newAssignments.length > 0) {
         const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
-        for (let i = 0; i < rows.length; i += 200) {
-          const { error } = await supabase
-            .from("schedule_assignments")
-            .insert(rows.slice(i, i + 200));
-          if (error) throw error;
-        }
+        refusedByDb = await placeAssignments(rows, placementCtx);
       }
       const msg =
         `Auto-fill: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} assigned` +
@@ -1178,6 +1589,7 @@ function SchedulePage() {
       if (plan.unassignable > 0 || plan.preferenceOverrides > 0 || plan.qualityWarnings.length > 0)
         toast.warning(msg);
       else toast.success(msg);
+      if (refusedByDb.length) setRefusals(refusedByDb);
       await recordShortages(plan);
       await Promise.all([
         refetchAssignments(),
@@ -1268,12 +1680,8 @@ function SchedulePage() {
         return;
       }
       const rows = plan.newAssignments.map((a) => ({ ...a, tenant_id: profile.tenant_id }));
-      for (let i = 0; i < rows.length; i += 200) {
-        const { error } = await supabase
-          .from("schedule_assignments")
-          .insert(rows.slice(i, i + 200));
-        if (error) throw error;
-      }
+      const refusedByDb = await placeAssignments(rows, placementCtx);
+      if (refusedByDb.length) setRefusals(refusedByDb);
       const msg =
         `Schedule generated: ${plan.newAssignments.length} shift${plan.newAssignments.length === 1 ? "" : "s"} across ${rangeDays.length} day${rangeDays.length === 1 ? "" : "s"}` +
         (plan.unassignable > 0
@@ -1531,11 +1939,12 @@ function SchedulePage() {
         planned_hours: hours,
         notes: `Additional coverage: ${reason.trim()}`,
       }));
-      const { error } = await supabase.from("schedule_assignments").insert(rows);
-      if (error) throw error;
+      const refusedByDb = await placeAssignments(rows, placementCtx);
+      if (refusedByDb.length) setRefusals(refusedByDb);
 
+      const placed = chosen.length - refusedByDb.length;
       const msg =
-        `Custom request: assigned ${chosen.length}/${needed} guard${needed === 1 ? "" : "s"} for ${date} ${startTime}–${endTime}` +
+        `Custom request: assigned ${placed}/${needed} guard${needed === 1 ? "" : "s"} for ${date} ${startTime}–${endTime}` +
         (offPreferenceCount > 0 ? ` · ${offPreferenceCount} against shift preference` : "");
       if (chosen.length < needed || offPreferenceCount > 0)
         toast.warning(
@@ -1761,6 +2170,19 @@ function SchedulePage() {
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
+      <RefusedShiftsPanel
+        refusals={refusals}
+        employees={employees ?? []}
+        role={role}
+        onDismiss={() => setRefusals([])}
+        onAuthorised={async () => {
+          setRefusals([]);
+          await Promise.all([
+            refetchAssignments(),
+            qc.invalidateQueries({ queryKey: ["assignments-all"] }),
+          ]);
+        }}
+      />
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -2165,6 +2587,8 @@ function SchedulePage() {
           </details>
         </Card>
       )}
+
+      <WeeklyShortageReport tenantId={profile?.tenant_id} />
 
       {blocking.length > 0 && (
         <Alert variant="destructive">

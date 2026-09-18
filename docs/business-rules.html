@@ -1,0 +1,1460 @@
+<title>DogForce Business Rules</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:        #F5F5F3;
+    --surface:      #FFFFFF;
+    --surface-sunk: #EDEDE9;
+    --ink:          #131A22;
+    --ink-soft:     #4A5560;
+    --ink-faint:    #7C8791;
+    --rule:         #D8D8D2;
+    --rule-soft:    #E6E6E1;
+    --accent:       #1D4E5F;
+    --accent-soft:  #E4EDF0;
+    --ochre:        #8A5A16;
+    --ochre-soft:   #F6EEE0;
+    --ochre-rule:   #D9BC86;
+    --oxide:        #7B2E2E;
+    --oxide-soft:   #F5E7E5;
+    --focus:        #1D4E5F;
+
+    --display: "Literata", Georgia, "Times New Roman", serif;
+    --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --col: 68ch;
+    --rail: 12rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:        #0F1419;
+      --surface:      #161C23;
+      --surface-sunk: #1C242C;
+      --ink:          #E6E8EA;
+      --ink-soft:     #A3ADB6;
+      --ink-faint:    #74808A;
+      --rule:         #2B343D;
+      --rule-soft:    #232B33;
+      --accent:       #7FB6C7;
+      --accent-soft:  #17303A;
+      --ochre:        #D9A757;
+      --ochre-soft:   #2A2114;
+      --ochre-rule:   #6B5326;
+      --oxide:        #D98C86;
+      --oxide-soft:   #2B1918;
+      --focus:        #7FB6C7;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:        #0F1419;
+    --surface:      #161C23;
+    --surface-sunk: #1C242C;
+    --ink:          #E6E8EA;
+    --ink-soft:     #A3ADB6;
+    --ink-faint:    #74808A;
+    --rule:         #2B343D;
+    --rule-soft:    #232B33;
+    --accent:       #7FB6C7;
+    --accent-soft:  #17303A;
+    --ochre:        #D9A757;
+    --ochre-soft:   #2A2114;
+    --ochre-rule:   #6B5326;
+    --oxide:        #D98C86;
+    --oxide-soft:   #2B1918;
+    --focus:        #7FB6C7;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .masthead-inner {
+    max-width: calc(var(--col) + var(--rail) + 8rem);
+    margin: 0 auto;
+    padding: 3.5rem 2rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 5vw, 3.1rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .subtitle {
+    font-family: var(--display);
+    font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+    font-weight: 400;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 46ch;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1.25rem 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .meta div { display: flex; flex-direction: column; gap: 0.2rem; }
+  .meta dt {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .meta dd { margin: 0; font-size: 0.9rem; color: var(--ink); }
+
+  /* ---------- standing notice ---------- */
+
+  .standing {
+    background: var(--accent-soft);
+    border-bottom: 1px solid var(--rule);
+  }
+  .standing-inner {
+    max-width: calc(var(--col) + var(--rail) + 8rem);
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .standing strong { color: var(--accent); }
+  .standing p { margin: 0; font-size: 0.94rem; max-width: 78ch; color: var(--ink); }
+
+  /* ---------- layout ---------- */
+
+  .page {
+    max-width: calc(var(--col) + var(--rail) + 8rem);
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+
+  section.rule-section {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    gap: 0 3rem;
+    padding: 3.25rem 0;
+    border-bottom: 1px solid var(--rule-soft);
+    align-items: start;
+  }
+  section.rule-section:last-of-type { border-bottom: 0; }
+
+  .rail { position: sticky; top: 1.5rem; }
+  .rail-num {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--ink-faint);
+    display: block;
+  }
+  .rail-title {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    margin-top: 0.35rem;
+    display: block;
+    line-height: 1.4;
+  }
+
+  .body-col { min-width: 0; max-width: var(--col); }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.5rem, 3.2vw, 1.9rem);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    margin: 0 0 1.25rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.12rem;
+    margin: 2.25rem 0 0.75rem;
+    letter-spacing: -0.005em;
+  }
+  h3:first-child { margin-top: 0; }
+
+  p { margin: 0 0 1.05rem; }
+  p:last-child { margin-bottom: 0; }
+
+  ul { margin: 0 0 1.05rem; padding-left: 1.2rem; }
+  li { margin-bottom: 0.45rem; }
+  li::marker { color: var(--ink-faint); }
+
+  strong { font-weight: 600; }
+  em { color: var(--ink-soft); }
+
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  /* ---------- tables ---------- */
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 0 1.4rem;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.figure { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.code { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+
+  /* ---------- decision callout ---------- */
+
+  .decision {
+    background: var(--ochre-soft);
+    border: 1px solid var(--ochre-rule);
+    border-left: 3px solid var(--ochre);
+    padding: 1.35rem 1.5rem;
+    margin: 1.75rem 0;
+  }
+  .decision-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .decision-tag {
+    font-family: var(--mono);
+    font-size: 0.63rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ochre);
+    border: 1px solid var(--ochre-rule);
+    padding: 0.16rem 0.45rem;
+    white-space: nowrap;
+  }
+  .decision-title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--ink);
+  }
+  .decision.changed {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .decision.changed .decision-tag {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .decision p { font-size: 0.94rem; }
+  .decision ul { font-size: 0.94rem; }
+  .decision p:last-child, .decision ul:last-child { margin-bottom: 0; }
+
+  /* ---------- worked example ---------- */
+
+  .worked {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.25rem 1.4rem;
+    margin: 1.5rem 0;
+  }
+  .worked-label {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+  .calc { font-family: var(--mono); font-size: 0.88rem; line-height: 2; font-variant-numeric: tabular-nums; }
+  .calc div { display: flex; justify-content: space-between; gap: 1.5rem; border-bottom: 1px dotted var(--rule); }
+  .calc div:last-child { border-bottom: 0; border-top: 1px solid var(--ink-faint); font-weight: 600; margin-top: 0.35rem; padding-top: 0.35rem; }
+  .calc span:last-child { white-space: nowrap; }
+
+  /* ---------- markup controls ---------- */
+
+  .markup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-top: 2rem;
+    padding-top: 1.1rem;
+    border-top: 1px dashed var(--rule);
+  }
+  .markup-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .note-field {
+    font-family: var(--body);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.65rem 0.75rem;
+    width: 100%;
+    min-height: 3.2rem;
+    resize: vertical;
+  }
+  .note-field::placeholder { color: var(--ink-faint); }
+  .note-field:focus { border-color: var(--accent); }
+  .note-state {
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    min-height: 1em;
+  }
+  .note-state.saved { color: var(--accent); }
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin: 1.5rem 0 0;
+    padding: 0.9rem 1rem;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+  .who label {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .who input {
+    font-family: var(--body);
+    font-size: 0.92rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.4rem 0.6rem;
+    flex: 1;
+    min-width: 12rem;
+  }
+  .who input:focus { border-color: var(--accent); }
+  .markup-label {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-right: 0.3rem;
+  }
+  .mark-btn {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .mark-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mark-btn[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper);
+  }
+  :root[data-theme="dark"] .mark-btn[aria-pressed="true"],
+  :root:not([data-theme="light"]) .mark-btn[aria-pressed="true"] { color: #0F1419; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .mark-btn[aria-pressed="true"] { color: #FFFFFF; }
+  }
+
+  /* ---------- triage ---------- */
+
+  .tier { margin-bottom: 2.25rem; }
+  .tier-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+    flex-wrap: wrap;
+  }
+  .tier-chip {
+    font-family: var(--mono);
+    font-size: 0.63rem;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    white-space: nowrap;
+  }
+  .tier-1 .tier-chip { background: var(--oxide-soft); color: var(--oxide); border: 1px solid var(--oxide); }
+  .tier-2 .tier-chip { background: var(--ochre-soft); color: var(--ochre); border: 1px solid var(--ochre-rule); }
+  .tier-3 .tier-chip { background: var(--surface-sunk); color: var(--ink-soft); border: 1px solid var(--rule); }
+  .tier-head h3 { margin: 0; font-size: 1rem; }
+  td.ref { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-faint); white-space: nowrap; }
+  td.itemno { font-family: var(--mono); font-weight: 600; color: var(--ink-faint); width: 2.5rem; }
+
+  /* ---------- summary bar ---------- */
+
+  .summary-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--rule);
+    padding: 0.85rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+  }
+  .summary-bar button {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .summary-bar button:hover { background: var(--accent-soft); }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    border-top: 1px solid var(--rule);
+    background: var(--surface);
+    margin-top: 2rem;
+  }
+  .footer-inner {
+    max-width: calc(var(--col) + var(--rail) + 8rem);
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    gap: 0 3rem;
+  }
+  .footer-inner .body-col p { font-size: 0.9rem; color: var(--ink-soft); }
+  .footer-inner strong { color: var(--ink); }
+
+  @media (max-width: 820px) {
+    section.rule-section, .footer-inner { grid-template-columns: 1fr; gap: 0; }
+    .rail { position: static; margin-bottom: 1.25rem; display: flex; gap: 0.6rem; align-items: baseline; }
+    .rail-title { margin-top: 0; }
+    .masthead-inner, .standing-inner, .page, .footer-inner { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .summary-bar { padding: 0.75rem 1.25rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* ---------- figures ---------- */
+
+  .fig { margin: 1.6rem 0 1.75rem; }
+  .fig-scroll { overflow-x: auto; padding-bottom: 0.25rem; }
+  .fig-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.7rem;
+  }
+  .fig-note {
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+    margin: 0.75rem 0 0;
+    max-width: 62ch;
+  }
+  .fig-note strong { color: var(--ink); }
+
+  /* week strip */
+  .weekstrip {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(56px, 1fr));
+    gap: 0.4rem;
+    min-width: 430px;
+  }
+  .wd { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+  .wd-name {
+    font-family: var(--mono);
+    font-size: 0.63rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .wd-bar {
+    width: 100%;
+    height: 84px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--surface-sunk);
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+  }
+  .wd-fill { width: 100%; background: var(--accent); }
+  .wd-cum {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+  .wd.refused .wd-bar { border: 1px dashed var(--oxide); background: var(--oxide-soft); }
+  .wd.refused .wd-cum { color: var(--oxide); font-weight: 600; }
+  .wd.rest .wd-cum { color: var(--ink-faint); }
+
+  /* two pots */
+  .pots { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; min-width: 400px; }
+  .pot {
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--surface);
+    padding: 0.9rem 1rem 1rem;
+  }
+  .pot-title {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+  .pot-meter {
+    height: 30px;
+    border-radius: 2px;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule-soft);
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+  }
+  .pot-meter .seg { display: flex; align-items: center; justify-content: center; }
+  .pot-meter .seg span {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    color: var(--surface);
+  }
+  .seg-ord { background: var(--accent); }
+  .seg-prem { background: var(--ochre); }
+  .pot-foot { font-size: 0.82rem; color: var(--ink-soft); margin: 0.6rem 0 0; }
+  .pot-foot strong { color: var(--ink); }
+
+  /* midnight split timeline */
+  .tl { display: flex; min-width: 400px; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+  .tl-seg { flex: 1; padding: 0.8rem 0.9rem; background: var(--surface); }
+  .tl-seg + .tl-seg { border-left: 2px solid var(--ochre); background: var(--ochre-soft); }
+  .tl-when {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    display: block;
+  }
+  .tl-rate { font-size: 0.92rem; font-weight: 600; color: var(--ink); }
+  .tl-pay { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-soft); display: block; margin-top: 0.15rem; }
+  .tl-axis {
+    display: flex;
+    min-width: 400px;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    color: var(--ink-faint);
+    margin-top: 0.35rem;
+  }
+  .tl-axis span:nth-child(2) { color: var(--ochre); font-weight: 600; }
+
+  /* night band */
+  .band { min-width: 440px; display: flex; flex-direction: column; gap: 0.5rem; }
+  .band-row { display: flex; align-items: center; gap: 0.75rem; }
+  .band-key {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    width: 8.5rem;
+    flex: none;
+    text-align: right;
+  }
+  .band-track { flex: 1; height: 26px; display: flex; background: var(--surface-sunk); border: 1px solid var(--rule-soft); border-radius: 2px; overflow: hidden; }
+  .band-pad { flex: none; }
+  .band-fill { flex: none; display: flex; align-items: center; justify-content: center; }
+  .band-fill span { font-family: var(--mono); font-size: 0.64rem; font-weight: 500; color: var(--surface); }
+  .fill-shift { background: var(--accent); }
+  .fill-band { background: var(--ochre); }
+  .band-axis { display: flex; margin-left: 9.25rem; justify-content: space-between; font-family: var(--mono); font-size: 0.64rem; color: var(--ink-faint); }
+
+  @media (max-width: 640px) {
+    .pots { grid-template-columns: 1fr; }
+    .tl { flex-direction: column; }
+    .tl-seg + .tl-seg { border-left: 0; border-top: 2px solid var(--ochre); }
+    .band-key { width: 6.5rem; font-size: 0.6rem; }
+    .band-axis { margin-left: 7.25rem; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <span class="eyebrow">Business rules · Updated after your review</span>
+    <h1>DogForce Security Service</h1>
+    <p class="subtitle">Every rule the system uses to work out pay, leave and rosters — for you to check.</p>
+    <p class="subtitle"><strong>Sections 3, 6, 7 and 8 have changed</strong> to match what you told us on 15 September. The system has already been changed to match. Please read those four again and check we got them right.</p>
+    <dl class="meta">
+      <div><dt>Prepared for</dt><dd>DogForce Security Service</dd></div>
+      <div><dt>Sent</dt><dd>16 September 2026</dd></div>
+      <div><dt>Your review</dt><dd>15 September 2026</dd></div>
+      <div><dt>Version</dt><dd>1.3</dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="standing">
+  <div class="standing-inner">
+    <p><strong>Nothing here is a suggestion.</strong> Every rule below is what the software does today. Mark each section <strong>Confirm</strong>, <strong>Change</strong> or <strong>Question</strong>, and <strong>write the correction in the box underneath</strong>. Your answers save on their own as you type, so you can stop and come back. Seven things still need a decision from you — two of them before the first payroll.</p>
+  </div>
+</div>
+
+<main class="page">
+
+  <!-- 1 -->
+  <section class="rule-section" id="s1">
+    <div class="rail"><span class="rail-num">01</span><span class="rail-title">How to use this</span></div>
+    <div class="body-col">
+      <h2>What this is, and how to use it</h2>
+      <p>This document lists every rule the system uses to work out pay, leave and rosters.</p>
+      <p>You should be able to read it without any technical knowledge. If a part of it does not make sense, that is our problem to fix, not yours.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mark</th><th>What it means</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Confirm</strong></td><td>This is how DogForce works. Leave it alone.</td></tr>
+            <tr><td><strong>Change</strong></td><td>This is wrong. Tell us what it should be.</td></tr>
+            <tr><td><strong>Question</strong></td><td>You are not sure, or you want to talk about it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Under each section there is a box. <strong>Write the correction, or your question, in your own words.</strong> Please do use it — if you mark something "Change" but write nothing, we cannot act on it.</p>
+      <p>Your answers save as you type. You can close this page and come back later. When you are done, press <strong>Copy my corrections</strong> at the bottom if you would also like a copy to keep.</p>
+      <p>Seven things still need a decision from you. They are marked <strong>Needs your decision</strong> and listed together in section 13. The night rate (decision 1) is now settled — see section 7.</p>
+      <div class="markup" data-section="1. Purpose"></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="rule-section" id="s2">
+    <div class="rail"><span class="rail-num">02</span><span class="rail-title">How a guard is paid</span></div>
+    <div class="body-col">
+      <h2>How a guard is paid</h2>
+      <p>Guards are paid <strong>by the hour</strong>.</p>
+      <p>Each guard has one hourly rate. Pay is that rate times the hours they worked. Extra pay is added on top for Sunday, public holiday and night work.</p>
+      <p>There are no pay grades. There are no different rates for different sites. One rate per person.</p>
+      <p>The rate for a guard is <strong class="num">N$16.00 an hour</strong>. This is the minimum wage for the security industry. The system also holds N$16.00 as a floor — if anyone is paid less, a warning appears on their payslip.</p>
+
+      <h3>The minimum wage goes up again</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>Rate</th></tr></thead>
+          <tbody>
+            <tr><td>2025</td><td class="figure">N$13.50</td></tr>
+            <tr><td><strong>2026 — now</strong></td><td class="figure"><strong>N$16.00</strong></td></tr>
+            <tr><td>2027</td><td class="figure">N$18.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>The system will not raise the rate on its own.</strong> When 2027 comes, someone has to change it. Please put a reminder in your diary.</p>
+
+      <h3>Managers</h3>
+      <p>Managers are paid a <strong>fixed amount each month</strong>. Their pay is not worked out from hours.</p>
+      <p>They get no overtime, and no extra pay for Sundays, holidays or nights. Like everyone else, they get no allowance — see section 8.</p>
+      <div class="markup" data-section="2. How a guard is paid"></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="rule-section" id="s3">
+    <div class="rail"><span class="rail-num">03</span><span class="rail-title">The working day</span></div>
+    <div class="body-col">
+      <h2>The working day</h2>
+      <h3>Shift types</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Code</th><th>Name</th><th>Hours</th><th>Times</th></tr></thead>
+          <tbody>
+            <tr><td class="figure">DAY</td><td>Day Shift</td><td class="figure">12</td><td class="figure">06:00 – 18:00</td></tr>
+            <tr><td class="figure">NIGHT</td><td>Night Shift</td><td class="figure">12</td><td class="figure">18:00 – 06:00</td></tr>
+            <tr><td class="figure">DAY6</td><td>Half Day Shift</td><td class="figure">6</td><td class="figure">06:00 – 12:00</td></tr>
+            <tr><td class="figure">NIGHT6</td><td>Half Night Shift</td><td class="figure">6</td><td class="figure">18:00 – 00:00</td></tr>
+            <tr><td class="figure">SUN</td><td>Sunday Shift</td><td class="figure">12</td><td class="figure">06:00 – 18:00</td></tr>
+            <tr><td class="figure">PH</td><td>Public Holiday</td><td class="figure">12</td><td class="figure">06:00 – 18:00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="decision changed">
+        <div class="decision-head"><span class="decision-tag">Changed 15 Sep</span><span class="decision-title">Shifts start at 06:00 and 18:00</span></div>
+        <p>You told us shifts start at 06:00 and 18:00, not 07:00 and 19:00. The table above is corrected and the system now uses these times.</p>
+        <p>This also matches your service list, which already prices guarding as 06h00–18h00 and 18h00–06h00 — the roster was the side that was wrong.</p>
+      </div>
+      <p>There are five more types for leave: annual, sick, compassionate, maternity and unpaid. These take up a day on the roster, but they are not work.</p>
+      <h3>The 12-hour limit</h3>
+      <p><strong>No shift can be longer than 12 hours.</strong></p>
+      <p>The system will not accept one. Nobody can override this — not a supervisor, not a manager, not an administrator. A 13-hour shift cannot be recorded at all.</p>
+      <div class="markup" data-section="3. The working day"></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="rule-section" id="s4">
+    <div class="rail"><span class="rail-num">04</span><span class="rail-title">Hours &amp; overtime</span></div>
+    <div class="body-col">
+      <h2>Normal hours and overtime</h2>
+      <p><strong>Normal hours stop at 60 a week.</strong> Anything over 60 in one week is overtime, paid at <strong>1.5 times</strong> the hourly rate. The week runs <strong>Monday to Sunday</strong>.</p>
+      <p>Overtime is counted by the week, not by the day. A 12-hour day is not overtime on its own. Only the hours past 60 in that week are.</p>
+
+      <h3>Sunday and holiday hours are kept separate</h3>
+      <p>This is the part people ask about most, so here it is in full. The system puts hours in two separate baskets.</p>
+
+      <div class="fig">
+        <span class="fig-label">Where each hour goes</span>
+        <div class="fig-scroll">
+          <div class="pots">
+            <div class="pot">
+              <span class="pot-title">Normal hours · fills to 60</span>
+              <div class="pot-meter">
+                <div class="seg seg-ord" style="width:100%"><span>60 h at the normal rate</span></div>
+              </div>
+              <p class="pot-foot">Monday to Saturday work. Anything over 60 in the week spills out as <strong>overtime at 1.5 times</strong>.</p>
+            </div>
+            <div class="pot">
+              <span class="pot-title">Sunday &amp; holidays · separate</span>
+              <div class="pot-meter">
+                <div class="seg seg-prem" style="width:100%"><span>Paid at their own rate</span></div>
+              </div>
+              <p class="pot-foot"><strong>Never counted towards the 60</strong>, so they can never push a weekday into overtime.</p>
+            </div>
+          </div>
+        </div>
+        <p class="fig-note">Two baskets, side by side, not connected. Normal weekday hours fill up to sixty and then spill into overtime at 1.5 times. Sunday and public holiday hours sit in a basket of their own and are paid at their own rate.</p>
+      </div>
+
+      <div class="worked">
+        <span class="worked-label">Example — five 12-hour weekdays and a 12-hour Sunday</span>
+        <div class="calc">
+          <div><span>Mon–Fri &nbsp;·&nbsp; normal basket</span><span>60 h → 60.0</span></div>
+          <div><span>Sunday &nbsp;·&nbsp; Sunday basket, 1.5×</span><span>12 h → 18.0</span></div>
+          <div><span>72 hours worked · no overtime</span><span>78.0 hours paid</span></div>
+        </div>
+      </div>
+      <p>If Sunday hours <em>did</em> count towards the 60, the same guard would be on 72 hours with 12 of them overtime. Those 12 hours would then be paid 1.5 times for overtime <em>and</em> 1.5 times for Sunday. Keeping the baskets apart is what stops that.</p>
+
+      <h3>60 hours is also a limit on the roster</h3>
+      <p>The system <strong>will not let you roster</strong> a shift that takes a guard past 60 hours in a week. It refuses. It does not just warn you.</p>
+
+      <div class="fig">
+        <span class="fig-label">One week of 12-hour shifts</span>
+        <div class="fig-scroll">
+          <div class="weekstrip">
+            <div class="wd"><span class="wd-name">Mon</span><div class="wd-bar"><div class="wd-fill" style="height:100%"></div></div><span class="wd-cum">12 h</span></div>
+            <div class="wd"><span class="wd-name">Tue</span><div class="wd-bar"><div class="wd-fill" style="height:100%"></div></div><span class="wd-cum">24 h</span></div>
+            <div class="wd"><span class="wd-name">Wed</span><div class="wd-bar"><div class="wd-fill" style="height:100%"></div></div><span class="wd-cum">36 h</span></div>
+            <div class="wd"><span class="wd-name">Thu</span><div class="wd-bar"><div class="wd-fill" style="height:100%"></div></div><span class="wd-cum">48 h</span></div>
+            <div class="wd"><span class="wd-name">Fri</span><div class="wd-bar"><div class="wd-fill" style="height:100%"></div></div><span class="wd-cum">60 h</span></div>
+            <div class="wd refused"><span class="wd-name">Sat</span><div class="wd-bar"></div><span class="wd-cum">refused</span></div>
+            <div class="wd rest"><span class="wd-name">Sun</span><div class="wd-bar"></div><span class="wd-cum">rest</span></div>
+          </div>
+        </div>
+        <p class="fig-note">Five 12-hour shifts come to exactly sixty hours. <strong>The sixth is refused</strong> — it would make seventy-two. So five shifts a week is the real limit: about twenty working days a month, and about 240 hours.</p>
+      </div>
+
+      <p>Each guard's record has a <strong>maximum days per week</strong>. That number is a ceiling for the roster — the most days that guard can be given. It is not a promise of work, and it does not affect their pay or their leave.</p>
+      <p>There is one way past the 60-hour limit: a <strong>PS exemption</strong>. This is a written waiver with a date and a reference number, recorded against one named guard for one set period. Only an administrator or an operations manager can create one, and every change to it is logged.</p>
+      <p>An exemption only lifts the 60-hour weekly limit. It does not lift the 12-hour daily limit, the weekly rest day, or the monthly rest days.</p>
+      <div class="markup" data-section="4. Ordinary hours and overtime"></div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="rule-section" id="s5">
+    <div class="rail"><span class="rail-num">05</span><span class="rail-title">Sunday work</span></div>
+    <div class="body-col">
+      <h2>Sunday work</h2>
+      <p>There are two Sunday rates. Which one applies depends on how the guard came to work that day.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Situation</th><th>Rate</th></tr></thead>
+          <tbody>
+            <tr><td><strong>On the roster</strong> — the Sunday was planned</td><td class="figure">1.5×</td></tr>
+            <tr><td><strong>Called in</strong> — e.g. to cover someone absent</td><td class="figure">2×</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The lower 1.5 times rate applies because <strong>Sunday work is part of the standard contract</strong>. Guards agree to work Sundays when they are hired. The law allows the lower rate on that basis.</p>
+      <p>The law also asks for something else: the guard should get the same amount of time off in the following week. <strong>The system does not track this.</strong> You manage it yourselves.</p>
+
+      <h3>Shifts that cross midnight</h3>
+      <p>A shift that crosses midnight is <strong>split at 00:00</strong>. Each half is paid at the rate for the day it falls on.</p>
+
+      <div class="fig">
+        <span class="fig-label">The example you gave us</span>
+        <div class="fig-scroll">
+          <div class="tl">
+            <div class="tl-seg">
+              <span class="tl-when">Sat 18:00 – midnight</span>
+              <span class="tl-rate">6 hours · normal rate</span>
+              <span class="tl-pay">→ 6.0 hours of pay</span>
+            </div>
+            <div class="tl-seg">
+              <span class="tl-when">Midnight – Sun 06:00</span>
+              <span class="tl-rate">6 hours · 1.5× Sunday</span>
+              <span class="tl-pay">→ 9.0 hours of pay</span>
+            </div>
+          </div>
+          <div class="tl-axis"><span>18:00 Sat</span><span>00:00 — the split</span><span>06:00 Sun</span></div>
+        </div>
+        <p class="fig-note">A guard works Saturday 18:00 to Sunday 06:00. The shift is cut at midnight. Six hours fall on Saturday at the normal rate, six on Sunday at 1.5 times. <strong>Twelve hours of work, fifteen hours of pay.</strong></p>
+      </div>
+
+      <p>There is another way to do this: give the whole shift to whichever day holds most of it. The system can do that, but it is switched off, and we suggest leaving it off. A 12-hour shift split evenly across midnight has no majority day, so the system would have to stop and ask you every time.</p>
+      <div class="markup" data-section="5. Sunday work"></div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="rule-section" id="s6">
+    <div class="rail"><span class="rail-num">06</span><span class="rail-title">Public holidays</span></div>
+    <div class="body-col">
+      <h2>Public holidays</h2>
+      <p>Public holiday work is paid at <strong>1.5 times</strong> the hourly rate.</p>
+      <p>It is 1.5 times for everyone, whether they were rostered or called in.</p>
+      <div class="decision changed">
+        <div class="decision-head"><span class="decision-tag">Changed 15 Sep</span><span class="decision-title">Holidays now pay 1.5 times, not 2</span></div>
+        <p>You told us: “the rate we are using is 1.5 not x2 because we are shift based and we are giving employees ample time.” The system now pays 1.5 times.</p>
+        <p><strong>Please read this part carefully.</strong> The Labour Act's own figure for holiday work is 2 times. 1.5 times is lower than that. We have made the change because you asked for it, and it is recorded as your decision with the date. We are not able to tell you it is within the law — that is a question for a labour lawyer, and section 14 says the same about the rest of this document.</p>
+      </div>
+
+      <h3>When a holiday falls on the same day as a Sunday</h3>
+      <p>Now that holidays pay 1.5 times, the holiday rate is no longer always the higher of the two. Which rate applies depends on whether the guard was rostered:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Situation</th><th>Rate</th></tr></thead>
+          <tbody>
+            <tr><td>Rostered for the day</td><td class="figure">1.5 times</td></tr>
+            <tr><td>Called in to cover someone</td><td class="figure">2 times</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The 2 times for a call-in is the Sunday rate, and it has not changed. A guard who agreed to the day in their contract gets 1.5; a guard phoned at short notice, who never agreed to it, gets 2. That is the same rule section 5 already describes for ordinary Sundays.</p>
+      <p>An earlier version of this document said “the holiday rate wins: 2 times, not 1.5”. That was written when holidays paid 2 times and is no longer true.</p>
+      <h3>The holiday calendar</h3>
+      <p>The system works out the thirteen Namibian public holidays every year, including the Easter dates that move:</p>
+      <p style="color:var(--ink-soft);font-size:0.94rem;">New Year's Day · Independence Day · Good Friday · Easter Monday · Workers' Day · Cassinga Day · Ascension Day · Africa Day · Genocide Remembrance Day · Heroes' Day · International Human Rights Day · Christmas Day · Family Day</p>
+      <h3>The Monday after a Sunday holiday</h3>
+      <p>The Monday after becomes a public holiday too, and <strong>both days are paid at the holiday rate of 1.5 times</strong>.</p>
+      <p>The law adds the Monday. It does not move the holiday off the Sunday, so the Sunday stays a holiday as well. This is why some years have more than thirteen holiday dates.</p>
+      <div class="markup" data-section="6. Public holidays"></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="rule-section" id="s7">
+    <div class="rail"><span class="rail-num">07</span><span class="rail-title">Night work</span></div>
+    <div class="body-col">
+      <h2>Night work</h2>
+      <p><strong>There is no extra pay for night work.</strong> A night hour is paid at the same rate as a day hour.</p>
+      <div class="decision changed">
+        <div class="decision-head"><span class="decision-tag">Settled 15 Sep</span><span class="decision-title">Decision 01 is closed — no night premium</span></div>
+        <p>You told us: “The rates are the same, we are not paying the 6% because clients are also not paying the 6%.” The system was already set this way, so no money changes.</p>
+        <p>The 6% night rate still exists in the system and is switched off. If DogForce ever start charging clients for nights, it can be switched back on from the settings screen. No rebuild.</p>
+      </div>
+
+      <h3>Night hours are still counted</h3>
+      <p>Night work counts from <strong>20:00 to 07:00</strong>. That window comes from the Labour Act and we do not set it. The system still measures how many of each guard's hours fall inside it, and still shows them on the payslip and the reports. They are simply paid at the normal rate.</p>
+
+      <div class="fig">
+        <span class="fig-label">The shift starts before night work does</span>
+        <div class="fig-scroll">
+          <div class="band">
+            <div class="band-row">
+              <span class="band-key">Night shift</span>
+              <div class="band-track">
+                <div class="band-fill fill-shift" style="width:100%"><span>18:00 – 06:00 · 12 h worked</span></div>
+              </div>
+            </div>
+            <div class="band-row">
+              <span class="band-key">Counts as night</span>
+              <div class="band-track">
+                <div class="band-pad" style="width:16.667%"></div>
+                <div class="band-fill fill-band" style="width:83.333%"><span>20:00 – 06:00 · 10 h counted</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="band-axis"><span>18:00</span><span>00:00</span><span>06:00</span></div>
+        </div>
+        <p class="fig-note">Your night shift now runs 18:00 to 06:00, so <strong>10 of its 12 hours</strong> fall inside the night window — the first two hours, 18:00 to 20:00, are before it starts. Under the old 19:00 start the figure was 11 hours. This changes a number on the reports, not the pay.</p>
+      </div>
+
+      <div class="markup" data-section="7. Night work"></div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="rule-section" id="s8">
+    <div class="rail"><span class="rail-num">08</span><span class="rail-title">Allowances</span></div>
+    <div class="body-col">
+      <h2>Allowances</h2>
+      <p><strong>DogForce pay no allowances.</strong> Nothing is added to a guard's pay on top of the hours they work. There is no transport, housing, uniform or other allowance. Money that moves between DogForce and a guard for anything other than hours worked is a <strong>deduction</strong>, and deductions are section 9.</p>
+      <div class="decision changed">
+        <div class="decision-head"><span class="decision-tag">Changed 15 Sep</span><span class="decision-title">Transport allowance set to zero</span></div>
+        <p>You told us: “Its not allowance its deduction.” Every guard's transport allowance has been set to zero, so it no longer appears on any payslip.</p>
+        <p><strong>One thing we want to check with you.</strong> We have read that as “guards get no allowances”. It could also mean something narrower — that DogForce provide transport and take the cost off the guard's pay. That would be a deduction, and it is not set up yet. If that second reading is the right one, tell us and we will add it to section 9.</p>
+      </div>
+      <p>The transport allowance has not been removed from the system, only set to zero. If DogForce ever decide to pay one, it is a number to fill in, not a rebuild. For the record, this is how it would work: an amount per month per guard, not taxed, going up and down with attendance — a guard rostered for 20 days who works 18 would get 18/20 of it.</p>
+      <div class="markup" data-section="8. Allowances"></div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="rule-section" id="s9">
+    <div class="rail"><span class="rail-num">09</span><span class="rail-title">Deductions</span></div>
+    <div class="body-col">
+      <h2>Deductions</h2>
+      <h3>PAYE (income tax)</h3>
+      <p>The system takes the pay for the period, multiplies by 12 to get a yearly figure, works out the tax on it, then divides by 12 again. There is no allowance to leave out of this figure (section 8). If DogForce ever start paying a transport allowance, it would not be counted as taxable pay.</p>
+      <p>Here is the tax table in the system. It is the Namibian one that has applied since 1 March 2024:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Yearly taxable pay</th><th>Tax</th></tr></thead>
+          <tbody>
+            <tr><td class="figure">Up to N$100,000</td><td><strong>None</strong></td></tr>
+            <tr><td class="figure">N$100,001 – 150,000</td><td>18% of the amount over N$100,000</td></tr>
+            <tr><td class="figure">N$150,001 – 350,000</td><td>N$9,000 + 25% of the amount over N$150,000</td></tr>
+            <tr><td class="figure">N$350,001 – 550,000</td><td>N$59,000 + 28% of the amount over N$350,000</td></tr>
+            <tr><td class="figure">N$550,001 – 850,000</td><td>N$115,000 + 30% of the amount over N$550,000</td></tr>
+            <tr><td class="figure">N$850,001 – 1,550,000</td><td>N$205,000 + 32% of the amount over N$850,000</td></tr>
+            <tr><td class="figure">Over N$1,550,000</td><td>N$429,000 + 37% of the amount over N$1,550,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="worked">
+        <span class="worked-label">What this means for a guard</span>
+        <div class="calc">
+          <div><span>N$16.00 an hour &nbsp;·&nbsp; about 240 hours</span><span>N$3,840 a month</span></div>
+          <div><span>Over a year</span><span>about N$46,000</span></div>
+          <div><span>Against the N$100,000 threshold</span><span>no tax</span></div>
+        </div>
+      </div>
+      <p><strong>So guards pay no income tax at this rate.</strong> The table matters for managers and senior staff.</p>
+      <p>Tax rates change in the national budget. When they do, someone has to update this table. The system will not do it on its own.</p>
+
+      <h3>Social security</h3>
+      <p><strong>0.9% of gross pay, up to N$99 a month.</strong> The company also pays 1.8%. That is recorded, but it does not come off the guard's pay.</p>
+
+      <h3>Fines</h3>
+      <p>A fine only comes off a guard's pay <strong>if a collective agreement reference is recorded with it</strong>. This is what the Labour Act requires.</p>
+      <p>If there is no reference, <strong>the fine is not deducted</strong>. It is listed separately instead, so you can see it was not taken.</p>
+      <p>This is on purpose. The system will not make a deduction that is against the law, and it tells you when it has refused to make one.</p>
+
+      <h3>Anything else</h3>
+      <p>Loans, advances, union dues and anything similar are entered by hand, per guard, per period.</p>
+
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 02</span><span class="decision-title">Union dues and pension</span></div>
+        <p>Do you take off union dues or pension using a set rule — a percentage, or a fixed amount by grade?</p>
+        <p>If so, that rule is <strong>not in the system</strong>. Tell us what it is and we will build it. Until then someone has to type these in by hand every single month.</p>
+      </div>
+      <div class="markup" data-section="9. Deductions"></div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="rule-section" id="s10">
+    <div class="rail"><span class="rail-num">10</span><span class="rail-title">Leave</span></div>
+    <div class="body-col">
+      <h2>Leave</h2>
+      <h3>Annual leave</h3>
+      <p>The law gives an employee <strong>four weeks of leave a year</strong>. The system builds that up as they work:</p>
+      <div class="worked">
+        <span class="worked-label">The rule</span>
+        <p style="font-size:1.05rem;font-weight:600;margin:0;">One day of leave for every twelve days worked.</p>
+      </div>
+      <p>A full year of work is about 48 weeks. A guard working five days a week works about 240 days in that year. That earns <strong>20 days of leave — which is four weeks of a five-day week</strong>. A guard working six-day weeks works about 288 days and earns 24.</p>
+      <p>The rule sorts itself out. It matches whatever the guard actually worked, so nobody has to guess a pattern in advance.</p>
+      <ul>
+        <li>A "day worked" means a day with approved attendance on a real shift. Rest days and leave days do not earn leave.</li>
+        <li>Leave is added when each payroll period is closed off.</li>
+        <li>Two guards who worked different amounts earn different leave. Nobody earns leave for days they were not on the roster.</li>
+        <li><strong>Annual leave does not expire.</strong> Whatever is not taken carries over.</li>
+      </ul>
+
+      <h3>The four-month rule</h3>
+      <p>The law says the employer must set when leave is taken, and that has to happen <strong>within four months of the end of the leave year</strong>.</p>
+      <p>The system works out that date for every guard and shows it in the leave planner. It flags anyone getting close to it, or past it.</p>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 03</span><span class="decision-title">The deadline is shown, but not enforced</span></div>
+        <p>Nothing stops leave being booked after the four-month deadline. The system shows the risk and lets the approver decide.</p>
+        <p>Is that what you want? Or should the system refuse?</p>
+      </div>
+
+      <h3>Sick leave</h3>
+      <p>Sick leave works differently from annual leave, on purpose. The law ties it to the normal working week, not to days actually worked. This is the one place where a guard's days-per-week figure decides an entitlement.</p>
+      <ul>
+        <li>The cycle is <strong>36 months</strong> (three years).</li>
+        <li><strong>30 days</strong> for a five-day week. <strong>36 days</strong> for a six-day week.</li>
+        <li><strong>In the first year only:</strong> 1 day builds up for every 26 days worked.</li>
+        <li>A <strong>doctor's note is needed from the third day in a row</strong>. Without it, the request is refused.</li>
+        <li><strong>No advance notice can be required.</strong> The system enforces this.</li>
+        <li><strong>Unused sick leave is lost</strong> at the end of each three-year cycle.</li>
+      </ul>
+
+      <h3>Compassionate leave</h3>
+      <p><strong>5 days a year</strong>, fully paid, no advance notice needed. <strong>Lost</strong> at the end of the year if not used.</p>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 04</span><span class="decision-title">Sick and compassionate leave expire, annual leave does not</span></div>
+        <p>Nobody ever actually decided this. It may just be how it was built. We would like your view, and ideally a lawyer's.</p>
+      </div>
+
+      <h3>Maternity leave</h3>
+      <ul>
+        <li>The guard needs <strong>six months of service</strong>.</li>
+        <li>It must cover <strong>at least twelve weeks in a row</strong>.</li>
+        <li>It does not use up any leave balance.</li>
+      </ul>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 05</span><span class="decision-title">Maternity leave is set to unpaid</span></div>
+        <p>Right now the system pays nothing for maternity leave.</p>
+        <p>In Namibia the Social Security Commission normally pays the maternity benefit. What the employer adds varies from contract to contract.</p>
+        <p>What is your policy — nothing from DogForce, full pay, or a percentage? We need this before the first payroll, because it changes a payslip as soon as it applies.</p>
+      </div>
+
+      <h3>Unpaid leave</h3>
+      <p>No pay, and no leave balance used.</p>
+
+      <h3>How leave gets approved</h3>
+      <ol>
+        <li>A supervisor, operations, payroll or admin user <strong>submits</strong> the request. A site supervisor can only submit for guards at their own sites.</li>
+        <li>An admin, operations or payroll user <strong>approves or rejects</strong> it.</li>
+      </ol>
+      <p><strong>The person who submits a request cannot approve it.</strong> The system enforces this and it cannot be turned off. Two people are always involved, on purpose.</p>
+      <p>A request is refused if:</p>
+      <ul>
+        <li>The dates fall in a pay period that is already closed.</li>
+        <li><strong>There is no roster yet</strong> for those dates. The roster has to be published first, because that is what decides how many days are actually used.</li>
+        <li>Attendance has already been recorded for one of the days.</li>
+        <li>The guard <strong>does not have enough leave left</strong> (annual, sick and compassionate).</li>
+        <li>A doctor's note is missing where one is needed.</li>
+      </ul>
+      <p>Once approved, the rostered shifts change to leave, and <strong>a job is created for each shift</strong> so operations knows exactly which posts need covering.</p>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 06</span><span class="decision-title">There is no limit on how many people can be on leave at once</span></div>
+        <p>We designed one: a monthly cap on numbers, plus a check on each site's cover. Both were meant to warn the approver rather than block them, so they could go ahead with a reason recorded. <strong>It has not been built.</strong></p>
+        <p>What number do you want? And should it warn the approver, or stop them?</p>
+      </div>
+      <div class="markup" data-section="10. Leave"></div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="rule-section" id="s11">
+    <div class="rail"><span class="rail-num">11</span><span class="rail-title">Roster limits</span></div>
+    <div class="body-col">
+      <h2>Roster limits</h2>
+      <p>These rules live in the database itself, not on the screen. That means they apply no matter how a shift is created — typing it in by hand, generating a roster, filling a gap, or covering someone on leave. <strong>Nobody can get around them.</strong></p>
+      <h3>Refused outright</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rule</th><th>The limit</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Longest shift</strong></td><td>12 hours. No exceptions.</td></tr>
+            <tr><td><strong>One shift a day</strong></td><td>A guard cannot work two shifts on the same date.</td></tr>
+            <tr><td><strong>Hours a week</strong></td><td>60. Only a recorded PS exemption can lift this.</td></tr>
+            <tr><td><strong>Rest each week</strong></td><td>6 working days a week at most. Everyone gets a full day off.</td></tr>
+            <tr><td><strong>Rest after nights</strong></td><td>A day shift cannot follow a night shift, and a night shift cannot follow a day shift.</td></tr>
+            <tr><td><strong>Rest each month</strong></td><td>At least 10 rest days in each calendar month.</td></tr>
+            <tr><td><strong>Shift type</strong></td><td>Rostered work has to use a day or night type.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>When the system refuses, it tells you which rule was broken.</p>
+
+      <h3>How these fit together</h3>
+      <p>These are not separate obstacles. With 12-hour shifts they all point at the same pattern:</p>
+      <div class="worked">
+        <span class="worked-label">What the rules add up to</span>
+        <div class="calc">
+          <div><span>60 hours a week ÷ 12 hours a shift</span><span>5 shifts a week</span></div>
+          <div><span>5 shifts a week, over a month</span><span>about 20 days</span></div>
+          <div><span>Rest days left over</span><span>10 – 11 · rule met</span></div>
+          <div><span>20 shifts × 12 hours</span><span>240 hours a month</span></div>
+        </div>
+      </div>
+      <p>The 60-hour rule bites before the 6-day rule does. So a sixth full shift is refused on hours, and the 6-day rule never even comes up.</p>
+
+      <h3>Warned about, but allowed</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rule</th><th>The limit</th><th>What happens</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Hours a month</strong></td><td class="figure">240</td><td>Warning only</td></tr>
+            <tr><td><strong>Overtime a month</strong></td><td class="figure">20 hours</td><td>Counted, not enforced</td></tr>
+            <tr><td><strong>Single rest days</strong></td><td>One day off between two runs of work</td><td>Preference only</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 07</span><span class="decision-title">The 240-hour monthly limit is not enforced</span></div>
+        <p>The 240-hour limit is set up, but it only warns.</p>
+        <p>Look at the sums above. The rules that <em>are</em> enforced already put a full-time guard at about 240 hours. So turning this on would act as a <strong>safety net</strong>, not a new restriction. It would catch odd cases — a month with extra days, or shifts added after someone went off sick — instead of blocking normal rostering.</p>
+        <p><strong>We suggest turning it on.</strong> It is your call. The same question applies to the 20-hour overtime figure.</p>
+      </div>
+      <div class="markup" data-section="11. Scheduling limits"></div>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="rule-section" id="s12">
+    <div class="rail"><span class="rail-num">12</span><span class="rail-title">Unfilled posts</span></div>
+    <div class="body-col">
+      <h2>When a post cannot be filled</h2>
+      <p>Sometimes there is nobody left who can work a shift — every available guard would break one of the rules above.</p>
+      <p>When that happens the system records a <strong>shortage</strong>. It saves the site, the date, the shift, how many guards were needed, how many were found, and which rules ruled people out.</p>
+      <p>You can see the <strong>last 30 days of shortages</strong> in the scheduler.</p>
+      <div class="decision">
+        <div class="decision-head"><span class="decision-tag">Decision 08</span><span class="decision-title">The weekly shortage report</span></div>
+        <p>We planned a weekly report for Operations and HR, grouping shortages that keep happening. It has not been built.</p>
+        <p>The plan was to group them by site, by shift, and <strong>by the skill needed</strong>. But the system has <strong>no record of skills</strong> — guards are not separated by qualification, grade or certificate. So there are two options:</p>
+        <ul>
+          <li><strong>Leave skills out.</strong> Report by site and shift only. We can do this quickly.</li>
+          <li><strong>Add skills.</strong> Record what each guard is qualified for, and what each site needs. More useful, but more work — and we would need your list of the skills that actually matter.</li>
+        </ul>
+      </div>
+      <div class="markup" data-section="12. Shortages"></div>
+    </div>
+  </section>
+
+  <!-- 13 -->
+  <section class="rule-section" id="s13">
+    <div class="rail"><span class="rail-num">13</span><span class="rail-title">The decisions</span></div>
+    <div class="body-col">
+      <h2>The decisions, in one place</h2>
+
+      <div class="decision changed">
+        <div class="decision-head"><span class="decision-tag">Settled 15 Sep</span><span class="decision-title">Closed by your review</span></div>
+        <p><strong>Decision 01</strong> — night rate is off. You confirmed: no extra pay for nights. See section 7.</p>
+        <p>Three more sections changed in that review, though they were not on this list: shift times (section 3), the public holiday rate (section 6) and allowances (section 8).</p>
+      </div>
+
+      <div class="tier tier-1">
+        <div class="tier-head"><span class="tier-chip">Before the first payroll</span><h3>Three</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>What we need</th><th>§</th></tr></thead>
+            <tbody>
+              <tr><td class="figure">02</td><td>Union dues and pension — is there a set rule?</td><td class="figure">9</td></tr>
+              <tr><td class="figure">05</td><td>Maternity leave — what does DogForce pay?</td><td class="figure">10</td></tr>
+              <tr><td class="figure">—</td><td>Section 8 — did you mean no allowances, or a transport <strong>deduction</strong>?</td><td class="figure">8</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tier tier-2">
+        <div class="tier-head"><span class="tier-chip">Before you go live</span><h3>Two</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>What we need</th><th>§</th></tr></thead>
+            <tbody>
+              <tr><td class="figure">07</td><td>240-hour monthly limit — we suggest turning it on</td><td class="figure">11</td></tr>
+              <tr><td class="figure">06</td><td>Limit on how many can be on leave at once — what number, and how strict?</td><td class="figure">10</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tier tier-3">
+        <div class="tier-head"><span class="tier-chip">Can come later</span><h3>Three</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>What we need</th><th>§</th></tr></thead>
+            <tbody>
+              <tr><td class="figure">03</td><td>Four-month leave deadline — warn, or refuse?</td><td class="figure">10</td></tr>
+              <tr><td class="figure">04</td><td>Sick and compassionate leave expire, annual leave does not</td><td class="figure">10</td></tr>
+              <tr><td class="figure">08</td><td>Shortage report — with skills, or without?</td><td class="figure">12</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="markup" data-section="13. Open items"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="rail"><span class="rail-num">14</span><span class="rail-title">Notes</span></div>
+    <div class="body-col">
+      <h2>Notes</h2>
+      <p><strong>This is not legal advice.</strong> Where we mention the law we mean the Labour Act 2007 and the Public Holidays Act 26 of 1990, and this is how we read them when building the system. Decisions 3 and 4 in particular are matters of interpretation, and a labour lawyer should look at them before you go live.</p>
+      <p><strong>Two things the system will never update by itself.</strong> Put both in a diary: the minimum wage step to N$18.00 in 2027 (section 2), and the tax table whenever it changes in the budget (section 9).</p>
+      <p><strong>Keeping track of changes.</strong> Every rule that changes because of this review will be written down — what changed, who decided it, and when — and we will send you an updated version of this document.</p>
+    </div>
+  </div>
+</footer>
+
+<div class="summary-bar">
+  <span id="tally">Nothing marked yet</span>
+  <button type="button" id="copyBtn">Copy my corrections</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var MARKS = ["Confirm", "Change", "Question"];
+  var KEY = "dogforce-rules-review-v3";
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(state) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); return true; }
+    catch (e) { return false; }
+  }
+
+  var state = load();
+  if (!state.sections) { state.sections = {}; }
+  if (typeof state.reviewer !== "string") { state.reviewer = ""; }
+
+  function entry(section) {
+    if (!state.sections[section]) { state.sections[section] = { mark: null, note: "" }; }
+    return state.sections[section];
+  }
+
+  var containers = Array.prototype.slice.call(document.querySelectorAll(".markup"));
+
+  /* ---- who is reviewing ---- */
+
+  var firstBody = document.querySelector("#s1 .body-col");
+  if (firstBody) {
+    var who = document.createElement("div");
+    who.className = "who";
+    var whoLabel = document.createElement("label");
+    whoLabel.setAttribute("for", "reviewerName");
+    whoLabel.textContent = "Your name";
+    var whoInput = document.createElement("input");
+    whoInput.type = "text";
+    whoInput.id = "reviewerName";
+    whoInput.placeholder = "So we know whose corrections these are";
+    whoInput.value = state.reviewer;
+    whoInput.addEventListener("input", function () {
+      state.reviewer = whoInput.value;
+      save(state);
+    });
+    who.appendChild(whoLabel);
+    who.appendChild(whoInput);
+    var anchor = firstBody.querySelector(".markup");
+    firstBody.insertBefore(who, anchor);
+  }
+
+  /* ---- per-section controls ---- */
+
+  containers.forEach(function (box) {
+    var section = box.getAttribute("data-section");
+    var e = entry(section);
+
+    var row = document.createElement("div");
+    row.className = "markup-row";
+
+    var label = document.createElement("span");
+    label.className = "markup-label";
+    label.textContent = "Your mark";
+    row.appendChild(label);
+
+    MARKS.forEach(function (mark) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mark-btn";
+      btn.textContent = mark;
+      btn.setAttribute("aria-pressed", e.mark === mark ? "true" : "false");
+      btn.addEventListener("click", function () {
+        var cur = entry(section);
+        cur.mark = (cur.mark === mark) ? null : mark;
+        save(state);
+        render();
+      });
+      row.appendChild(btn);
+    });
+    box.appendChild(row);
+
+    var ta = document.createElement("textarea");
+    ta.className = "note-field";
+    ta.rows = 2;
+    ta.setAttribute("aria-label", "Your correction or question for " + section);
+    ta.placeholder = "Type the correction, or the question you want to raise…";
+    ta.value = e.note;
+
+    var stateLine = document.createElement("span");
+    stateLine.className = "note-state";
+    stateLine.setAttribute("aria-live", "polite");
+
+    var timer = null;
+    ta.addEventListener("input", function () {
+      entry(section).note = ta.value;
+      stateLine.textContent = "Saving…";
+      stateLine.classList.remove("saved");
+      if (timer) { clearTimeout(timer); }
+      timer = setTimeout(function () {
+        var ok = save(state);
+        stateLine.textContent = ok ? "Saved on this device" : "Could not save — copy your notes before closing";
+        if (ok) { stateLine.classList.add("saved"); }
+        render();
+      }, 500);
+    });
+
+    box.appendChild(ta);
+    box.appendChild(stateLine);
+  });
+
+  /* ---- tally ---- */
+
+  function render() {
+    containers.forEach(function (box) {
+      var section = box.getAttribute("data-section");
+      var e = entry(section);
+      Array.prototype.forEach.call(box.querySelectorAll(".mark-btn"), function (btn) {
+        btn.setAttribute("aria-pressed", e.mark === btn.textContent ? "true" : "false");
+      });
+    });
+
+    var counts = { Confirm: 0, Change: 0, Question: 0 };
+    var touched = 0, notes = 0;
+    containers.forEach(function (box) {
+      var e = entry(box.getAttribute("data-section"));
+      var hasNote = e.note && e.note.trim().length > 0;
+      if (e.mark || hasNote) { touched++; }
+      if (hasNote) { notes++; }
+      if (e.mark && counts[e.mark] !== undefined) { counts[e.mark]++; }
+    });
+
+    var tally = document.getElementById("tally");
+    if (!touched) {
+      tally.textContent = "Nothing marked yet";
+      return;
+    }
+    tally.textContent =
+      touched + " of " + containers.length + " sections  ·  " +
+      counts.Confirm + " confirm  ·  " +
+      counts.Change + " change  ·  " +
+      counts.Question + " question  ·  " +
+      notes + " written " + (notes === 1 ? "note" : "notes");
+  }
+
+  /* ---- export ---- */
+
+  function report() {
+    var lines = ["DogForce business rules review — version 1.1"];
+    if (state.reviewer && state.reviewer.trim()) {
+      lines.push("Reviewed by: " + state.reviewer.trim());
+    }
+    lines.push("Sent: " + new Date().toLocaleString());
+    lines.push("");
+
+    var any = false;
+    containers.forEach(function (box) {
+      var section = box.getAttribute("data-section");
+      var e = entry(section);
+      var note = (e.note || "").trim();
+      if (!e.mark && !note) { return; }
+      any = true;
+      lines.push((e.mark ? e.mark.toUpperCase() : "NOTE") + "  —  " + section);
+      if (note) {
+        note.split("\n").forEach(function (ln) { lines.push("    " + ln); });
+      }
+      lines.push("");
+    });
+
+    if (!any) { return "DogForce business rules review — nothing marked yet."; }
+    return lines.join("\n");
+  }
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var btn = this;
+    var text = report();
+    function done(msg) {
+      btn.textContent = msg;
+      setTimeout(function () { btn.textContent = "Copy my corrections"; }, 2200);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { done("Copied — paste it into your reply"); },
+        function () { done("Copy failed"); }
+      );
+    } else {
+      done("Copy unavailable");
+    }
+  });
+
+  render();
+})();
+</script>

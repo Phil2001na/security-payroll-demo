@@ -335,6 +335,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      annual_leave_capacity_policies: {
+        Row: {
+          created_at: string;
+          effective_from: string;
+          id: string;
+          max_employees: number;
+          policy_owner: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          effective_from?: string;
+          id?: string;
+          max_employees?: number;
+          policy_owner: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          effective_from?: string;
+          id?: string;
+          max_employees?: number;
+          policy_owner?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "annual_leave_capacity_policies_policy_owner_fkey";
+            columns: ["policy_owner"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "annual_leave_capacity_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       audit_events: {
         Row: {
           action: string;
@@ -815,6 +857,75 @@ export type Database = {
           },
           {
             foreignKeyName: "deductions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      directed_leave_records: {
+        Row: {
+          attachments: string[];
+          employee_id: string;
+          id: string;
+          leave_end: string;
+          leave_start: string;
+          offered_by: string;
+          offered_on: string;
+          reason: string;
+          recorded_at: string;
+          recorded_by: string;
+          response: string;
+          response_note: string | null;
+          tenant_id: string;
+          typed_acknowledgement: string | null;
+          witness_name: string | null;
+        };
+        Insert: {
+          attachments?: string[];
+          employee_id: string;
+          id?: string;
+          leave_end: string;
+          leave_start: string;
+          offered_by: string;
+          offered_on?: string;
+          reason: string;
+          recorded_at?: string;
+          recorded_by: string;
+          response: string;
+          response_note?: string | null;
+          tenant_id: string;
+          typed_acknowledgement?: string | null;
+          witness_name?: string | null;
+        };
+        Update: {
+          attachments?: string[];
+          employee_id?: string;
+          id?: string;
+          leave_end?: string;
+          leave_start?: string;
+          offered_by?: string;
+          offered_on?: string;
+          reason?: string;
+          recorded_at?: string;
+          recorded_by?: string;
+          response?: string;
+          response_note?: string | null;
+          tenant_id?: string;
+          typed_acknowledgement?: string | null;
+          witness_name?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "directed_leave_records_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "directed_leave_records_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -3020,6 +3131,87 @@ export type Database = {
           },
         ];
       };
+      roster_emergency_overrides: {
+        Row: {
+          cancelled_reason: string | null;
+          confirmed_at: string | null;
+          confirmed_by: string | null;
+          consumed_assignment_id: string | null;
+          consumed_at: string | null;
+          created_at: string;
+          employee_id: string;
+          id: string;
+          legal_risk_acknowledged: boolean;
+          override_date: string;
+          reason: string;
+          recorded_at: string;
+          recorded_by: string;
+          rules: string[];
+          site_id: string | null;
+          status: Database["public"]["Enums"]["approval_status"];
+          tenant_id: string;
+          verified_at: string | null;
+          verified_by: string | null;
+        };
+        Insert: {
+          cancelled_reason?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          consumed_assignment_id?: string | null;
+          consumed_at?: string | null;
+          created_at?: string;
+          employee_id: string;
+          id?: string;
+          legal_risk_acknowledged: boolean;
+          override_date: string;
+          reason: string;
+          recorded_at?: string;
+          recorded_by: string;
+          rules: string[];
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["approval_status"];
+          tenant_id: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
+        Update: {
+          cancelled_reason?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          consumed_assignment_id?: string | null;
+          consumed_at?: string | null;
+          created_at?: string;
+          employee_id?: string;
+          id?: string;
+          legal_risk_acknowledged?: boolean;
+          override_date?: string;
+          reason?: string;
+          recorded_at?: string;
+          recorded_by?: string;
+          rules?: string[];
+          site_id?: string | null;
+          status?: Database["public"]["Enums"]["approval_status"];
+          tenant_id?: string;
+          verified_at?: string | null;
+          verified_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "roster_emergency_overrides_employee_id_fkey";
+            columns: ["employee_id"];
+            isOneToOne: false;
+            referencedRelation: "employees";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "roster_emergency_overrides_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       schedule_shortages: {
         Row: {
           attempted_by: string | null;
@@ -3814,6 +4006,62 @@ export type Database = {
         Returns: {
           holiday_date: string;
           holiday_name: string;
+        }[];
+      };
+      preview_annual_leave_capacity: {
+        Args: { p_request: string };
+        Returns: {
+          approved_or_planned: number;
+          leave_date: string;
+          max_employees: number;
+          monthly_employee_count: number;
+          site_id: string;
+        }[];
+      };
+      record_roster_override: {
+        Args: {
+          p_acknowledge_legal_risk: boolean;
+          p_date: string;
+          p_employee: string;
+          p_reason: string;
+          p_rules: string[];
+          p_site?: string;
+        };
+        Returns: string;
+      };
+      verify_roster_override: { Args: { p_override: string }; Returns: undefined };
+      confirm_roster_override: { Args: { p_override: string }; Returns: undefined };
+      cancel_roster_override: {
+        Args: { p_override: string; p_reason: string };
+        Returns: undefined;
+      };
+      record_directed_leave: {
+        Args: {
+          p_attachments?: string[];
+          p_employee: string;
+          p_leave_end: string;
+          p_leave_start: string;
+          p_offered_by?: string;
+          p_offered_on?: string;
+          p_reason: string;
+          p_response: string;
+          p_response_note?: string;
+          p_typed_acknowledgement?: string;
+          p_witness_name?: string;
+        };
+        Returns: string;
+      };
+      report_weekly_shortages: {
+        Args: { p_weeks?: number };
+        Returns: {
+          days_affected: number;
+          occurrences: number;
+          required_grade: string;
+          shift_kind: string;
+          site_id: string;
+          site_name: string;
+          total_unmet: number;
+          week_start: string;
         }[];
       };
       reject_leave_request: {

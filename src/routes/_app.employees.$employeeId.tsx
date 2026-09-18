@@ -272,7 +272,7 @@ function EmployeeDetailPage() {
             </div>
             {!isManagement && (
               <div className="flex items-center justify-between gap-4 py-1">
-                <span className="text-muted-foreground">Typical days / week</span>
+                <span className="text-muted-foreground">Maximum days / week</span>
                 <Select
                   value={String(Math.round(Number(data.days_per_week ?? 6)) || 6)}
                   onValueChange={(v) => updateDaysPerWeek.mutate(Number(v))}
@@ -334,8 +334,8 @@ function EmployeeDetailPage() {
                 mono
               />
               <p className="text-xs text-muted-foreground pt-1">
-                Annual leave accrues proportionally toward four ordinary work weeks per 12-month
-                cycle and is credited when each payroll period is finalized.
+                Annual leave accrues at one day for every twelve days worked — four ordinary work
+                weeks over a full year — and is credited when each payroll period is finalized.
               </p>
             </CardContent>
           </Card>

@@ -298,6 +298,10 @@ function bucketiseLogs(
   exemptWeekKeys: Set<string>,
   publicHolidayDates: Set<string>,
   sundayBoundaryRule: PayrollConstants["sunday_boundary_rule"],
+  // The multipliers actually used to pay these hours. They are tenant settings, not
+  // constants — DogForce pay public holidays at 1.5×, not the 2× Labour Act default —
+  // so the audit trail has to record what was applied, never a hardcoded assumption.
+  multipliers: { sunday_agreed: number; sunday_default: number; public_holiday: number },
 ): PayslipBuckets & { calculation_segments: PayrollCalculationSegment[] } {
   const b: PayslipBuckets = {
     normal_hours: 0,
@@ -375,12 +379,12 @@ function bucketiseLogs(
     if (rule === "sunday_default" || rule === "sunday_ordinary") {
       // Explicit Sunday shift type — operator deliberately marked the whole shift Sunday.
       addSunday(hrs);
-      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: isCallIn ? "sunday_callin" : "sunday", multiplier_applied: isCallIn ? 2 : 1.5 });
+      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: isCallIn ? "sunday_callin" : "sunday", multiplier_applied: isCallIn ? multipliers.sunday_default : multipliers.sunday_agreed });
       continue;
     }
     if (rule === "public_holiday_ordinary" || rule === "public_holiday_non_ordinary") {
       b.public_holiday_hours += hrs;
-      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: "public_holiday", multiplier_applied: 2 });
+      calculation_segments.push({ shift_log_id: l.id, date: l.date.slice(0, 10), minutes: hrs * 60, night_minutes: nightMinutes, classification: "public_holiday", multiplier_applied: multipliers.public_holiday });
       continue;
     }
 
@@ -415,11 +419,11 @@ function bucketiseLogs(
       if (publicHolidayDates.has(day)) {
         b.public_holiday_hours += hours;
         classification = "public_holiday";
-        multiplier = 2;
+        multiplier = multipliers.public_holiday;
       } else if (dowOf(sundayDay) === 0) {
         addSunday(hours);
         classification = isCallIn ? "sunday_callin" : "sunday";
-        multiplier = isCallIn ? 2 : 1.5;
+        multiplier = isCallIn ? multipliers.sunday_default : multipliers.sunday_agreed;
       } else {
         addOrdinary(day, hours);
         classification = "ordinary";
@@ -512,6 +516,11 @@ export function calculateNetPay(args: {
         exemptWeekKeys,
         publicHolidayDates,
         constants.sunday_boundary_rule,
+        {
+          sunday_agreed: constants.sunday_agreed_multiplier,
+          sunday_default: constants.sunday_multiplier,
+          public_holiday: constants.public_holiday_multiplier,
+        },
       );
 
   const rate = Number(employee.hourly_rate) || constants.min_wage_security;

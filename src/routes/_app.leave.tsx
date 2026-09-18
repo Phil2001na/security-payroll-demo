@@ -10,6 +10,7 @@ import {
   Loader2,
   Plus,
   ShieldCheck,
+  TriangleAlert,
   UserRoundCheck,
   X,
 } from "lucide-react";
@@ -60,6 +61,32 @@ import {
   type LeavePolicy,
   type LeaveType,
 } from "@/lib/leave";
+import {
+  capacityWarnings,
+  describeWarning,
+  requiresReason,
+  type CapacityRow,
+  type CapacityWarning,
+} from "@/lib/leave-capacity";
+import {
+  DIRECTED_LEAVE_RESPONSES,
+  RESPONSE_HINT,
+  RESPONSE_LABEL,
+  directedLeaveBlockedReason,
+  directedLeaveCsvRows,
+  directedLeaveWarnings,
+  responseBadgeClass,
+  type DirectedLeaveDraft,
+  type DirectedLeaveResponse,
+  type DirectedLeaveRow,
+} from "@/lib/directed-leave";
+import {
+  deadlineRisk,
+  describeDeadlineRisk,
+  hasCapacityDeadlineConflict,
+  rejectionNeedsDeadlineWarning,
+  type DeadlineRisk,
+} from "@/lib/leave-deadline";
 
 export const Route = createFileRoute("/_app/leave")({ component: LeavePage });
 
@@ -150,6 +177,9 @@ function LeavePage() {
   const [decision, setDecision] = useState<{
     id: string;
     action: "approve" | "reject" | "cancel";
+    leaveType: LeaveType;
+    employeeId: string;
+    requestEnd: string;
   } | null>(null);
   const [cover, setCover] = useState<CoverageRow | null>(null);
   const [waive, setWaive] = useState<CoverageRow | null>(null);
@@ -361,6 +391,7 @@ function LeavePage() {
           <TabsTrigger value="requests">Requests</TabsTrigger>
           <TabsTrigger value="coverage">Coverage</TabsTrigger>
           <TabsTrigger value="balances">Balances</TabsTrigger>
+          {canApprove && <TabsTrigger value="directed">Directed leave</TabsTrigger>}
           {canViewLedger && <TabsTrigger value="ledger">Ledger & report</TabsTrigger>}
           {isAdmin && <TabsTrigger value="policies">Policies</TabsTrigger>}
         </TabsList>
@@ -391,6 +422,11 @@ function LeavePage() {
             onAdjust={setAdjust}
           />
         </TabsContent>
+        {canApprove && (
+          <TabsContent value="directed">
+            <DirectedLeaveTab employees={employees} />
+          </TabsContent>
+        )}
         {canViewLedger && (
           <TabsContent value="ledger">
             <div className="space-y-4">
@@ -421,6 +457,8 @@ function LeavePage() {
       />
       <DecisionDialog
         value={decision}
+        sites={sites}
+        cycles={cycles}
         onOpenChange={(v) => !v && setDecision(null)}
         onSaved={async () => {
           setDecision(null);
@@ -493,7 +531,13 @@ function RequestsTable({
   loading: boolean;
   canApprove: boolean;
   userId: string;
-  onDecision: (v: { id: string; action: "approve" | "reject" | "cancel" }) => void;
+  onDecision: (v: {
+    id: string;
+    action: "approve" | "reject" | "cancel";
+    leaveType: LeaveType;
+    employeeId: string;
+    requestEnd: string;
+  }) => void;
 }) {
   return (
     <Card>
@@ -569,14 +613,30 @@ function RequestsTable({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onDecision({ id: r.id, action: "approve" })}
+                            onClick={() =>
+                              onDecision({
+                                id: r.id,
+                                action: "approve",
+                                leaveType: r.leave_type,
+                                employeeId: r.employee_id,
+                                requestEnd: r.end_date,
+                              })
+                            }
                           >
                             <Check className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onDecision({ id: r.id, action: "reject" })}
+                            onClick={() =>
+                              onDecision({
+                                id: r.id,
+                                action: "reject",
+                                leaveType: r.leave_type,
+                                employeeId: r.employee_id,
+                                requestEnd: r.end_date,
+                              })
+                            }
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>
@@ -586,7 +646,15 @@ function RequestsTable({
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => onDecision({ id: r.id, action: "cancel" })}
+                          onClick={() =>
+                            onDecision({
+                              id: r.id,
+                              action: "cancel",
+                              leaveType: r.leave_type,
+                              employeeId: r.employee_id,
+                              requestEnd: r.end_date,
+                            })
+                          }
                         >
                           Cancel
                         </Button>
@@ -946,6 +1014,313 @@ function CyclesTable({ rows }: { rows: CycleRow[] }) {
   );
 }
 
+// UAT-13 - the record that annual leave was offered or instructed, and what the employee said.
+//
+// Decision section 7: typed acknowledgement plus attachments, no signature-capture UI.
+// Append-only, enforced by a trigger in the database - there is deliberately no edit or delete
+// here, because the value of this record is that it cannot be tidied up after a dispute begins.
+function DirectedLeaveTab({ employees }: { employees: Employee[] }) {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["directed-leave", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("directed_leave_records")
+        .select(
+          "id,offered_on,leave_start,leave_end,reason,response,typed_acknowledgement,response_note,witness_name,attachments,recorded_at,employees(surname,first_names,employee_code)",
+        )
+        .order("offered_on", { ascending: false });
+      if (error) throw error;
+      return data as unknown as DirectedLeaveRow[];
+    },
+  });
+
+  const exportRows = () =>
+    downloadCsv(
+      `directed-leave-${new Date().toISOString().slice(0, 10)}.csv`,
+      directedLeaveCsvRows(rows),
+    );
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+          <div>
+            <CardTitle>Directed leave</CardTitle>
+            <CardDescription>
+              Evidence that leave was offered or instructed, and what the employee said. The Labour
+              Act puts the duty to <em>give</em> annual leave on the employer, so when a guard
+              reaches their deadline without taking it, this is the record that shows it was
+              offered. Entries cannot be edited or deleted once saved.
+            </CardDescription>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" onClick={exportRows} disabled={!rows.length}>
+              <Download className="h-4 w-4" /> Export
+            </Button>
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4" /> Record
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Guard</TableHead>
+                <TableHead>Offered</TableHead>
+                <TableHead>Leave dates</TableHead>
+                <TableHead>Response</TableHead>
+                <TableHead>Witness</TableHead>
+                <TableHead className="text-right">Files</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !rows.length && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    Nothing recorded yet. Record an offer when you put leave dates to a guard.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    {r.employees
+                      ? `${r.employees.surname}, ${r.employees.first_names}`
+                      : "Unknown employee"}
+                  </TableCell>
+                  <TableCell>{r.offered_on}</TableCell>
+                  <TableCell>{dateSpanLabel(r.leave_start, r.leave_end)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn(responseBadgeClass(r.response))}>
+                      {RESPONSE_LABEL[r.response] ?? r.response}
+                    </Badge>
+                    {r.typed_acknowledgement && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Typed: {r.typed_acknowledgement}
+                      </div>
+                    )}
+                    {r.response_note && (
+                      <div className="text-xs text-muted-foreground mt-1">{r.response_note}</div>
+                    )}
+                  </TableCell>
+                  <TableCell>{r.witness_name ?? "—"}</TableCell>
+                  <TableCell className="text-right">{r.attachments?.length ?? 0}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <DirectedLeaveDialog
+        open={open}
+        onOpenChange={setOpen}
+        employees={employees}
+        onSaved={async () => {
+          setOpen(false);
+          await qc.invalidateQueries({ queryKey: ["directed-leave"] });
+        }}
+      />
+    </div>
+  );
+}
+
+function DirectedLeaveDialog({
+  open,
+  onOpenChange,
+  employees,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  employees: Employee[];
+  onSaved: () => Promise<void>;
+}) {
+  const { profile } = useAuth();
+  const empty: DirectedLeaveDraft = {
+    employeeId: "",
+    leaveStart: "",
+    leaveEnd: "",
+    reason: "",
+    response: "",
+    typedAcknowledgement: "",
+    responseNote: "",
+    witnessName: "",
+  };
+  const [draft, setDraft] = useState<DirectedLeaveDraft>(empty);
+  const [files, setFiles] = useState<File[]>([]);
+  const set = (patch: Partial<DirectedLeaveDraft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const blocked = directedLeaveBlockedReason(draft);
+  const warnings = directedLeaveWarnings(draft, files.length);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!profile?.tenant_id) throw new Error("No profile");
+      if (blocked) throw new Error(blocked);
+
+      // Upload first. If the record then fails, remove them again rather than leaving
+      // orphaned files nothing points at.
+      const uploaded: string[] = [];
+      try {
+        for (const file of files) {
+          const safeName = file.name.replace(/[^\w.-]+/g, "_");
+          const path = `${profile.tenant_id}/${draft.employeeId}/${crypto.randomUUID()}-${safeName}`;
+          const { error } = await supabase.storage
+            .from("leave-evidence")
+            .upload(path, file, { contentType: file.type, upsert: false });
+          if (error) throw error;
+          uploaded.push(path);
+        }
+        const { error } = await supabase.rpc("record_directed_leave", {
+          p_employee: draft.employeeId,
+          p_leave_start: draft.leaveStart,
+          p_leave_end: draft.leaveEnd,
+          p_reason: draft.reason.trim(),
+          p_response: draft.response as DirectedLeaveResponse,
+          p_typed_acknowledgement: draft.typedAcknowledgement.trim() || undefined,
+          p_response_note: draft.responseNote.trim() || undefined,
+          p_witness_name: draft.witnessName.trim() || undefined,
+          p_attachments: uploaded,
+        });
+        if (error) throw error;
+      } catch (err) {
+        if (uploaded.length) await supabase.storage.from("leave-evidence").remove(uploaded);
+        throw err;
+      }
+    },
+    onSuccess: async () => {
+      toast.success("Directed leave recorded");
+      setDraft(empty);
+      setFiles([]);
+      await onSaved();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Record directed leave</DialogTitle>
+          <DialogDescription>
+            What was offered, and what the employee said. Saved permanently &mdash; it cannot be
+            edited or deleted afterwards, which is what makes it evidence.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Employee">
+            <select
+              className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+              value={draft.employeeId}
+              onChange={(e) => set({ employeeId: e.target.value })}
+            >
+              <option value="">Select an employee</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.surname}, {e.first_names} ({e.employee_code})
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Leave offered from">
+              <Input
+                type="date"
+                value={draft.leaveStart}
+                onChange={(e) => set({ leaveStart: e.target.value })}
+              />
+            </Field>
+            <Field label="To">
+              <Input
+                type="date"
+                value={draft.leaveEnd}
+                onChange={(e) => set({ leaveEnd: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="Why the leave was offered or instructed">
+            <Textarea value={draft.reason} onChange={(e) => set({ reason: e.target.value })} />
+          </Field>
+          <Field label="What the employee said">
+            <select
+              className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+              value={draft.response}
+              onChange={(e) => set({ response: e.target.value as DirectedLeaveResponse | "" })}
+            >
+              <option value="">Select a response</option>
+              {DIRECTED_LEAVE_RESPONSES.map((r) => (
+                <option key={r} value={r}>
+                  {RESPONSE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {draft.response && (
+            <p className="text-xs text-muted-foreground">{RESPONSE_HINT[draft.response]}</p>
+          )}
+          {draft.response === "acknowledged" && (
+            <Field
+              label="Employee's name, typed"
+              hint="Typed, not signed. A scanned signed form can be attached below."
+            >
+              <Input
+                value={draft.typedAcknowledgement}
+                onChange={(e) => set({ typedAcknowledgement: e.target.value })}
+              />
+            </Field>
+          )}
+          <Field label="Note (optional)">
+            <Textarea
+              value={draft.responseNote}
+              onChange={(e) => set({ responseNote: e.target.value })}
+            />
+          </Field>
+          <Field label="Witness (optional)">
+            <Input
+              value={draft.witnessName}
+              onChange={(e) => set({ witnessName: e.target.value })}
+            />
+          </Field>
+          <Field label="Attachments (optional)" hint="A scan or photo of a signed paper form.">
+            <Input
+              type="file"
+              multiple
+              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            />
+          </Field>
+          {warnings.map((w, i) => (
+            <p key={i} className="text-xs text-warning-foreground">
+              {w}
+            </p>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => save.mutate()} disabled={!!blocked || save.isPending}>
+            Record
+          </Button>
+        </DialogFooter>
+        {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LedgerTable({ rows }: { rows: LedgerRow[] }) {
   const exportRows = () =>
     downloadCsv(
@@ -1253,21 +1628,209 @@ function EvidenceLink({ value }: { value: string }) {
   );
 }
 
+// UAT-15 — the statutory deadline picture, shown next to UAT-14's capacity figures so the
+// approver holds both at once. Warn only: nothing here disables a button.
+//
+// The cap-versus-deadline collision (D-16) is deliberately NOT resolved. Decision §6 says to
+// show the conflict and leave it with the human, so when both are live this panel names them
+// side by side and says plainly that the system has no rule for which one wins.
+function DeadlinePanel({
+  risk,
+  conflict,
+  rejecting,
+}: {
+  risk: DeadlineRisk;
+  conflict: boolean;
+  rejecting: boolean;
+}) {
+  const urgent = risk.level === "overdue" || risk.level === "approaching";
+  return (
+    <div
+      className={cn(
+        "space-y-2 rounded-md border px-3 py-2 text-sm",
+        risk.level === "overdue"
+          ? "border-destructive/40 bg-destructive/10"
+          : urgent
+            ? "border-warning/40 bg-warning/10"
+            : "border-border/60",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        {urgent ? (
+          <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        ) : (
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <div className="space-y-1">
+          <p className="font-medium">Statutory deadline (Labour Act s.23)</p>
+          <p className={urgent ? "" : "text-muted-foreground"}>{describeDeadlineRisk(risk)}</p>
+          {risk.clearsDeadline === false && (
+            <p className="text-muted-foreground">
+              This request ends after the deadline, so approving it does not discharge the
+              obligation on its own.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {conflict && (
+        <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1.5">
+          <p className="font-medium text-destructive">
+            The monthly cap and the statutory deadline are both in play.
+          </p>
+          <p className="text-muted-foreground">
+            The system does not decide between them. A headcount policy cannot override a legal
+            deadline, so escalate rather than refusing on the cap alone.
+          </p>
+        </div>
+      )}
+
+      {rejecting && (
+        <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1.5">
+          <p className="font-medium text-destructive">
+            You are rejecting leave that is against the statutory clock.
+          </p>
+          <p className="text-muted-foreground">
+            Your reason is recorded on the request. If no alternative dates are offered, the
+            employee may reach the deadline without having taken the leave.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// UAT-14 — the leave-capacity picture, shown to the approver before they decide.
+// Warn only, by decision §6: every figure here is informational and the Approve button
+// stays enabled throughout. A cap must never silently defeat a statutory leave deadline.
+function CapacityPanel({
+  loading,
+  rows,
+  warnings,
+  siteName,
+}: {
+  loading: boolean;
+  rows: CapacityRow[];
+  warnings: CapacityWarning[];
+  siteName: (id: string | null) => string;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Checking leave capacity...
+      </div>
+    );
+  }
+  // No rows means no leave days were expanded for this request — nothing to assess.
+  if (!rows.length) return null;
+
+  const cap = rows[0].max_employees;
+  const peakMonth = Math.max(...rows.map((r) => r.monthly_employee_count));
+  const peakDay = Math.max(...rows.map((r) => r.approved_or_planned));
+
+  return (
+    <div
+      className={cn(
+        "space-y-2 rounded-md border px-3 py-2 text-sm",
+        warnings.length ? "border-warning/40 bg-warning/10" : "border-border/60",
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">Leave capacity</span>
+        <span className="text-xs text-muted-foreground">
+          Cap {cap} per month &middot; peak {peakMonth} this month &middot; peak {peakDay} on one
+          day at this site
+        </span>
+      </div>
+      {warnings.length ? (
+        <ul className="space-y-1">
+          {warnings.map((w, i) => (
+            <li key={i} className="flex items-start gap-2 text-warning-foreground">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <span>{describeWarning(w, siteName)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">
+          Within the monthly cap and clear on coverage at the employee&rsquo;s site.
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        These are warnings, not blocks. Approving past them is allowed and is recorded with your
+        reason.
+      </p>
+    </div>
+  );
+}
+
 function DecisionDialog({
   value,
+  sites,
+  cycles,
   onOpenChange,
   onSaved,
 }: {
-  value: { id: string; action: "approve" | "reject" | "cancel" } | null;
+  value: {
+    id: string;
+    action: "approve" | "reject" | "cancel";
+    leaveType: LeaveType;
+    employeeId: string;
+    requestEnd: string;
+  } | null;
+  sites: { id: string; name: string }[];
+  cycles: CycleRow[];
   onOpenChange: (v: boolean) => void;
   onSaved: () => Promise<void>;
 }) {
   const [notes, setNotes] = useState("");
   const action = value?.action;
+
+  // UAT-14: the capacity picture is only meaningful for annual leave being approved.
+  // Sick and compassionate leave are not discretionary, so a headcount cap has no say.
+  const wantsCapacity = action === "approve" && value?.leaveType === "annual";
+  const { data: capacity = [], isLoading: capacityLoading } = useQuery({
+    queryKey: ["leave-capacity", value?.id],
+    enabled: wantsCapacity && !!value?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("preview_annual_leave_capacity", {
+        p_request: value!.id,
+      });
+      if (error) throw error;
+      return (data ?? []) as CapacityRow[];
+    },
+  });
+  const warnings = useMemo(() => capacityWarnings(capacity), [capacity]);
+
+  // UAT-15: the statutory half of the picture. Shown for annual leave on both the approve and
+  // the reject path — "never silently deny leave" means a rejection is exactly when the
+  // approver most needs to know the clock is running.
+  const isAnnual = value?.leaveType === "annual";
+  const risk = useMemo<DeadlineRisk>(() => {
+    const cycle = cycles.find(
+      (c) => c.leave_type === "annual" && c.employees?.id === value?.employeeId,
+    );
+    return deadlineRisk({
+      latestLeaveDate: cycle?.latest_leave_date ?? null,
+      requestEnd: value?.requestEnd ?? null,
+      today: new Date().toISOString().slice(0, 10),
+    });
+  }, [cycles, value?.employeeId, value?.requestEnd]);
+  const conflict = hasCapacityDeadlineConflict(warnings, risk);
+  const rejectWarning = isAnnual && action === "reject" && rejectionNeedsDeadlineWarning(risk);
+  const siteName = (id: string | null) =>
+    (id && sites.find((x) => x.id === id)?.name) || "an unassigned site";
+  // §6: "the decision and its reason are recorded". decision_notes is where that reason
+  // lives, so approving past a warning is the one approval that must carry a note.
+  const reasonRequired = wantsCapacity && requiresReason(capacity);
+
   const save = useMutation({
     mutationFn: async () => {
       if (!value) return;
       if (action !== "approve" && !notes.trim()) throw new Error("A reason is required");
+      if (reasonRequired && !notes.trim())
+        throw new Error("This approval goes past a capacity warning, so a reason is required");
       const result =
         action === "approve"
           ? await supabase.rpc("approve_leave_request", {
@@ -1309,7 +1872,26 @@ function DecisionDialog({
               : "This action is recorded in the audit trail."}
           </DialogDescription>
         </DialogHeader>
-        <Field label={action === "approve" ? "Approval note (optional)" : "Reason"}>
+        {wantsCapacity && (
+          <CapacityPanel
+            loading={capacityLoading}
+            rows={capacity}
+            warnings={warnings}
+            siteName={siteName}
+          />
+        )}
+        {isAnnual && action !== "cancel" && (
+          <DeadlinePanel risk={risk} conflict={conflict} rejecting={rejectWarning} />
+        )}
+        <Field
+          label={
+            action !== "approve"
+              ? "Reason"
+              : reasonRequired
+                ? "Reason for approving past the warning (required)"
+                : "Approval note (optional)"
+          }
+        >
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
         <DialogFooter>
@@ -1537,11 +2119,147 @@ function Policies({
   onChanged: () => Promise<void>;
 }) {
   return (
-    <div className="grid md:grid-cols-2 gap-4">
-      {policies.map((p) => (
-        <PolicyCard key={p.id} policy={p} onChanged={onChanged} />
-      ))}
+    <div className="space-y-4">
+      <CapacityPolicyCard />
+      <div className="grid md:grid-cols-2 gap-4">
+        {policies.map((p) => (
+          <PolicyCard key={p.id} policy={p} onChanged={onChanged} />
+        ))}
+      </div>
     </div>
+  );
+}
+
+// UAT-14 — the tenant-wide annual-leave headcount cap (decision §6: default 10, configurable
+// with an effective date and a policy owner). Rows are effective-dated rather than edited in
+// place: the cap that applied when an earlier approval was made stays on the record, so the
+// history of "what was the rule that day" survives. Past rows are therefore read-only here.
+function CapacityPolicyCard() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  const [maxEmployees, setMaxEmployees] = useState("10");
+  const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["leave-capacity-policies", profile?.tenant_id],
+    enabled: !!profile?.tenant_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("annual_leave_capacity_policies")
+        .select("id,max_employees,effective_from,created_at,policy_owner")
+        .order("effective_from", { ascending: false });
+      if (error) throw error;
+      return data as {
+        id: string;
+        max_employees: number;
+        effective_from: string;
+        created_at: string;
+        policy_owner: string;
+      }[];
+    },
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const current = rows.find((r) => r.effective_from <= today) ?? null;
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const n = Number(maxEmployees);
+      if (!Number.isFinite(n) || n < 1) throw new Error("The cap must be at least 1");
+      if (!profile?.id || !profile?.tenant_id) throw new Error("No profile");
+      const { error } = await supabase.from("annual_leave_capacity_policies").insert({
+        tenant_id: profile.tenant_id,
+        max_employees: Math.trunc(n),
+        effective_from: effectiveFrom,
+        policy_owner: profile.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      toast.success("Leave capacity cap saved");
+      await qc.invalidateQueries({ queryKey: ["leave-capacity-policies"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("annual_leave_capacity_policies").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      toast.success("Future cap withdrawn");
+      await qc.invalidateQueries({ queryKey: ["leave-capacity-policies"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Annual leave capacity</CardTitle>
+        <CardDescription>
+          How many employees may be on annual leave in the same month. Approvers are warned when a
+          request would push the month past this number, or when the employee&rsquo;s site is
+          already short on the day &mdash; they are never blocked, so a headcount rule can never
+          override a statutory leave deadline.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm">
+          {isLoading
+            ? "Loading..."
+            : current
+              ? `Currently capped at ${current.max_employees} per month, effective ${current.effective_from}.`
+              : "No cap set. Approvers see the built-in default of 10."}
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Employees per month">
+            <Input
+              type="number"
+              min={1}
+              value={maxEmployees}
+              onChange={(e) => setMaxEmployees(e.target.value)}
+              className="w-32"
+            />
+          </Field>
+          <Field label="Effective from">
+            <Input
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+              className="w-44"
+            />
+          </Field>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            Save cap
+          </Button>
+        </div>
+        {rows.length > 1 && (
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">History</p>
+            {rows.map((r) => (
+              <div key={r.id} className="flex items-center gap-2">
+                <span>
+                  {r.max_employees} per month from {r.effective_from}
+                  {r.id === current?.id ? " (current)" : ""}
+                </span>
+                {r.effective_from > today && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => remove.mutate(r.id)}
+                    disabled={remove.isPending}
+                  >
+                    Withdraw
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 function PolicyCard({
