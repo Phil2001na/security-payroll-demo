@@ -1,3 +1,9 @@
+## 2026-09-23 22:15
+- Roster: new "Print site rosters" / "Print this site" buttons — one landscape page per site in
+  DogForce's own sheet layout (guards x dates, DS/NS/STBY/OFF/L, other-site codes, Days/Sun-PH/
+  STBY/OFF totals, day/night cover vs need with shortages in red). Per-guard sheets now list
+  every date, printing OFF days. Print query paged past the 1000-row cap. (DogForce ops, 23 Sep.)
+
 ## 2026-09-23 21:05
 - Loaded DogForce's own roster workbook (ops email 23 Sep) into the DogForce Sandbox only:
   32 real sites (renamed the DF Site placeholders), per-site day/night needs taken from their

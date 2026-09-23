@@ -53,7 +53,12 @@ import {
   type RosterViolation,
   type RosterShift,
 } from "@/lib/roster-rules";
-import { buildScheduleSheetsPDF } from "@/lib/schedule-pdf";
+import {
+  buildScheduleSheetsPDF,
+  buildSiteRosterPDF,
+  datesBetween,
+  siteAbbrev,
+} from "@/lib/schedule-pdf";
 import { formatNAD } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2040,13 +2045,7 @@ function SchedulePage() {
     }
     setPrinting(true);
     try {
-      const { data, error } = await supabase
-        .from("schedule_assignments")
-        .select("employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", genFrom)
-        .lte("date", genTo);
-      if (error) throw error;
-      const rows = data ?? [];
+      const rows = await fetchAssignmentsInRange(genFrom, genTo);
       if (rows.length === 0) {
         toast.info("No shifts scheduled in this range yet.");
         return;
@@ -2097,6 +2096,91 @@ function SchedulePage() {
       toast.success(
         `Printed ${employeesWithShifts.length} guard schedule${employeesWithShifts.length === 1 ? "" : "s"}`,
       );
+    } catch (err) {
+      toast.error(errorMessage(err, "Print failed"));
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  // ── Print one landscape roster page per site: guards × dates (DogForce's own layout) ──
+  // onlySiteId prints just that site; otherwise every site with a shift or a home guard.
+  async function printSiteRosters(onlySiteId?: string) {
+    if (!genFrom || !genTo || genFrom > genTo) {
+      toast.error("Pick a valid start and end date");
+      return;
+    }
+    const dates = datesBetween(genFrom, genTo);
+    if (dates.length > 31) {
+      toast.error("Site rosters print at most 31 days at a time");
+      return;
+    }
+    setPrinting(true);
+    try {
+      const rows = await fetchAssignmentsInRange(genFrom, genTo);
+      const siteList = (sites ?? []).filter((s) => !onlySiteId || s.id === onlySiteId);
+      const abbrevBySite = new Map((sites ?? []).map((s) => [s.id, siteAbbrev(s.name)]));
+      const legend = new Map((sites ?? []).map((s) => [siteAbbrev(s.name), s.name]));
+      const empById = new Map((employees ?? []).map((e) => [e.id, e]));
+      const byEmpDate = new Map(rows.map((r) => [`${r.employee_id}|${r.date}`, r]));
+      const dateIdx = new Map(dates.map((d, i) => [d, i]));
+
+      const cellFor = (empId: string, date: string, siteId: string): string => {
+        const a = byEmpDate.get(`${empId}|${date}`);
+        if (!a) return "OFF";
+        const st = shiftTypeById.get(a.shift_type_id);
+        if (st?.is_leave) return "L";
+        if (st && !(st.default_hours > 0)) return st.code === "STBY" ? "STBY" : "OFF";
+        if (a.site_id !== siteId) return abbrevBySite.get(a.site_id) ?? "?";
+        return st?.period === "night" ? "NS" : "DS";
+      };
+      const needed = (siteId: string, kind: "day" | "night") =>
+        dates.map((d) => {
+          const dow = new Date(`${d}T00:00:00Z`).getUTCDay();
+          return (requirements ?? [])
+            .filter((r) => r.site_id === siteId && r.day_of_week === dow && r.shift_kind === kind)
+            .reduce((s, r) => s + r.quantity_required, 0);
+        });
+
+      const sheets = siteList
+        .map((site) => {
+          const ids = new Set<string>();
+          for (const r of rows) if (r.site_id === site.id && dateIdx.has(r.date)) ids.add(r.employee_id);
+          for (const e of employees ?? []) if (e.home_site_id === site.id) ids.add(e.id);
+          const guards = [...ids]
+            .map((id) => empById.get(id))
+            .filter((e): e is Employee => !!e)
+            .sort((a, b) => a.surname.localeCompare(b.surname))
+            .map((e) => ({
+              name: `${e.surname} ${e.first_names}`,
+              code: e.employee_code,
+              cells: dates.map((d) => cellFor(e.id, d, site.id)),
+            }));
+          return {
+            siteName: site.name,
+            guards,
+            neededDay: needed(site.id, "day"),
+            neededNight: needed(site.id, "night"),
+          };
+        })
+        .filter((s) => s.guards.length > 0);
+      if (!sheets.length) {
+        toast.info("No guards rostered at these sites in this range.");
+        return;
+      }
+      const special = new Set(
+        dates.filter((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 0 || publicHolidayDates.has(d)),
+      );
+      const pdf = buildSiteRosterPDF({
+        sheets,
+        dates,
+        specialDates: special,
+        otherSiteLegend: legend,
+        tenantName: tenant?.name ?? "Demo Payroll System",
+      });
+      const label = onlySiteId ? siteList[0]?.name.replace(/[^A-Za-z0-9]+/g, "_") : "All_Sites";
+      pdf.save(`Site_Roster_${label}_${genFrom}_to_${genTo}.pdf`);
+      toast.success(`Printed ${sheets.length} site roster${sheets.length === 1 ? "" : "s"}`);
     } catch (err) {
       toast.error(errorMessage(err, "Print failed"));
     } finally {
@@ -2351,10 +2435,24 @@ function SchedulePage() {
           )}
           Print guard schedules
         </Button>
+        <Button variant="outline" onClick={() => printSiteRosters()} disabled={printing}>
+          <Printer className="h-4 w-4 mr-2" />
+          Print site rosters
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => printSiteRosters(activeSiteId ?? undefined)}
+          disabled={printing || !activeSiteId}
+          title="Print only the site selected in the tabs below"
+        >
+          <Printer className="h-4 w-4 mr-2" />
+          Print this site
+        </Button>
         <p className="text-xs text-muted-foreground basis-full">
           Generate fills gaps against site requirements across all sites for the chosen period.
-          Remove deletes every shift in that same range, including manual edits. Print produces one
-          duty-roster page per guard to hand out.
+          Remove deletes every shift in that same range, including manual edits. Guard schedules
+          print one page per guard; site rosters print one page per site with every guard's
+          DS / NS / STBY / OFF / leave for each day, and day/night cover against what the site needs.
         </p>
       </Card>
 
