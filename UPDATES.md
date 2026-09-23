@@ -1,3 +1,16 @@
+## 2026-09-23 21:05
+- Loaded DogForce's own roster workbook (ops email 23 Sep) into the DogForce Sandbox only:
+  32 real sites (renamed the DF Site placeholders), per-site day/night needs taken from their
+  sheet, 165 guards (117 matched, 48 added) with home site + shift preference, 68 others
+  suspended, a 0h unpaid STBY shift type, an Oct 2026 pay period, and 3753 of their 3956
+  shifts. The DB refused 203 (164 over 60h/week, 27 under 10 off days/month, 12 night->day).
+  Tenant renamed "DogForce Security Services (Sandbox)". Scripts in scripts/dogforce-roster/.
+- Roster planner: leave and 0-hour standby no longer count as day cover, worked days or
+  weekly hours (they hid gaps and used up guards' week).
+
+## 2026-09-23 19:47
+- Deployed e4ae394 to production (security-payroll-demo.vercel.app) via `vercel deploy --prod`.
+
 ## 2026-09-23 19:35
 - Roster generate: Sundays now shared fairly (DogForce ops feedback 23 Sep, "some guards 3
   Sundays, others none"). Sundays are filled first, date-major across all sites, ranked by

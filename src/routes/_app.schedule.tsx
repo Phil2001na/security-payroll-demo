@@ -1233,9 +1233,12 @@ function SchedulePage() {
       return aPriority - bPriority || a.date.localeCompare(b.date);
     });
 
+    // Only real work counts: leave (full_day) and 0-hour Standby used to read as "day" here,
+    // so they covered day slots, used up weekly days and hid genuine gaps. Mirrors the DB
+    // trigger's own test: not is_leave and default_hours > 0.
     const effectiveKind = (shiftId: string): "day" | "night" | null => {
       const st = shiftTypeById.get(shiftId);
-      if (!st) return null;
+      if (!st || st.is_leave || !(st.default_hours > 0)) return null;
       if (st.period === "night") return "night";
       if (st.period === "day" || st.period === "full_day" || st.period === "morning") return "day";
       return null;
@@ -1302,8 +1305,10 @@ function SchedulePage() {
       const sid = isEdited ? edits[k] : a.shift_type_id;
       if (sid) {
         const kind = effectiveKind(sid);
-        if (kind) empKindByDate.set(k, kind);
-        markWorkedDay(a.employee_id, a.date);
+        if (kind) {
+          empKindByDate.set(k, kind);
+          markWorkedDay(a.employee_id, a.date);
+        }
         markMonthDay(a.employee_id, a.date, sid);
       }
       // Count hours toward the weekly cap even when this date falls outside the plan's
@@ -1311,7 +1316,7 @@ function SchedulePage() {
       // pre-existing hours counted, or the cap check below sees a false-empty week and
       // over-assigns. Pending edits are excluded here; the edits loop below counts them
       // instead (using the edited shift, not the original one).
-      if (!isEdited) {
+      if (!isEdited && effectiveKind(a.shift_type_id)) {
         const aHours = Number(a.planned_hours);
         const wk = `${a.employee_id}|${weekKeyOf(a.date)}`;
         empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + aHours);
@@ -1327,11 +1332,13 @@ function SchedulePage() {
       const [empId, date] = k.split("|");
       if (!sid) continue;
       const kind = effectiveKind(sid);
-      if (kind) empKindByDate.set(k, kind);
-      markWorkedDay(empId, date);
+      if (kind) {
+        empKindByDate.set(k, kind);
+        markWorkedDay(empId, date);
+      }
       markMonthDay(empId, date, sid);
       const st = shiftTypeById.get(sid);
-      if (st) {
+      if (st && kind) {
         const wk = `${empId}|${weekKeyOf(date)}`;
         empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + st.default_hours);
         if (st.pay_rule === "standard") {
