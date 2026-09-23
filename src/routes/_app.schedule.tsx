@@ -184,7 +184,7 @@ function RefusedShiftsPanel({
       setAcknowledged(false);
       await onAuthorised();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Override failed");
+      toast.error(errorMessage(err, "Override failed"));
     } finally {
       setBusy(false);
     }
@@ -513,8 +513,41 @@ type SiteRequirement = {
   shift_type_id: string | null;
 };
 
+// Supabase/PostgREST errors are plain objects, not Error instances — read .message off
+// either, so a failed save shows the DB's actual reason instead of a bare "failed".
+function errorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string") {
+    return (err as { message: string }).message || fallback;
+  }
+  return fallback;
+}
+
 const WEEKLY_HOUR_CAP = 60;
 const MAX_WORKING_DAYS_PER_WEEK = 6; // guarantees at least 1 full rest day per ISO week
+
+// PostgREST caps every response at 1000 rows. A tenant-wide assignments window passes
+// that easily (185 guards × a few weeks), and a silently truncated list makes the hour
+// guard, rest-day checks and Sunday fairness all read a false-empty roster — so page it.
+const ASSIGNMENT_PAGE = 1000;
+async function fetchAssignmentsInRange(
+  from: string,
+  to: string,
+  opts: { siteId?: string; toExclusive?: boolean } = {},
+): Promise<Assignment[]> {
+  const out: Assignment[] = [];
+  for (let offset = 0; ; offset += ASSIGNMENT_PAGE) {
+    let q = supabase
+      .from("schedule_assignments")
+      .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
+      .gte("date", from);
+    q = opts.toExclusive ? q.lt("date", to) : q.lte("date", to);
+    if (opts.siteId) q = q.eq("site_id", opts.siteId);
+    const { data, error } = await q.order("id").range(offset, offset + ASSIGNMENT_PAGE - 1);
+    if (error) throw error;
+    out.push(...((data ?? []) as Assignment[]));
+    if (!data || data.length < ASSIGNMENT_PAGE) return out;
+  }
+}
 
 // Best→worst literacy grade. Ungraded employees (null) rank as worst (D-equivalent)
 // so they stay assignable — never excluded, just least-preferred on grade fit.
@@ -706,15 +739,21 @@ function SchedulePage() {
   // days, widened further to also cover any custom generate/print range the user picks.
   // Snapped to full ISO weeks (+1 day buffer either side) so the weekly-rest-day count and
   // the rest-between-shifts check always see the days immediately bordering the range.
+  // Also stretched to whole calendar months: the DB refuses any shift that leaves a guard
+  // under 10 off days in a calendar month, so the planner must see the entire month.
   const fetchStart = (() => {
     const base = addDays(weekStart, -7);
     const earliest = genFrom && parseIsoDate(genFrom) < base ? parseIsoDate(genFrom) : base;
-    return fmtIso(addDays(startOfWeek(earliest), -1));
+    const weekEdge = addDays(startOfWeek(earliest), -1);
+    const monthEdge = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
+    return fmtIso(monthEdge < weekEdge ? monthEdge : weekEdge);
   })();
   const fetchEnd = (() => {
     const base = addDays(weekStart, 13);
     const latest = genTo && parseIsoDate(genTo) > base ? parseIsoDate(genTo) : base;
-    return fmtIso(addDays(startOfWeek(latest), 7));
+    const weekEdge = addDays(startOfWeek(latest), 7);
+    const monthEdge = new Date(latest.getFullYear(), latest.getMonth() + 1, 0);
+    return fmtIso(monthEdge > weekEdge ? monthEdge : weekEdge);
   })();
 
   const { data: sites } = useQuery<Site[]>({
@@ -810,31 +849,14 @@ function SchedulePage() {
   const { data: assignments, refetch: refetchAssignments } = useQuery<Assignment[]>({
     queryKey: ["assignments", profile?.tenant_id, rangeStart, rangeEnd, activeSiteId],
     enabled: !!profile?.tenant_id && !!activeSiteId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("schedule_assignments")
-        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
-        .eq("site_id", activeSiteId!)
-        .gte("date", rangeStart)
-        .lte("date", rangeEnd);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => fetchAssignmentsInRange(rangeStart, rangeEnd, { siteId: activeSiteId! }),
   });
 
   // Cross-site assignments for weekly hour totals
   const { data: weekAssignments, isFetching: weekAssignmentsFetching } = useQuery<Assignment[]>({
     queryKey: ["assignments-all", profile?.tenant_id, fetchStart, fetchEnd],
     enabled: !!profile?.tenant_id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("schedule_assignments")
-        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", fetchStart)
-        .lte("date", fetchEnd);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => fetchAssignmentsInRange(fetchStart, fetchEnd),
   });
 
   // Fairness history (#6): how many Sunday day-shift ("premium") opportunities each guard
@@ -847,15 +869,7 @@ function SchedulePage() {
   const { data: premiumHistory } = useQuery<Assignment[]>({
     queryKey: ["premium-history", profile?.tenant_id, premiumHistoryStart, rangeStart],
     enabled: !!profile?.tenant_id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("schedule_assignments")
-        .select("id, employee_id, site_id, date, shift_type_id, planned_hours")
-        .gte("date", premiumHistoryStart)
-        .lt("date", rangeStart);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => fetchAssignmentsInRange(premiumHistoryStart, rangeStart, { toExclusive: true }),
   });
 
   // UAT-10: recurring shortages over the trailing 30 days, across every site — the Ops/HR
@@ -1143,7 +1157,7 @@ function SchedulePage() {
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(errorMessage(err, "Save failed"));
     } finally {
       setSaving(false);
     }
@@ -1209,12 +1223,13 @@ function SchedulePage() {
     const planDateSet = new Set(planDates.map((w) => w.date));
     const weekKeyOf = (date: string) => isoWeekKey(new Date(date));
 
-    // Process ordinary weekdays first, then Sunday, then public holidays so
-    // guards who accumulate hours on weekdays are naturally excluded from premium
-    // slots — rest days fall on the expensive days, cheapest remaining guards cover them.
+    // Sundays first (in date order), then ordinary weekdays, then public holidays.
+    // Sundays used to go after weekdays, but by then most guards had hit the weekly cap
+    // and the same few leftovers got every Sunday of the month (DogForce roster feedback,
+    // 23 Sep). Filling Sundays first — ranked by who has had the fewest — rotates them.
     const orderedDates = [...planDates].sort((a, b) => {
-      const aPriority = publicHolidayDates.has(a.date) ? 2 : a.dow === 0 ? 1 : 0;
-      const bPriority = publicHolidayDates.has(b.date) ? 2 : b.dow === 0 ? 1 : 0;
+      const aPriority = publicHolidayDates.has(a.date) ? 2 : a.dow === 0 ? 0 : 1;
+      const bPriority = publicHolidayDates.has(b.date) ? 2 : b.dow === 0 ? 0 : 1;
       return aPriority - bPriority || a.date.localeCompare(b.date);
     });
 
@@ -1226,14 +1241,18 @@ function SchedulePage() {
       return null;
     };
 
-    // Fairness (#6): how many Sunday day-shift ("premium") slots each guard has already
-    // worked in the trailing window — used only to rank candidates for a fresh premium
+    // Fairness (#6): how many Sunday shifts (day or night) each guard has — the trailing
+    // history plus Sundays already rostered — used only to rank candidates for a Sunday
     // slot, never to exclude anyone (that would be UAT-07's still-undecided hard cap).
-    const premiumOpportunityCount = new Map<string, number>();
-    for (const a of premiumHistory ?? []) {
+    // Bumped as the plan hands Sundays out, so a month-long generate rotates them.
+    const sundayCount = new Map<string, number>();
+    const countedSundayIds = new Set<string>();
+    for (const a of [...(premiumHistory ?? []), ...weekAssignments]) {
+      if (countedSundayIds.has(a.id)) continue;
       if (new Date(a.date + "T00:00:00Z").getUTCDay() !== 0) continue;
-      if (effectiveKind(a.shift_type_id) !== "day") continue;
-      premiumOpportunityCount.set(a.employee_id, (premiumOpportunityCount.get(a.employee_id) ?? 0) + 1);
+      if (!effectiveKind(a.shift_type_id)) continue;
+      countedSundayIds.add(a.id);
+      sundayCount.set(a.employee_id, (sundayCount.get(a.employee_id) ?? 0) + 1);
     }
 
     const empDates = new Map<string, Set<string>>();
@@ -1248,6 +1267,27 @@ function SchedulePage() {
     // (or a Night right before a Day starts), which would leave zero rest between them.
     const empKindByDate = new Map<string, "day" | "night">();
     for (const emp of employees) empDates.set(emp.id, new Set());
+
+    // Worked dates per (employee, calendar month). Mirrors the DB trigger
+    // enforce_minimum_monthly_rest_days: any shift whose pay_rule isn't off/leave counts,
+    // and a guard must keep MIN_OFF_DAYS_PER_PERIOD days off in every calendar month.
+    // Without this the planner offered shifts the DB then refused, and the refusal
+    // aborted the whole generate.
+    const empMonthDays = new Map<string, Set<string>>();
+    const monthKey = (empId: string, date: string) => `${empId}|${date.slice(0, 7)}`;
+    const maxWorkDaysInMonth = (date: string) => {
+      const [y, m] = date.split("-").map(Number);
+      return new Date(y, m, 0).getDate() - MIN_OFF_DAYS_PER_PERIOD;
+    };
+    function markMonthDay(empId: string, date: string, shiftTypeId: string) {
+      const rule = shiftTypeById.get(shiftTypeId)?.pay_rule;
+      if (rule === "off" || rule === "leave") return;
+      const k = monthKey(empId, date);
+      if (!empMonthDays.has(k)) empMonthDays.set(k, new Set());
+      empMonthDays.get(k)!.add(date);
+    }
+    const monthFull = (empId: string, date: string) =>
+      (empMonthDays.get(monthKey(empId, date))?.size ?? 0) >= maxWorkDaysInMonth(date);
 
     function markWorkedDay(empId: string, date: string) {
       const wk = `${empId}|${weekKeyOf(date)}`;
@@ -1264,6 +1304,7 @@ function SchedulePage() {
         const kind = effectiveKind(sid);
         if (kind) empKindByDate.set(k, kind);
         markWorkedDay(a.employee_id, a.date);
+        markMonthDay(a.employee_id, a.date, sid);
       }
       // Count hours toward the weekly cap even when this date falls outside the plan's
       // range — a boundary week that started before the generated range still needs its
@@ -1288,6 +1329,7 @@ function SchedulePage() {
       const kind = effectiveKind(sid);
       if (kind) empKindByDate.set(k, kind);
       markWorkedDay(empId, date);
+      markMonthDay(empId, date, sid);
       const st = shiftTypeById.get(sid);
       if (st) {
         const wk = `${empId}|${weekKeyOf(date)}`;
@@ -1328,8 +1370,11 @@ function SchedulePage() {
       );
     }
 
-    for (const site of sites) {
-      for (const wd of orderedDates) {
+    // Date-major, not site-major: every site's Sundays are filled before anyone's weekdays.
+    // Site-major let site 1's weekdays use up guards' weekly caps before site 2's Sundays
+    // were looked at, which undid the Sunday rotation.
+    for (const wd of orderedDates) {
+      for (const site of sites) {
         for (const kind of ["day", "night"] as const) {
           const req = requirements.find(
             (r) => r.site_id === site.id && r.day_of_week === wd.dow && r.shift_kind === kind,
@@ -1374,6 +1419,7 @@ function SchedulePage() {
               // Weekly rest: keep at least 1 day off in every ISO week.
               const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
               if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return false;
+              if (monthFull(emp.id, wd.date)) return false;
               // Rest between shifts: a Night ending the morning of the next date leaves
               // zero rest if that guard is then put on Day the same morning — block both
               // directions of that crossover (only "both"-preference guards can hit this).
@@ -1398,6 +1444,8 @@ function SchedulePage() {
             if (hrs + shiftHours > WEEKLY_HOUR_CAP) return "Would exceed the 60-hour weekly cap";
             const workedDays = empWeekDays.get(`${emp.id}|${wkKey}`)?.size ?? 0;
             if (workedDays >= MAX_WORKING_DAYS_PER_WEEK) return "Already worked the weekly rest limit";
+            if (monthFull(emp.id, wd.date))
+              return `Needs ${MIN_OFF_DAYS_PER_PERIOD} days off this month`;
             if (
               kind === "day" &&
               empKindByDate.get(`${emp.id}|${isoDateAdd(wd.date, -1)}`) === "night"
@@ -1418,14 +1466,13 @@ function SchedulePage() {
               const aFit = gradeFitScore(a.literacy_grade, site.required_guard_grade);
               const bFit = gradeFitScore(b.literacy_grade, site.required_guard_grade);
               if (aFit !== bFit) return aFit - bFit;
-              // 2. Fairness (#6): for a Sunday day ("premium") slot only, prefer whoever has
-              //    had fewer of these recently over the familiar/previously-used guard. Not a
-              //    hard cap or exclusion — that's UAT-07, still pending a client decision on
-              //    the exact policy window.
-              if (isSunday && kind === "day") {
-                const aPrem = premiumOpportunityCount.get(a.id) ?? 0;
-                const bPrem = premiumOpportunityCount.get(b.id) ?? 0;
-                if (aPrem !== bPrem) return aPrem - bPrem;
+              // 2. Fairness (#6): for any Sunday slot, prefer whoever has had fewer Sundays
+              //    over the familiar/previously-used guard. Not a hard cap or exclusion —
+              //    that's UAT-07, still pending a client decision on the exact policy window.
+              if (isSunday) {
+                const aSun = sundayCount.get(a.id) ?? 0;
+                const bSun = sundayCount.get(b.id) ?? 0;
+                if (aSun !== bSun) return aSun - bSun;
               }
               // 3. Home site preference (logistics/familiarity)
               const aHome = a.home_site_id === site.id ? 0 : 1;
@@ -1435,6 +1482,14 @@ function SchedulePage() {
               const aSpec = a.preferred_shift === kind ? 1 : 0;
               const bSpec = b.preferred_shift === kind ? 1 : 0;
               if (aSpec !== bSpec) return bSpec - aSpec;
+              // 4b. Most working days left this month first. DogForce-sized demand sits close
+              //     to what the 10-off-days rule allows, so spending the guards who are nearly
+              //     out of days first strands the rest of the month short.
+              const aLeft =
+                maxWorkDaysInMonth(wd.date) - (empMonthDays.get(monthKey(a.id, wd.date))?.size ?? 0);
+              const bLeft =
+                maxWorkDaysInMonth(wd.date) - (empMonthDays.get(monthKey(b.id, wd.date))?.size ?? 0);
+              if (aLeft !== bLeft) return bLeft - aLeft;
               // 5. Cheapest guard for this specific shift (cost optimisation)
               const aCost = estimateShiftCost(
                 a.hourly_rate,
@@ -1498,6 +1553,8 @@ function SchedulePage() {
               }
               empDates.get(emp.id)?.add(wd.date);
               markWorkedDay(emp.id, wd.date);
+              markMonthDay(emp.id, wd.date, stForKind.id);
+              if (isSunday) sundayCount.set(emp.id, (sundayCount.get(emp.id) ?? 0) + 1);
               empKindByDate.set(`${emp.id}|${wd.date}`, kind);
               const wk = `${emp.id}|${wkKey}`;
               empWeekHours.set(wk, (empWeekHours.get(wk) ?? 0) + shiftHours);
@@ -1596,7 +1653,7 @@ function SchedulePage() {
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Auto-fill failed");
+      toast.error(errorMessage(err, "Auto-fill failed"));
     } finally {
       setAutoFilling(false);
     }
@@ -1699,7 +1756,7 @@ function SchedulePage() {
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generate failed");
+      toast.error(errorMessage(err, "Generate failed"));
     } finally {
       setGenerating(false);
     }
@@ -1958,7 +2015,7 @@ function SchedulePage() {
         qc.invalidateQueries({ queryKey: ["assignments-all"] }),
       ]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Custom request failed");
+      toast.error(errorMessage(err, "Custom request failed"));
     } finally {
       setCustomRequestRunning(false);
     }
@@ -2034,7 +2091,7 @@ function SchedulePage() {
         `Printed ${employeesWithShifts.length} guard schedule${employeesWithShifts.length === 1 ? "" : "s"}`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Print failed");
+      toast.error(errorMessage(err, "Print failed"));
     } finally {
       setPrinting(false);
     }

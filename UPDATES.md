@@ -1,3 +1,16 @@
+## 2026-09-23 19:35
+- Roster generate: Sundays now shared fairly (DogForce ops feedback 23 Sep, "some guards 3
+  Sundays, others none"). Sundays are filled first, date-major across all sites, ranked by
+  each guard's Sunday count, which now updates as the plan hands Sundays out and covers night
+  shifts too. Sandbox test 21 Aug–20 Sep: every guard ends on 5–6 Sundays over two months.
+- Generate on a full month used to fail outright with a bare "Generate failed": the planner
+  ignored the DB's 10-off-days-per-month trigger, and that refusal wasn't recognised, so it
+  aborted the batch. Planner now tracks worked days per calendar month (and prefers guards
+  with most days left); "Minimum rest breached", monthly-cap and approved-leave errors now
+  count as per-shift refusals; error toasts show the real DB message. Sandbox run: 3720/3720.
+- Fixed the 1000-row cap on all three schedule_assignments reads (paged); the data window
+  now spans whole calendar months.
+
 ## 2026-09-17 20:15
 - Browser-tested the whole UAT run for the first time, signing in through the "View live
   demo" button on the auth page (demo@payroll.dev, tenant Apex Shield Security, role admin).

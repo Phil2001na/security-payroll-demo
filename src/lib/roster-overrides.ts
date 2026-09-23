@@ -80,7 +80,10 @@ export function parseRosterRefusal(error: unknown): RosterRefusal | null {
     rules.length > 0 ||
     message.includes("Assignment refused") ||
     message.includes("already has a working shift") ||
-    message.includes("must use a Day or Night shift type");
+    message.includes("must use a Day or Night shift type") ||
+    message.includes("Minimum rest breached") ||
+    message.includes("Monthly hour cap exceeded") ||
+    message.includes("is on approved leave");
   if (!looksLikeRefusal) return null;
 
   return { rules, message, overridable: rules.length > 0 };
